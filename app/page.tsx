@@ -18,6 +18,7 @@ export default function Home() {
   const [exporting, setExporting] = useState<"misa" | "word" | null>(null);
   const [exportingAll, setExportingAll] = useState<"category" | "brand" | "word" | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [dismissing, setDismissing] = useState(false);
   const [importing, setImporting] = useState(false);
   const [formTarget, setFormTarget] = useState<"new" | Product | null>(null);
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
@@ -147,6 +148,26 @@ export default function Home() {
       alert("Xuất file thất bại: " + e.message);
     } finally {
       setExporting(null);
+    }
+  }
+
+  async function dismissPending() {
+    if (selected.size === 0) {
+      alert("Chọn ít nhất 1 sản phẩm để bỏ chờ xuất file.");
+      return;
+    }
+    if (!confirm(`Bỏ chờ xuất file cho ${selected.size} sản phẩm? Sẽ không tải file nào, chỉ tắt trạng thái "chờ xuất".`)) return;
+    setDismissing(true);
+    try {
+      const now = new Date().toISOString();
+      const { error } = await supabase.from("products").update({ last_exported_at: now }).in("id", Array.from(selected));
+      if (error) throw error;
+      await loadProducts();
+      setSelected(new Set());
+    } catch (e: any) {
+      alert("Thao tác thất bại: " + e.message);
+    } finally {
+      setDismissing(false);
     }
   }
 
@@ -356,6 +377,11 @@ export default function Home() {
             <button className="btn" disabled={exporting !== null} onClick={() => doExport("word")}>
               {exporting === "word" ? "Đang xuất..." : "Xuất bảng giá (.docx)"}
             </button>
+            {tab === "pending" && (
+              <button className="btn btn-quiet" disabled={dismissing} onClick={dismissPending}>
+                {dismissing ? "Đang xử lý..." : "Bỏ chờ xuất file"}
+              </button>
+            )}
           </div>
         )}
       </div>
