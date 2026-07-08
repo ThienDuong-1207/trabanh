@@ -78,6 +78,22 @@ export async function importProductsFromWorkbook(buffer: Buffer): Promise<Import
     });
   }
 
+  // Fail fast with a clear message: an upsert can't apply two rows with the
+  // same conflict key (ma_noi_bo) in one statement, and Postgres's resulting
+  // error doesn't say which one — so check before hitting the database.
+  const sheetsByCode = new Map<string, string[]>();
+  for (const r of rows) {
+    const code = r.ma_noi_bo as string;
+    const sheets = sheetsByCode.get(code) ?? [];
+    sheets.push(r.category_sheet as string);
+    sheetsByCode.set(code, sheets);
+  }
+  const duplicates = [...sheetsByCode.entries()].filter(([, sheets]) => sheets.length > 1);
+  if (duplicates.length > 0) {
+    const detail = duplicates.map(([code, sheets]) => `"${code}" (${sheets.length} lần, sheet: ${sheets.join(", ")})`).join("; ");
+    throw new Error(`File có Mã nội bộ bị trùng, cần sửa trong Excel trước khi nhập: ${detail}`);
+  }
+
   const supabase = supabaseAdmin();
 
   const brandNames = [...new Set(rows.map((r) => r.thuong_hieu).filter((v): v is string => typeof v === "string" && v.length > 0))];
