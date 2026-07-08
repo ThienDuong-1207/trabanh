@@ -360,7 +360,7 @@ export default function Home() {
             Chọn tất cả đang hiện
           </button>
           {selected.size > 0 && (
-            <button className="btn btn-quiet" onClick={() => setSelected(new Set())}>
+            <button className="btn btn-neutral" onClick={() => setSelected(new Set())}>
               Bỏ chọn
             </button>
           )}
@@ -378,7 +378,7 @@ export default function Home() {
               {exporting === "word" ? "Đang xuất..." : "Xuất bảng giá (.docx)"}
             </button>
             {tab === "pending" && (
-              <button className="btn btn-quiet" disabled={dismissing} onClick={dismissPending}>
+              <button className="btn btn-success" disabled={dismissing} onClick={dismissPending}>
                 {dismissing ? "Đang xử lý..." : "Bỏ chờ xuất file"}
               </button>
             )}

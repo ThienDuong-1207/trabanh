@@ -14,6 +14,7 @@
   --warm-ink: #8f5423;
   --warm-wash: #fbeee2;
   --success: #3f8f5f;
+  --success-ink: #2c6b45;
   --success-wash: #e6f2ea;
   --danger: #b23a3a;
   --danger-wash: #fbeaea;
@@ -40,6 +41,7 @@
   --warm-ink: #f0b989;
   --warm-wash: #33261a;
   --success: #6bbf8b;
+  --success-ink: #4f9c6e;
   --success-wash: #1c2e22;
   --danger: #e38080;
   --danger-wash: #33201f;
@@ -64,6 +66,7 @@
     --warm-ink: #f0b989;
     --warm-wash: #33261a;
     --success: #6bbf8b;
+    --success-ink: #4f9c6e;
     --success-wash: #1c2e22;
     --danger: #e38080;
     --danger-wash: #33201f;
@@ -160,6 +163,10 @@ button, input, select { font: inherit; color: inherit; }
 .btn-primary.solid-primary:hover:not(:disabled) { background: var(--primary-ink); border-color: var(--primary-ink); }
 .btn-quiet { border-color: transparent; background: transparent; color: var(--muted); }
 .btn-quiet:hover { background: var(--surface-sunken); color: var(--ink); }
+.btn-neutral { background: var(--surface); border-color: var(--border-strong); color: var(--ink); }
+.btn-neutral:hover:not(:disabled) { background: var(--surface-sunken); }
+.btn-success { background: var(--success); border-color: var(--success); color: #fff; font-weight: 600; }
+.btn-success:hover:not(:disabled) { background: var(--success-ink); border-color: var(--success-ink); }
 
 .menu-wrap { position: relative; }
 .menu {
