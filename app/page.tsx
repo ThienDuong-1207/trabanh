@@ -12,7 +12,7 @@ export default function Home() {
   const [category, setCategory] = useState<string>("Tất cả");
   const [brandFilter, setBrandFilter] = useState<string>("Tất cả");
   const [missingOnly, setMissingOnly] = useState(false);
-  const [tab, setTab] = useState<"all" | "pending">("pending");
+  const [tab, setTab] = useState<"all" | "pending">("all");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [exporting, setExporting] = useState<"misa" | "word" | null>(null);
   const [exportingAll, setExportingAll] = useState<"category" | "brand" | "word" | null>(null);
