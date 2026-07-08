@@ -91,9 +91,12 @@ function fitTitle(name: string) {
 }
 
 function priceFontSizeHalf(price: string) {
-  const boxWidthPt = (BLOCK_W / DXA_PER_CM) * 28.3465;
+  // Same per-char width factor as fitTitle() — bold digits are wider than the
+  // 0.5 previously used here, which let long prices (e.g. "63.000") overflow
+  // past the block's left/right edge in some renderers.
+  const boxWidthPt = ((BLOCK_W / DXA_PER_CM) - 0.24) * 28.3465;
   const numChars = price.length;
-  const sizeFromWidth = boxWidthPt / (numChars * 0.5 * SAFETY);
+  const sizeFromWidth = boxWidthPt / (numChars * CHAR_WIDTH_FACTOR * SAFETY);
   const sizeFromHeight = PRICE_ZONE_PT / (1.15 * SAFETY);
   const sizePt = Math.min(sizeFromWidth, sizeFromHeight);
   return Math.round(sizePt * 2);
@@ -147,6 +150,7 @@ function buildCell(item: Product | null) {
     new Paragraph({
       alignment: AlignmentType.CENTER,
       spacing: { before: 0, after: 0 },
+      indent: { left: SIDE_MARGIN_DXA, right: SIDE_MARGIN_DXA },
       children: [new TextRun({ text: priceStr, bold: true, font: FONT, size: priceSize })],
     }),
   ];
