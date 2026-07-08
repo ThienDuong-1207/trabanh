@@ -44,11 +44,19 @@ create index if not exists idx_products_brand
 create index if not exists idx_products_search
   on products using gin (to_tsvector('simple', coalesce(ten_hang_hoa,'') || ' ' || coalesce(ten_hoa_don,'')));
 
--- Auto-update updated_at whenever a row is modified
+-- Auto-update updated_at whenever a row is modified — except when the only
+-- change is last_exported_at (marking a product exported/synced isn't a data
+-- edit; if updated_at also moved forward here, it would race ahead of the
+-- last_exported_at value we just set and the product would look "pending"
+-- again immediately).
 create or replace function set_updated_at()
 returns trigger as $$
 begin
-  new.updated_at = now();
+  if new.last_exported_at is distinct from old.last_exported_at then
+    new.updated_at = old.updated_at;
+  else
+    new.updated_at = now();
+  end if;
   return new;
 end;
 $$ language plpgsql;
