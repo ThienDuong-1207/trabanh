@@ -425,7 +425,9 @@ export default function Home() {
                     </td>
                     <td className="name-cell">
                       {p.ten_hoa_don || p.ten_hang_hoa}
-                      <span className="sub code-cell">{p.ma_noi_bo}</span>
+                      <span className="sub code-cell" title={`Mã nội bộ: ${p.ma_noi_bo}`}>
+                        {productCodesLine(p)}
+                      </span>
                     </td>
                     <td>{p.category_sheet}</td>
                     <td>{p.dvt}</td>
@@ -783,6 +785,16 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       {children}
     </label>
   );
+}
+
+// Sub-line under the product name in the table: mã vạch + mã thùng (the
+// scannable codes staff actually use day-to-day) instead of mã nội bộ, which
+// is still shown as a tooltip on hover.
+function productCodesLine(p: Product): string {
+  const parts: string[] = [];
+  if (p.ma_vach) parts.push(`MV ${p.ma_vach}`);
+  if (p.ma_thung) parts.push(`MT ${p.ma_thung}`);
+  return parts.length > 0 ? parts.join(" · ") : "Chưa có mã vạch";
 }
 
 // A product "thiếu thông tin" if it has no thương hiệu, no mã vạch, or an
