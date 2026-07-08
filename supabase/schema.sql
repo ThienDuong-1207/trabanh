@@ -44,6 +44,14 @@ create index if not exists idx_products_brand
 create index if not exists idx_products_search
   on products using gin (to_tsvector('simple', coalesce(ten_hang_hoa,'') || ' ' || coalesce(ten_hoa_don,'')));
 
+-- Mã vạch / mã thùng must each be unique when present (many products don't
+-- have one yet, so NULLs are excluded rather than enforced not-null).
+create unique index if not exists idx_products_ma_vach_unique
+  on products (ma_vach) where ma_vach is not null;
+
+create unique index if not exists idx_products_ma_thung_unique
+  on products (ma_thung) where ma_thung is not null;
+
 -- Auto-update updated_at whenever a row is modified — except when the only
 -- change is last_exported_at (marking a product exported/synced isn't a data
 -- edit; if updated_at also moved forward here, it would race ahead of the

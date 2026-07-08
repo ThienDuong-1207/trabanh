@@ -644,7 +644,7 @@ function ProductForm({
           <h3>Thông tin cơ bản</h3>
           <div className="field-grid">
             <Field label="Mã nội bộ *">
-              <input value={form.ma_noi_bo} onChange={(e) => set("ma_noi_bo", e.target.value)} disabled={!!initial} />
+              <input value={form.ma_noi_bo} onChange={(e) => set("ma_noi_bo", e.target.value)} />
             </Field>
             <Field label="Nhóm hàng *">
               <select value={form.category_sheet} onChange={(e) => set("category_sheet", e.target.value)}>

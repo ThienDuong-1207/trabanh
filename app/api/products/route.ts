@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseServer";
 import { resolveBrandId } from "@/lib/brands";
+import { friendlyDbError } from "@/lib/dbErrors";
 import { ProductInput } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -16,7 +17,7 @@ export async function POST(req: NextRequest) {
     const brand_id = await resolveBrandId(supabase, brand);
 
     const { data, error } = await supabase.from("products").insert({ ...fields, brand_id }).select("*, brand:brands(name)").single();
-    if (error) throw error;
+    if (error) throw new Error(friendlyDbError(error) ?? error.message);
 
     return NextResponse.json(data);
   } catch (e: any) {

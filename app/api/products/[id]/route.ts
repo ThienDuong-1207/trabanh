@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseServer";
 import { resolveBrandId } from "@/lib/brands";
+import { friendlyDbError } from "@/lib/dbErrors";
 import { ProductInput } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -18,7 +19,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       .eq("id", params.id)
       .select("*, brand:brands(name)")
       .single();
-    if (error) throw error;
+    if (error) throw new Error(friendlyDbError(error) ?? error.message);
 
     return NextResponse.json(data);
   } catch (e: any) {
