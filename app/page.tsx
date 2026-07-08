@@ -19,7 +19,9 @@ export default function Home() {
   const [savingId, setSavingId] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
   const [formTarget, setFormTarget] = useState<"new" | Product | null>(null);
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const moreMenuRef = useRef<HTMLDivElement>(null);
 
   async function loadProducts() {
     setLoading(true);
@@ -44,6 +46,14 @@ export default function Home() {
   useEffect(() => {
     loadProducts();
     loadBrandNames();
+  }, []);
+
+  useEffect(() => {
+    function onClickOutside(e: MouseEvent) {
+      if (moreMenuRef.current && !moreMenuRef.current.contains(e.target as Node)) setMoreMenuOpen(false);
+    }
+    document.addEventListener("click", onClickOutside);
+    return () => document.removeEventListener("click", onClickOutside);
   }, []);
 
   const pendingIds = useMemo(
@@ -101,7 +111,7 @@ export default function Home() {
     });
   }
 
-  function selectAllPending() {
+  function selectAllVisible() {
     setSelected(new Set(visible.map((p) => p.id)));
   }
 
@@ -146,6 +156,7 @@ export default function Home() {
   };
 
   async function doExportAll(kind: "category" | "brand" | "word") {
+    setMoreMenuOpen(false);
     setExportingAll(kind);
     try {
       const { url, filename } = EXPORT_ALL_ROUTES[kind];
@@ -164,6 +175,7 @@ export default function Home() {
   }
 
   async function handleImportFile(file: File) {
+    setMoreMenuOpen(false);
     setImporting(true);
     try {
       const form = new FormData();
@@ -218,6 +230,11 @@ export default function Home() {
       const res = await fetch(`/api/products/${p.id}`, { method: "DELETE" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Xóa thất bại");
+      setSelected((prev) => {
+        const next = new Set(prev);
+        next.delete(p.id);
+        return next;
+      });
       await loadProducts();
     } catch (e: any) {
       alert("Xóa sản phẩm thất bại: " + e.message);
@@ -225,63 +242,76 @@ export default function Home() {
   }
 
   return (
-    <main style={{ maxWidth: 1200, margin: "0 auto", padding: 20 }}>
-      <h1 style={{ fontSize: 22 }}>Quản lý giá sản phẩm — Tiệm Trà Bánh</h1>
+    <main className="app">
+      <header className="app-header">
+        <h1>Quản lý giá sản phẩm — Tiệm Trà Bánh</h1>
+        <div className="stat-chips">
+          <div className="chip">
+            Tổng <b>{products.length}</b>
+          </div>
+          <div className="chip warm">
+            Chờ xuất <b>{pendingIds.size}</b>
+          </div>
+        </div>
+      </header>
 
-      <div style={{ display: "flex", gap: 12, alignItems: "center", margin: "16px 0", flexWrap: "wrap" }}>
-        <input
-          placeholder="Tìm theo tên / mã / mã vạch..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          style={{ padding: 8, minWidth: 260, borderRadius: 6, border: "1px solid #ccc" }}
-        />
-        <select value={category} onChange={(e) => setCategory(e.target.value)} style={{ padding: 8, borderRadius: 6 }}>
+      <div className="toolbar">
+        <div className="search-field">
+          <SearchIcon />
+          <input placeholder="Tìm theo tên / mã / mã vạch..." value={search} onChange={(e) => setSearch(e.target.value)} />
+        </div>
+        <select value={category} onChange={(e) => setCategory(e.target.value)}>
           <option>Tất cả</option>
           {CATEGORY_ORDER.map((c) => (
             <option key={c}>{c}</option>
           ))}
         </select>
-        <select value={brandFilter} onChange={(e) => setBrandFilter(e.target.value)} style={{ padding: 8, borderRadius: 6 }}>
+        <select value={brandFilter} onChange={(e) => setBrandFilter(e.target.value)}>
           <option>Tất cả</option>
           {brandNames.map((b) => (
             <option key={b}>{b}</option>
           ))}
         </select>
-        <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: "#333" }}>
+        <label className={`toggle-pill${missingOnly ? " active" : ""}`}>
           <input type="checkbox" checked={missingOnly} onChange={(e) => setMissingOnly(e.target.checked)} />
-          Chỉ hiện SP thiếu thông tin
+          <WarningIcon />
+          Thiếu thông tin
         </label>
-        <div style={{ display: "flex", gap: 4, background: "#e9ebef", borderRadius: 8, padding: 4 }}>
-          <button
-            onClick={() => setTab("pending")}
-            style={{
-              padding: "6px 14px", borderRadius: 6, border: "none", cursor: "pointer",
-              background: tab === "pending" ? "#fff" : "transparent",
-              fontWeight: tab === "pending" ? 700 : 400,
-            }}
-          >
-            Chờ xuất file ({pendingIds.size})
-          </button>
-          <button
-            onClick={() => setTab("all")}
-            style={{
-              padding: "6px 14px", borderRadius: 6, border: "none", cursor: "pointer",
-              background: tab === "all" ? "#fff" : "transparent",
-              fontWeight: tab === "all" ? 700 : 400,
-            }}
-          >
-            Tất cả ({products.length})
-          </button>
-        </div>
-      </div>
 
-      <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 12, flexWrap: "wrap" }}>
-        <button onClick={() => setFormTarget("new")} style={btnStyle("#1F4E78", "#fff")}>
-          + Thêm sản phẩm
+        <div className="toolbar-spacer" />
+
+        <button className="btn btn-primary" onClick={() => setFormTarget("new")}>
+          <PlusIcon />
+          Thêm sản phẩm
         </button>
-        <button disabled={importing} onClick={() => fileInputRef.current?.click()} style={btnStyle("#fff", "#333")}>
-          {importing ? "Đang nhập..." : "Nhập từ Excel"}
-        </button>
+
+        <div className="menu-wrap" ref={moreMenuRef}>
+          <button className="btn" onClick={() => setMoreMenuOpen((v) => !v)} disabled={importing || exportingAll !== null}>
+            {importing || exportingAll !== null ? "Đang xử lý..." : "Nhập & xuất"}
+            <ChevronDownIcon />
+          </button>
+          {moreMenuOpen && (
+            <div className="menu">
+              <button onClick={() => fileInputRef.current?.click()}>
+                <ImportIcon />
+                Nhập từ Excel
+              </button>
+              <div className="menu-divider" />
+              <button onClick={() => doExportAll("category")}>
+                <SheetIcon />
+                Xuất theo loại sản phẩm
+              </button>
+              <button onClick={() => doExportAll("brand")}>
+                <SheetIcon />
+                Xuất theo thương hiệu
+              </button>
+              <button onClick={() => doExportAll("word")}>
+                <DocIcon />
+                Xuất toàn bộ bảng giá (.docx)
+              </button>
+            </div>
+          )}
+        </div>
         <input
           ref={fileInputRef}
           type="file"
@@ -292,94 +322,116 @@ export default function Home() {
             if (file) handleImportFile(file);
           }}
         />
-        <div style={{ flex: 1 }} />
-        <button disabled={exportingAll !== null} onClick={() => doExportAll("category")} style={btnStyle("#fff", "#333")}>
-          {exportingAll === "category" ? "Đang xuất..." : "Xuất theo loại"}
-        </button>
-        <button disabled={exportingAll !== null} onClick={() => doExportAll("brand")} style={btnStyle("#fff", "#333")}>
-          {exportingAll === "brand" ? "Đang xuất..." : "Xuất theo thương hiệu"}
-        </button>
-        <button disabled={exportingAll !== null} onClick={() => doExportAll("word")} style={btnStyle("#fff", "#333")}>
-          {exportingAll === "word" ? "Đang xuất..." : "Xuất toàn bộ bảng giá"}
-        </button>
       </div>
 
-      {tab === "pending" && (
-        <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 12 }}>
-          <button onClick={selectAllPending} style={btnStyle("#fff", "#333")}>
-            Chọn tất cả đang hiện ({visible.length})
+      <div className="view-row">
+        <div className="view-row-left">
+          <div className="segmented">
+            <button className={tab === "all" ? "active" : ""} onClick={() => setTab("all")}>
+              Tất cả ({products.length})
+            </button>
+            <button className={tab === "pending" ? "active" : ""} onClick={() => setTab("pending")}>
+              Chờ xuất file ({pendingIds.size})
+            </button>
+          </div>
+          <button className="btn btn-quiet" onClick={selectAllVisible}>
+            Chọn tất cả đang hiện
           </button>
-          <button onClick={() => setSelected(new Set())} style={btnStyle("#fff", "#333")}>
-            Bỏ chọn
-          </button>
-          <span style={{ color: "#666" }}>Đã chọn: {selected.size}</span>
-          <div style={{ flex: 1 }} />
-          <button disabled={exporting !== null} onClick={() => doExport("misa")} style={btnStyle("#1F4E78", "#fff")}>
-            {exporting === "misa" ? "Đang xuất..." : "Xuất MISA (.xlsx)"}
-          </button>
-          <button disabled={exporting !== null} onClick={() => doExport("word")} style={btnStyle("#8a1f1f", "#fff")}>
-            {exporting === "word" ? "Đang xuất..." : "Xuất bảng giá 7.7x4cm (.docx)"}
-          </button>
+          {selected.size > 0 && (
+            <button className="btn btn-quiet" onClick={() => setSelected(new Set())}>
+              Bỏ chọn
+            </button>
+          )}
         </div>
-      )}
 
-      <div style={{ background: "#fff", borderRadius: 10, overflow: "hidden", border: "1px solid #ddd" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
-          <thead>
-            <tr style={{ background: "#1F4E78", color: "#fff", textAlign: "left" }}>
-              {tab === "pending" && <th style={th}></th>}
-              <th style={th}>Mã hàng hóa</th>
-              <th style={th}>Tên trên hóa đơn</th>
-              <th style={th}>Nhóm</th>
-              <th style={th}>ĐVT</th>
-              <th style={th}>Giá bán lẻ</th>
-              <th style={th}>Giá thùng</th>
-              <th style={th}>Cập nhật lúc</th>
-              <th style={th}>Đã xuất lúc</th>
-              <th style={th}></th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading && (
-              <tr><td colSpan={10} style={{ padding: 20, textAlign: "center" }}>Đang tải...</td></tr>
-            )}
-            {!loading && visible.length === 0 && (
-              <tr><td colSpan={10} style={{ padding: 20, textAlign: "center", color: "#888" }}>Không có sản phẩm nào.</td></tr>
-            )}
-            {visible.map((p) => (
-              <tr key={p.id} style={{ borderTop: "1px solid #eee", background: pendingIds.has(p.id) ? "#fff8e6" : "#fff" }}>
-                {tab === "pending" && (
-                  <td style={td}>
-                    <input type="checkbox" checked={selected.has(p.id)} onChange={() => toggleSelect(p.id)} />
-                  </td>
-                )}
-                <td style={{ ...td, fontFamily: "monospace" }}>{p.ma_noi_bo}</td>
-                <td style={td}>{p.ten_hoa_don || p.ten_hang_hoa}</td>
-                <td style={td}>{p.category_sheet}</td>
-                <td style={td}>{p.dvt}</td>
-                <td style={td}>
-                  <PriceInput value={p.gia_ban} onSave={(v) => savePrice(p, "gia_ban", v)} saving={savingId === p.id} />
-                </td>
-                <td style={td}>
-                  <PriceInput value={p.gia_thung} onSave={(v) => savePrice(p, "gia_thung", v)} saving={savingId === p.id} />
-                </td>
-                <td style={{ ...td, fontSize: 12, color: "#666" }}>{formatDate(p.updated_at)}</td>
-                <td style={{ ...td, fontSize: 12, color: "#666" }}>
-                  {p.last_exported_at ? formatDate(p.last_exported_at) : "Chưa xuất"}
-                </td>
-                <td style={{ ...td, whiteSpace: "nowrap" }}>
-                  <button onClick={() => setFormTarget(p)} style={smallBtnStyle}>Sửa</button>
-                  <button onClick={() => handleDeleteProduct(p)} style={{ ...smallBtnStyle, marginLeft: 6, color: "#8a1f1f" }}>Xóa</button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        {selected.size > 0 && (
+          <div className="selection-bar">
+            <span>
+              Đã chọn <b>{selected.size}</b> sản phẩm
+            </span>
+            <button className="btn btn-primary solid-primary" disabled={exporting !== null} onClick={() => doExport("misa")}>
+              {exporting === "misa" ? "Đang xuất..." : "Xuất MISA (.xlsx)"}
+            </button>
+            <button className="btn" disabled={exporting !== null} onClick={() => doExport("word")}>
+              {exporting === "word" ? "Đang xuất..." : "Xuất bảng giá (.docx)"}
+            </button>
+          </div>
+        )}
       </div>
 
-      <p style={{ color: "#888", fontSize: 12, marginTop: 16 }}>
-        Sửa giá xong tự lưu ngay (không cần bấm nút riêng). Sản phẩm nào vừa đổi giá sẽ tự hiện ở tab
-        &quot;Chờ xuất file&quot; — chọn xong bấm xuất MISA hoặc Word, chỉ đúng các sản phẩm đã chọn.
+      <div className="table-card">
+        <div className="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th style={{ width: 36 }}></th>
+                <th>Mã · Tên sản phẩm</th>
+                <th>Nhóm</th>
+                <th>ĐVT</th>
+                <th className="num">Giá bán lẻ</th>
+                <th className="num">Giá thùng</th>
+                <th>Trạng thái</th>
+                <th style={{ width: 76 }}></th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading && (
+                <tr>
+                  <td colSpan={8} className="loading-state">
+                    Đang tải...
+                  </td>
+                </tr>
+              )}
+              {!loading && visible.length === 0 && (
+                <tr>
+                  <td colSpan={8} className="empty-state">
+                    Không có sản phẩm nào.
+                  </td>
+                </tr>
+              )}
+              {visible.map((p) => {
+                const isPending = pendingIds.has(p.id);
+                return (
+                  <tr key={p.id} className={isPending ? "is-pending" : ""}>
+                    <td>
+                      <input type="checkbox" checked={selected.has(p.id)} onChange={() => toggleSelect(p.id)} />
+                    </td>
+                    <td className="name-cell">
+                      {p.ten_hoa_don || p.ten_hang_hoa}
+                      <span className="sub code-cell">{p.ma_noi_bo}</span>
+                    </td>
+                    <td>{p.category_sheet}</td>
+                    <td>{p.dvt}</td>
+                    <td className="num">
+                      <PriceInput value={p.gia_ban} onSave={(v) => savePrice(p, "gia_ban", v)} saving={savingId === p.id} />
+                    </td>
+                    <td className="num">
+                      <PriceInput value={p.gia_thung} onSave={(v) => savePrice(p, "gia_thung", v)} saving={savingId === p.id} />
+                    </td>
+                    <td>
+                      <StatusPill product={p} isPending={isPending} />
+                    </td>
+                    <td>
+                      <div className="row-actions">
+                        <button className="icon-btn" title="Sửa" aria-label="Sửa sản phẩm" onClick={() => setFormTarget(p)}>
+                          <EditIcon />
+                        </button>
+                        <button className="icon-btn danger" title="Xóa" aria-label="Xóa sản phẩm" onClick={() => handleDeleteProduct(p)}>
+                          <TrashIcon />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <p className="helper-text">
+        Sửa giá xong tự lưu ngay (không cần bấm nút riêng). Sản phẩm nào vừa đổi giá sẽ tự hiện ở tab &quot;Chờ xuất
+        file&quot; — chọn xong bấm xuất MISA hoặc Word, chỉ đúng các sản phẩm đã chọn.
       </p>
 
       {formTarget !== null && (
@@ -408,6 +460,7 @@ function PriceInput({ value, onSave, saving }: { value: number | null; onSave: (
   useEffect(() => setLocal(value?.toString() ?? ""), [value]);
   return (
     <input
+      className="price-input"
       value={local}
       disabled={saving}
       onChange={(e) => setLocal(e.target.value)}
@@ -417,8 +470,27 @@ function PriceInput({ value, onSave, saving }: { value: number | null; onSave: (
       onKeyDown={(e) => {
         if (e.key === "Enter") (e.target as HTMLInputElement).blur();
       }}
-      style={{ width: 100, padding: 4, border: "1px solid #ccc", borderRadius: 4, textAlign: "right" }}
     />
+  );
+}
+
+function StatusPill({ product, isPending }: { product: Product; isPending: boolean }) {
+  const title = `Cập nhật: ${formatDate(product.updated_at)}${
+    product.last_exported_at ? " · Đã xuất: " + formatDate(product.last_exported_at) : ""
+  }`;
+  if (isPending) {
+    return (
+      <span className="status-pill warm" title={title}>
+        <span className="dot" />
+        {product.last_exported_at ? "Vừa sửa giá" : "Mới thêm"}
+      </span>
+    );
+  }
+  return (
+    <span className="status-pill success" title={title}>
+      <span className="dot" />
+      Đã xuất {relativeTimeVi(product.last_exported_at!)}
+    </span>
   );
 }
 
@@ -492,7 +564,10 @@ function formStateToInput(f: FormState): ProductInput {
 }
 
 function ProductForm({
-  initial, brandNames, onCancel, onSave,
+  initial,
+  brandNames,
+  onCancel,
+  onSave,
 }: {
   initial: Product | null;
   brandNames: string[];
@@ -517,42 +592,104 @@ function ProductForm({
   }
 
   return (
-    <div style={overlayStyle}>
-      <div style={modalStyle}>
-        <h2 style={{ fontSize: 18, marginTop: 0 }}>{initial ? "Sửa sản phẩm" : "Thêm sản phẩm"}</h2>
+    <div className="modal-backdrop" onClick={(e) => e.target === e.currentTarget && onCancel()}>
+      <div className="modal">
+        <h2>{initial ? "Sửa sản phẩm" : "Thêm sản phẩm"}</h2>
+        <p className="modal-sub">Điền thông tin cơ bản trước — các mục còn lại có thể bổ sung sau.</p>
 
-        <div style={formGrid}>
-          <Field label="Mã nội bộ *"><input style={inputStyle} value={form.ma_noi_bo} onChange={(e) => set("ma_noi_bo", e.target.value)} disabled={!!initial} /></Field>
-          <Field label="Nhóm hàng *">
-            <select style={inputStyle} value={form.category_sheet} onChange={(e) => set("category_sheet", e.target.value)}>
-              {CATEGORY_ORDER.map((c) => <option key={c}>{c}</option>)}
-            </select>
-          </Field>
-          <Field label="Tên hàng hóa (gốc) *"><input style={inputStyle} value={form.ten_hang_hoa} onChange={(e) => set("ten_hang_hoa", e.target.value)} /></Field>
-          <Field label="Tên trên hóa đơn"><input style={inputStyle} value={form.ten_hoa_don} onChange={(e) => set("ten_hoa_don", e.target.value)} /></Field>
-          <Field label="Đơn vị tính"><input style={inputStyle} value={form.dvt} onChange={(e) => set("dvt", e.target.value)} /></Field>
-          <Field label="Thương hiệu / NCC">
-            <input style={inputStyle} list="brand-list" value={form.brand} onChange={(e) => set("brand", e.target.value)} />
-            <datalist id="brand-list">{brandNames.map((b) => <option key={b} value={b} />)}</datalist>
-          </Field>
-          <Field label="Giá bán lẻ"><input style={inputStyle} value={form.gia_ban} onChange={(e) => set("gia_ban", e.target.value)} /></Field>
-          <Field label="Giá thùng"><input style={inputStyle} value={form.gia_thung} onChange={(e) => set("gia_thung", e.target.value)} /></Field>
-          <Field label="Quy cách thùng"><input style={inputStyle} value={form.quy_cach} onChange={(e) => set("quy_cach", e.target.value)} /></Field>
-          <Field label="Tỷ lệ quy đổi"><input style={inputStyle} value={form.ty_le} onChange={(e) => set("ty_le", e.target.value)} /></Field>
-          <Field label="Mã hàng hóa (NCC/POS)"><input style={inputStyle} value={form.ma_hang_hoa} onChange={(e) => set("ma_hang_hoa", e.target.value)} /></Field>
-          <Field label="Mã vạch"><input style={inputStyle} value={form.ma_vach} onChange={(e) => set("ma_vach", e.target.value)} /></Field>
-          <Field label="Mã thùng"><input style={inputStyle} value={form.ma_thung} onChange={(e) => set("ma_thung", e.target.value)} /></Field>
-          <Field label="Mã nhóm thay thế"><input style={inputStyle} value={form.ma_nhom_thay_the} onChange={(e) => set("ma_nhom_thay_the", e.target.value)} /></Field>
-          <Field label="Trạng thái"><input style={inputStyle} value={form.trang_thai} onChange={(e) => set("trang_thai", e.target.value)} /></Field>
-          <Field label="Xuất xứ"><input style={inputStyle} value={form.xuat_xu} onChange={(e) => set("xuat_xu", e.target.value)} /></Field>
-          <Field label="Tên sàn Shopee"><input style={inputStyle} value={form.ten_shopee} onChange={(e) => set("ten_shopee", e.target.value)} /></Field>
-          <Field label="Tên sàn TikTok Shop"><input style={inputStyle} value={form.ten_tiktok} onChange={(e) => set("ten_tiktok", e.target.value)} /></Field>
+        <div className="field-group">
+          <h3>Thông tin cơ bản</h3>
+          <div className="field-grid">
+            <Field label="Mã nội bộ *">
+              <input value={form.ma_noi_bo} onChange={(e) => set("ma_noi_bo", e.target.value)} disabled={!!initial} />
+            </Field>
+            <Field label="Nhóm hàng *">
+              <select value={form.category_sheet} onChange={(e) => set("category_sheet", e.target.value)}>
+                {CATEGORY_ORDER.map((c) => (
+                  <option key={c}>{c}</option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Tên hàng hóa (gốc) *">
+              <input value={form.ten_hang_hoa} onChange={(e) => set("ten_hang_hoa", e.target.value)} />
+            </Field>
+            <Field label="Tên trên hóa đơn">
+              <input value={form.ten_hoa_don} onChange={(e) => set("ten_hoa_don", e.target.value)} />
+            </Field>
+            <Field label="Đơn vị tính">
+              <input value={form.dvt} onChange={(e) => set("dvt", e.target.value)} />
+            </Field>
+          </div>
         </div>
 
-        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 20 }}>
-          <button onClick={onCancel} style={btnStyle("#fff", "#333")}>Hủy</button>
-          <button disabled={saving} onClick={submit} style={btnStyle("#1F4E78", "#fff")}>
-            {saving ? "Đang lưu..." : "Lưu"}
+        <div className="field-group">
+          <h3>Giá &amp; quy cách thùng</h3>
+          <div className="field-grid">
+            <Field label="Giá bán lẻ">
+              <input value={form.gia_ban} onChange={(e) => set("gia_ban", e.target.value)} />
+            </Field>
+            <Field label="Giá thùng">
+              <input value={form.gia_thung} onChange={(e) => set("gia_thung", e.target.value)} />
+            </Field>
+            <Field label="Quy cách thùng">
+              <input value={form.quy_cach} onChange={(e) => set("quy_cach", e.target.value)} />
+            </Field>
+            <Field label="Tỷ lệ quy đổi">
+              <input value={form.ty_le} onChange={(e) => set("ty_le", e.target.value)} />
+            </Field>
+          </div>
+        </div>
+
+        <div className="field-group">
+          <h3>Thương hiệu &amp; mã liên quan</h3>
+          <div className="field-grid">
+            <Field label="Thương hiệu / NCC">
+              <input list="brand-list" value={form.brand} onChange={(e) => set("brand", e.target.value)} />
+              <datalist id="brand-list">
+                {brandNames.map((b) => (
+                  <option key={b} value={b} />
+                ))}
+              </datalist>
+            </Field>
+            <Field label="Mã hàng hóa (NCC/POS)">
+              <input value={form.ma_hang_hoa} onChange={(e) => set("ma_hang_hoa", e.target.value)} />
+            </Field>
+            <Field label="Mã vạch">
+              <input value={form.ma_vach} onChange={(e) => set("ma_vach", e.target.value)} />
+            </Field>
+            <Field label="Mã thùng">
+              <input value={form.ma_thung} onChange={(e) => set("ma_thung", e.target.value)} />
+            </Field>
+            <Field label="Mã nhóm thay thế">
+              <input value={form.ma_nhom_thay_the} onChange={(e) => set("ma_nhom_thay_the", e.target.value)} />
+            </Field>
+          </div>
+        </div>
+
+        <div className="field-group">
+          <h3>Kênh bán &amp; khác</h3>
+          <div className="field-grid">
+            <Field label="Trạng thái">
+              <input value={form.trang_thai} onChange={(e) => set("trang_thai", e.target.value)} />
+            </Field>
+            <Field label="Xuất xứ">
+              <input value={form.xuat_xu} onChange={(e) => set("xuat_xu", e.target.value)} />
+            </Field>
+            <Field label="Tên sàn Shopee">
+              <input value={form.ten_shopee} onChange={(e) => set("ten_shopee", e.target.value)} />
+            </Field>
+            <Field label="Tên sàn TikTok Shop">
+              <input value={form.ten_tiktok} onChange={(e) => set("ten_tiktok", e.target.value)} />
+            </Field>
+          </div>
+        </div>
+
+        <div className="modal-actions">
+          <button className="btn" onClick={onCancel}>
+            Hủy
+          </button>
+          <button className="btn btn-primary" disabled={saving} onClick={submit}>
+            {saving ? "Đang lưu..." : "Lưu sản phẩm"}
           </button>
         </div>
       </div>
@@ -562,7 +699,7 @@ function ProductForm({
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 13, color: "#333" }}>
+    <label className="field">
       {label}
       {children}
     </label>
@@ -585,13 +722,83 @@ function formatDate(iso: string) {
   return d.toLocaleString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
-const th: React.CSSProperties = { padding: "10px 12px", fontWeight: 600, fontSize: 13 };
-const td: React.CSSProperties = { padding: "8px 12px" };
-const inputStyle: React.CSSProperties = { padding: 8, borderRadius: 6, border: "1px solid #ccc", width: "100%" };
-const smallBtnStyle: React.CSSProperties = { background: "#fff", border: "1px solid #ccc", borderRadius: 4, padding: "4px 8px", cursor: "pointer", fontSize: 12 };
-const overlayStyle: React.CSSProperties = { position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50 };
-const modalStyle: React.CSSProperties = { background: "#fff", borderRadius: 10, padding: 24, width: "min(720px, 92vw)", maxHeight: "88vh", overflowY: "auto" };
-const formGrid: React.CSSProperties = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 };
-function btnStyle(bg: string, color: string): React.CSSProperties {
-  return { background: bg, color, border: "1px solid #ccc", borderRadius: 6, padding: "8px 14px", cursor: "pointer" };
+function relativeTimeVi(iso: string): string {
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const diffMin = Math.floor(diffMs / 60000);
+  if (diffMin < 1) return "vừa xong";
+  if (diffMin < 60) return `${diffMin} phút trước`;
+  const diffHour = Math.floor(diffMin / 60);
+  if (diffHour < 24) return `${diffHour} giờ trước`;
+  const diffDay = Math.floor(diffHour / 24);
+  if (diffDay < 30) return `${diffDay} ngày trước`;
+  const diffMonth = Math.floor(diffDay / 30);
+  return `${diffMonth} tháng trước`;
+}
+
+function SearchIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+      <circle cx="11" cy="11" r="7" />
+      <path d="m21 21-4.3-4.3" />
+    </svg>
+  );
+}
+function WarningIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" />
+    </svg>
+  );
+}
+function PlusIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
+      <path d="M12 5v14M5 12h14" />
+    </svg>
+  );
+}
+function ChevronDownIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+      <path d="m6 9 6 6 6-6" />
+    </svg>
+  );
+}
+function ImportIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
+    </svg>
+  );
+}
+function SheetIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <path d="M3 9h18M9 4v16" />
+    </svg>
+  );
+}
+function DocIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M14 3v4a1 1 0 0 0 1 1h4" />
+      <path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2Z" />
+    </svg>
+  );
+}
+function EditIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+    </svg>
+  );
+}
+function TrashIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m2 0-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+    </svg>
+  );
 }
