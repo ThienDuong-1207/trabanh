@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { Product, ProductInput, CATEGORY_ORDER } from "@/lib/types";
+import { QUY_CACH_SUGGESTIONS, TY_LE_SUGGESTIONS, extractQuantityFromQuyCach } from "@/lib/suggestionLists";
 
 export default function Home() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -563,6 +564,13 @@ function formStateToInput(f: FormState): ProductInput {
   };
 }
 
+// Dropdown options are curated suggestions, not an exhaustive list — if the
+// current value isn't among them (custom/legacy data), keep it selectable.
+function withCurrent(options: (string | number)[], current: string): string[] {
+  const strOptions = options.map(String);
+  return current && !strOptions.includes(current) ? [...strOptions, current] : strOptions;
+}
+
 function ProductForm({
   initial,
   brandNames,
@@ -577,8 +585,17 @@ function ProductForm({
   const [form, setForm] = useState<FormState>(() => productToFormState(initial));
   const [saving, setSaving] = useState(false);
 
+  const [brandCustom, setBrandCustom] = useState(!!initial?.brand?.name && !brandNames.includes(initial.brand.name));
+
   function set<K extends keyof FormState>(key: K, value: string) {
     setForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function setQuyCach(value: string) {
+    setForm((prev) => {
+      const autoTyLe = prev.ty_le.trim() === "" ? extractQuantityFromQuyCach(value) : null;
+      return { ...prev, quy_cach: value, ty_le: autoTyLe !== null ? String(autoTyLe) : prev.ty_le };
+    });
   }
 
   async function submit() {
@@ -632,10 +649,20 @@ function ProductForm({
               <input value={form.gia_thung} onChange={(e) => set("gia_thung", e.target.value)} />
             </Field>
             <Field label="Quy cách thùng">
-              <input value={form.quy_cach} onChange={(e) => set("quy_cach", e.target.value)} />
+              <select value={form.quy_cach} onChange={(e) => setQuyCach(e.target.value)}>
+                <option value="">— Chọn quy cách —</option>
+                {withCurrent(QUY_CACH_SUGGESTIONS, form.quy_cach).map((q) => (
+                  <option key={q}>{q}</option>
+                ))}
+              </select>
             </Field>
             <Field label="Tỷ lệ quy đổi">
-              <input value={form.ty_le} onChange={(e) => set("ty_le", e.target.value)} />
+              <select value={form.ty_le} onChange={(e) => set("ty_le", e.target.value)}>
+                <option value="">— Chọn tỷ lệ —</option>
+                {withCurrent(TY_LE_SUGGESTIONS, form.ty_le).map((t) => (
+                  <option key={t}>{t}</option>
+                ))}
+              </select>
             </Field>
           </div>
         </div>
@@ -644,12 +671,38 @@ function ProductForm({
           <h3>Thương hiệu &amp; mã liên quan</h3>
           <div className="field-grid">
             <Field label="Thương hiệu / NCC">
-              <input list="brand-list" value={form.brand} onChange={(e) => set("brand", e.target.value)} />
-              <datalist id="brand-list">
-                {brandNames.map((b) => (
-                  <option key={b} value={b} />
-                ))}
-              </datalist>
+              {brandCustom ? (
+                <div style={{ display: "flex", gap: 6 }}>
+                  <input
+                    autoFocus
+                    placeholder="Nhập tên thương hiệu mới"
+                    value={form.brand}
+                    onChange={(e) => set("brand", e.target.value)}
+                    style={{ flex: 1 }}
+                  />
+                  <button type="button" className="btn btn-quiet" onClick={() => setBrandCustom(false)}>
+                    Chọn từ danh sách
+                  </button>
+                </div>
+              ) : (
+                <select
+                  value={brandNames.includes(form.brand) ? form.brand : ""}
+                  onChange={(e) => {
+                    if (e.target.value === "__new__") {
+                      setBrandCustom(true);
+                      set("brand", "");
+                    } else {
+                      set("brand", e.target.value);
+                    }
+                  }}
+                >
+                  <option value="">— Chọn thương hiệu —</option>
+                  {brandNames.map((b) => (
+                    <option key={b}>{b}</option>
+                  ))}
+                  <option value="__new__">+ Thương hiệu mới…</option>
+                </select>
+              )}
             </Field>
             <Field label="Mã hàng hóa (NCC/POS)">
               <input value={form.ma_hang_hoa} onChange={(e) => set("ma_hang_hoa", e.target.value)} />
