@@ -1,0 +1,11 @@
+node_modules/
+.next/
+.env.local
+.vercel
+*.log
+tsconfig.tsbuildinfo
+.DS_Store
+
+# Raw business data (real prices/supplier names) — already imported into
+# Supabase via "Nhập từ Excel"; kept locally only, not for a public repo.
+Misa hàng hóa/

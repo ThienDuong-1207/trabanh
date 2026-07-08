@@ -1,0 +1,109 @@
+import ExcelJS from "exceljs";
+import { supabaseAdmin } from "./supabaseServer";
+import { CATEGORY_ORDER } from "./types";
+
+const SKIP_SHEETS = new Set(["HUONG DAN", "Master (Tổng hợp)", "Hướng dẫn nhập khẩu (MISA)"]);
+
+const COLUMN_TO_FIELD: Record<string, string> = {
+  "Mã nội bộ": "ma_noi_bo",
+  "Tên hàng hóa (gốc)": "ten_hang_hoa",
+  "Tên trên hóa đơn": "ten_hoa_don",
+  "Đơn vị tính": "dvt",
+  "Giá bán lẻ": "gia_ban",
+  "Giá thùng": "gia_thung",
+  "Quy cách thùng": "quy_cach",
+  "Tỷ lệ quy đổi": "ty_le",
+  "Thương hiệu": "thuong_hieu",
+  "Nhà cung cấp": "nha_cung_cap",
+  "Mã hàng hóa (NCC/POS)": "ma_hang_hoa",
+  "Mã vạch": "ma_vach",
+  "Mã thùng": "ma_thung",
+  "Mã nhóm thay thế": "ma_nhom_thay_the",
+  "Trạng thái": "trang_thai",
+  "Tên sàn Shopee": "ten_shopee",
+  "Tên sàn TikTok Shop": "ten_tiktok",
+  "Xuất xứ": "xuat_xu",
+};
+
+const NUMERIC_FIELDS = new Set(["gia_ban", "gia_thung", "ty_le"]);
+
+export type ImportSummary = {
+  productsUpserted: number;
+  brandsUpserted: number;
+  skippedSheets: string[];
+};
+
+function cellValue(raw: ExcelJS.CellValue): string | number | null {
+  const value = raw && typeof raw === "object" && "result" in raw ? (raw as { result: unknown }).result : raw;
+  if (value === undefined || value === null || value === "") return null;
+  return value as string | number;
+}
+
+// Parses a workbook shaped like "Misa hàng hóa/1. Quản lý hàng hóa hợp nhất.xlsx":
+// one sheet per CATEGORY_ORDER entry, columns matching COLUMN_TO_FIELD headers.
+export async function importProductsFromWorkbook(buffer: Buffer): Promise<ImportSummary> {
+  const workbook = new ExcelJS.Workbook();
+  // exceljs's own .d.ts redeclares an ambient `Buffer extends ArrayBuffer`, which
+  // conflicts with @types/node's real Buffer under TS's newer resizable-ArrayBuffer
+  // typings — cast to sidestep that bad third-party type, not a real type issue.
+  await workbook.xlsx.load(buffer as any);
+
+  const rows: Record<string, string | number | null>[] = [];
+  const skippedSheets: string[] = [];
+
+  for (const worksheet of workbook.worksheets) {
+    const name = worksheet.name;
+    if (SKIP_SHEETS.has(name)) continue;
+    if (!CATEGORY_ORDER.includes(name)) {
+      skippedSheets.push(name);
+      continue;
+    }
+
+    const fieldByCol = new Map<number, string>();
+    worksheet.getRow(1).eachCell((cell, colNumber) => {
+      const field = COLUMN_TO_FIELD[String(cell.value ?? "").trim()];
+      if (field) fieldByCol.set(colNumber, field);
+    });
+
+    worksheet.eachRow((row, rowNumber) => {
+      if (rowNumber === 1) return;
+      const record: Record<string, string | number | null> = { category_sheet: name };
+      let hasMaNoiBo = false;
+      fieldByCol.forEach((field, colNumber) => {
+        const value = cellValue(row.getCell(colNumber).value);
+        if (field === "ma_noi_bo" && value) hasMaNoiBo = true;
+        record[field] = NUMERIC_FIELDS.has(field) && value !== null ? Number(value) : value;
+      });
+      if (hasMaNoiBo) rows.push(record);
+    });
+  }
+
+  const supabase = supabaseAdmin();
+
+  const brandNames = [...new Set(rows.map((r) => r.thuong_hieu).filter((v): v is string => typeof v === "string" && v.length > 0))];
+  if (brandNames.length > 0) {
+    const { error } = await supabase.from("brands").upsert(
+      brandNames.map((name) => ({ name })),
+      { onConflict: "name" }
+    );
+    if (error) throw new Error(`Lưu thương hiệu thất bại: ${error.message}`);
+  }
+
+  const { data: brands, error: brandsFetchError } = await supabase.from("brands").select("id, name");
+  if (brandsFetchError) throw new Error(`Không đọc được danh sách thương hiệu: ${brandsFetchError.message}`);
+  const brandIdByName = new Map((brands ?? []).map((b) => [b.name as string, b.id as string]));
+
+  const productRows = rows.map(({ thuong_hieu, nha_cung_cap, ...rest }) => ({
+    ...rest,
+    brand_id: typeof thuong_hieu === "string" ? brandIdByName.get(thuong_hieu) ?? null : null,
+  }));
+
+  const BATCH = 200;
+  for (let i = 0; i < productRows.length; i += BATCH) {
+    const chunk = productRows.slice(i, i + BATCH);
+    const { error } = await supabase.from("products").upsert(chunk, { onConflict: "ma_noi_bo" });
+    if (error) throw new Error(`Nhập sản phẩm thất bại (dòng ${i + 1}-${i + chunk.length}): ${error.message}`);
+  }
+
+  return { productsUpserted: productRows.length, brandsUpserted: brandNames.length, skippedSheets };
+}
