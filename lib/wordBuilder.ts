@@ -188,7 +188,10 @@ export async function buildWordFile(items: Product[]): Promise<Buffer> {
     sections.push({
       properties: {
         page: {
-          size: { width: PAGE_W, height: PAGE_H, orientation: PageOrientation.LANDSCAPE },
+          // docx's `orientation: LANDSCAPE` swaps whatever width/height it's
+          // given, so passing already-landscape dimensions here double-swaps
+          // back to portrait — pass the portrait-order values instead.
+          size: { width: PAGE_H, height: PAGE_W, orientation: PageOrientation.LANDSCAPE },
           margin: { top: MARGIN, bottom: MARGIN, left: MARGIN, right: MARGIN },
         },
       },
@@ -198,7 +201,7 @@ export async function buildWordFile(items: Product[]): Promise<Buffer> {
 
   if (sections.length === 0) {
     sections.push({
-      properties: { page: { size: { width: PAGE_W, height: PAGE_H } } },
+      properties: { page: { size: { width: PAGE_H, height: PAGE_W, orientation: PageOrientation.LANDSCAPE } } },
       children: [new Paragraph({ text: "Không có sản phẩm nào có giá bán lẻ trong danh sách đã chọn." })],
     });
   }
