@@ -27,10 +27,11 @@ const COLS = 3;
 const ROWS = 3;
 const FONT = "Arial";
 
-// Cell margins from the reference tcMar (dxa), except the bottom margin —
-// tightened to 0.1cm on request so the barcode/unit line sits right at the
+// Cell margins from the reference tcMar (dxa), except: top nudged out a
+// little (the reference's 28dxa/~0.05cm sat the title right on the border),
+// and bottom tightened to 0.1cm so the barcode/unit line sits right at the
 // bottom edge instead of floating above leftover empty space.
-const CELL_MARGIN_TOP = 28;
+const CELL_MARGIN_TOP = cm(0.12);
 const CELL_MARGIN_SIDE = 28;
 const CELL_MARGIN_BOTTOM = cm(0.1);
 const CELL_BORDER_SIZE = 4; // reference tcBorders sz (eighths of a point)
@@ -75,18 +76,19 @@ function priceFontSizeHalf(price: string) {
 
 // Most real prices are width-capped (e.g. every 6-character price lands at
 // 60pt regardless of the height ceiling above), so the price paragraph's own
-// line is usually much shorter than the vertical budget it was given —
-// leaving the leftover gap sitting uselessly above the barcode/unit line
-// instead of at the true bottom of the block. Spacing the price paragraph's
-// "after" value out to consume exactly that leftover pins the barcode/unit
-// line flush against the (0.1cm) bottom margin no matter which size the
-// price ends up at.
+// line is usually much shorter than the vertical budget it was given. Split
+// that leftover evenly before/after the price instead of dumping it all
+// after: the barcode/unit line stays pinned to the bottom margin either way,
+// but the price itself sits centered between the title and the barcode line
+// rather than stuck right under the title.
 const FIXED_ZONES_DXA = CELL_MARGIN_TOP + TITLE_LINE + BOTTOM_LINE + CELL_MARGIN_BOTTOM;
 
-function priceAfterSpacingDxa(priceSizeHalf: number): number {
+function priceSpacingDxa(priceSizeHalf: number): { before: number; after: number } {
   const priceLineDxa = Math.round((priceSizeHalf / 2) * 1.15 * 20);
-  const remaining = BLOCK_H - FIXED_ZONES_DXA - priceLineDxa;
-  return Math.max(PRICE_SPACING_AFTER, remaining);
+  const leftover = Math.max(0, BLOCK_H - FIXED_ZONES_DXA - priceLineDxa);
+  const before = Math.floor(leftover / 2);
+  const after = Math.max(PRICE_SPACING_AFTER, leftover - before);
+  return { before, after };
 }
 
 const LOGO_PATH = path.join(process.cwd(), "public", "templates", "logo.png");
@@ -133,9 +135,10 @@ function buildCell(item: Product | null) {
 
   const priceStr = formatPrice(item.gia_ban);
   const priceSize = priceFontSizeHalf(priceStr);
+  const { before: priceBefore, after: priceAfter } = priceSpacingDxa(priceSize);
   const pricePara = new Paragraph({
     alignment: AlignmentType.CENTER,
-    spacing: { before: 0, after: priceAfterSpacingDxa(priceSize) },
+    spacing: { before: priceBefore, after: priceAfter },
     children: [new TextRun({ text: priceStr, bold: true, font: FONT, size: priceSize })],
   });
 
