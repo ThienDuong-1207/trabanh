@@ -21,10 +21,29 @@ const ROWS = 3;
 const FONT = "Arial";
 
 const TITLE_ZONE_PT = 1.0 * 28.3465;
-const PRICE_ZONE_PT = 2.7 * 28.3465;
+// Reclaimed from tighter title/bottom-line spacing below (was 2.7cm) so the
+// price can grow into that space instead of being height-capped early.
+const PRICE_ZONE_PT = 2.89 * 28.3465;
 const BOTTOM_ZONE_PT = 0.4 * 28.3465;
 const SAFETY = 1.15;
 const CHAR_WIDTH_FACTOR = 0.66;
+// Tighter line spacing (240 = single) for title/barcode lines, freeing
+// vertical room for the price without changing the 7.7x4cm block size.
+const TIGHT_LINE = 204;
+
+// Real Arial/Arial Bold glyph widths (em) for price text — digits are
+// narrower than the 0.66 average used for mixed title text, and "." is
+// narrower still. Using the actual per-glyph width (instead of a flat
+// per-character factor) is what lets the price grow close to the true
+// width limit instead of stopping well short of it.
+const DIGIT_WIDTH_EM = 0.556;
+const SEPARATOR_WIDTH_EM = 0.278;
+
+function estimatePriceWidthUnits(price: string): number {
+  let units = 0;
+  for (const ch of price) units += /[.,]/.test(ch) ? SEPARATOR_WIDTH_EM : DIGIT_WIDTH_EM;
+  return units;
+}
 
 const LOGO_PATH = path.join(process.cwd(), "public", "templates", "logo.png");
 const LOGO_ORIG_W = 4230;
@@ -91,12 +110,9 @@ function fitTitle(name: string) {
 }
 
 function priceFontSizeHalf(price: string) {
-  // Same per-char width factor as fitTitle() — bold digits are wider than the
-  // 0.5 previously used here, which let long prices (e.g. "63.000") overflow
-  // past the block's left/right edge in some renderers.
   const boxWidthPt = ((BLOCK_W / DXA_PER_CM) - 0.24) * 28.3465;
-  const numChars = price.length;
-  const sizeFromWidth = boxWidthPt / (numChars * CHAR_WIDTH_FACTOR * SAFETY);
+  const widthUnits = estimatePriceWidthUnits(price);
+  const sizeFromWidth = boxWidthPt / (widthUnits * SAFETY);
   const sizeFromHeight = PRICE_ZONE_PT / (1.15 * SAFETY);
   const sizePt = Math.min(sizeFromWidth, sizeFromHeight);
   return Math.round(sizePt * 2);
@@ -138,7 +154,7 @@ function buildCell(item: Product | null) {
     (l) =>
       new Paragraph({
         alignment: AlignmentType.CENTER,
-        spacing: { after: 0, line: 240, lineRule: "auto" },
+        spacing: { after: 0, line: TIGHT_LINE, lineRule: "auto" },
         indent: { left: SIDE_MARGIN_DXA, right: SIDE_MARGIN_DXA },
         children: [new TextRun({ text: l, bold: true, font: FONT, size: tSize })],
       })
@@ -158,7 +174,7 @@ function buildCell(item: Product | null) {
   const unitSize = unitFontSizeHalf(item.dvt || "");
   const bottomLine = new Paragraph({
     tabStops: [{ type: "right", position: BLOCK_W - SIDE_MARGIN_DXA }],
-    spacing: { before: 0 },
+    spacing: { before: 0, line: TIGHT_LINE, lineRule: "auto" },
     indent: { left: SIDE_MARGIN_DXA, right: SIDE_MARGIN_DXA },
     children: [
       new TextRun({ text: item.ma_vach || item.ma_hang_hoa || "", font: FONT, size: 16 }),
