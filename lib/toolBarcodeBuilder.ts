@@ -1,7 +1,7 @@
 import {
   Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
   WidthType, BorderStyle, AlignmentType, VerticalAlign,
-  HeightRule, PageOrientation, TableLayoutType, ImageRun,
+  HeightRule, PageOrientation, TableLayoutType, ImageRun, Tab,
 } from "docx";
 import { Product } from "./types";
 import { generateBarcodePng } from "./barcodeImage";
@@ -26,7 +26,8 @@ const CELL_MARGIN = cm(0.1);
 const CELL_BORDER_SIZE = 4;
 
 const TITLE_SIZE_HALF = 14; // 7pt — small block, titles can be long, let Word wrap
-const PRICE_SIZE_HALF = 28; // 14pt
+const BOTTOM_CODE_SIZE_HALF = 14; // 7pt, mã vạch text
+const BOTTOM_UNIT_SIZE_HALF = 18; // 9pt, ĐVT — same as the price-tag bottom line
 
 const BARCODE_IMG_W = 130; // px, ~3.4cm at 96dpi
 const BARCODE_IMG_H = 50; // px, ~1.3cm at 96dpi
@@ -39,12 +40,8 @@ const cellBorderThin = {
   right: { style: BorderStyle.SINGLE, size: CELL_BORDER_SIZE, color: "000000" },
 };
 
-function formatPrice(n: number) {
-  return Math.round(n).toLocaleString("vi-VN").replace(/,/g, ".");
-}
-
 async function buildCell(item: Product | null): Promise<TableCell> {
-  if (!item || !item.gia_ban) {
+  if (!item || !item.ma_vach) {
     return new TableCell({
       width: { size: BLOCK_W, type: WidthType.DXA },
       borders: { top: noBorder, bottom: noBorder, left: noBorder, right: noBorder },
@@ -59,19 +56,23 @@ async function buildCell(item: Product | null): Promise<TableCell> {
     children: [new TextRun({ text: name, bold: true, font: FONT, size: TITLE_SIZE_HALF })],
   });
 
-  const barcodePng = await generateBarcodePng(item.ma_vach || "");
+  const barcodePng = await generateBarcodePng(item.ma_vach);
   const barcodePara = new Paragraph({
     alignment: AlignmentType.CENTER,
     spacing: { after: 40 },
     children: barcodePng
       ? [new ImageRun({ type: "png", data: barcodePng, transformation: { width: BARCODE_IMG_W, height: BARCODE_IMG_H } })]
-      : [new TextRun({ text: "Chưa có mã vạch", font: FONT, size: 14, italics: true })],
+      : [new TextRun({ text: "Không tạo được mã vạch", font: FONT, size: 14, italics: true })],
   });
 
-  const pricePara = new Paragraph({
-    alignment: AlignmentType.LEFT,
+  const bottomLine = new Paragraph({
+    tabStops: [{ type: "right", position: BLOCK_W - CELL_MARGIN }],
     spacing: { before: 0 },
-    children: [new TextRun({ text: formatPrice(item.gia_ban), bold: true, font: FONT, size: PRICE_SIZE_HALF })],
+    children: [
+      new TextRun({ text: item.ma_vach, font: FONT, size: BOTTOM_CODE_SIZE_HALF }),
+      new TextRun({ children: [new Tab()], font: FONT }),
+      new TextRun({ text: (item.dvt || "").toUpperCase(), bold: true, font: FONT, size: BOTTOM_UNIT_SIZE_HALF }),
+    ],
   });
 
   return new TableCell({
@@ -79,7 +80,7 @@ async function buildCell(item: Product | null): Promise<TableCell> {
     verticalAlign: VerticalAlign.TOP,
     margins: { top: CELL_MARGIN, bottom: CELL_MARGIN, left: CELL_MARGIN, right: CELL_MARGIN },
     borders: cellBorderThin,
-    children: [titlePara, barcodePara, pricePara],
+    children: [titlePara, barcodePara, bottomLine],
   });
 }
 
@@ -113,15 +114,15 @@ async function buildPage(label: string, items: (Product | null)[]) {
 }
 
 export async function buildToolBarcodeFile(items: Product[]): Promise<Buffer> {
-  const priced = items.filter((it) => it.gia_ban);
+  const withBarcode = items.filter((it) => it.ma_vach);
   const PER_PAGE = COLS * ROWS;
   const sections = [];
   let pageNum = 0;
   const today = new Date().toLocaleDateString("vi-VN");
 
-  for (let i = 0; i < priced.length; i += PER_PAGE) {
+  for (let i = 0; i < withBarcode.length; i += PER_PAGE) {
     pageNum += 1;
-    const chunk = priced.slice(i, i + PER_PAGE);
+    const chunk = withBarcode.slice(i, i + PER_PAGE);
     const label = `Tem mã vạch Công cụ dụng cụ ${today} - Trang ${String(pageNum).padStart(2, "0")}`;
     sections.push({
       properties: {
@@ -137,7 +138,7 @@ export async function buildToolBarcodeFile(items: Product[]): Promise<Buffer> {
   if (sections.length === 0) {
     sections.push({
       properties: { page: { size: { width: PAGE_H, height: PAGE_W, orientation: PageOrientation.LANDSCAPE } } },
-      children: [new Paragraph({ text: "Không có sản phẩm nào có giá bán lẻ trong danh sách đã chọn." })],
+      children: [new Paragraph({ text: "Không có sản phẩm nào có mã vạch trong danh sách đã chọn." })],
     });
   }
 
