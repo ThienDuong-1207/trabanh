@@ -27,10 +27,12 @@ const COLS = 3;
 const ROWS = 3;
 const FONT = "Arial";
 
-// Cell margins from the reference tcMar (dxa).
+// Cell margins from the reference tcMar (dxa), except the bottom margin —
+// tightened to 0.1cm on request so the barcode/unit line sits right at the
+// bottom edge instead of floating above leftover empty space.
 const CELL_MARGIN_TOP = 28;
 const CELL_MARGIN_SIDE = 28;
-const CELL_MARGIN_BOTTOM = 113;
+const CELL_MARGIN_BOTTOM = cm(0.1);
 const CELL_BORDER_SIZE = 4; // reference tcBorders sz (eighths of a point)
 
 // Title: the reference never varies this — even a 42-character name stays
@@ -45,11 +47,12 @@ const BOTTOM_TAB_POS = 4139; // dxa, reference right-aligned tab stop
 const BARCODE_SIZE_HALF = 15; // 7.5pt
 const UNIT_SIZE_HALF = 18; // 9pt
 
-// Price is the one thing the reference doesn't hand-tune per item, so this
-// stays a formula — but calibrated with real Arial Bold glyph widths
-// (digits ~0.556em, "." ~0.278em) against the same 1.15 safety margin,
-// which reproduces the reference's actual sizes almost exactly.
-const PRICE_ZONE_PT = 2.89 * 28.3465;
+// Price gets every bit of vertical room left in the block after the fixed
+// zones (top margin, title line, the gap after the price, the bottom line,
+// and the tightened bottom margin) — instead of a fixed conservative
+// budget, so the price grows to fill the block rather than leaving empty
+// space above the barcode/unit line.
+const PRICE_ZONE_PT = (BLOCK_H - CELL_MARGIN_TOP - TITLE_LINE - PRICE_SPACING_AFTER - BOTTOM_LINE - CELL_MARGIN_BOTTOM) / 20;
 const SAFETY = 1.15;
 const DIGIT_WIDTH_EM = 0.556;
 const SEPARATOR_WIDTH_EM = 0.278;
