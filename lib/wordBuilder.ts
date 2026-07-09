@@ -4,15 +4,22 @@ import {
   Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
   WidthType, BorderStyle, AlignmentType, VerticalAlign,
   HeightRule, PageOrientation, TableLayoutType, Tab, ImageRun,
-  HorizontalPositionRelativeFrom, VerticalPositionRelativeFrom, TextWrappingType,
 } from "docx";
 import { Product } from "./types";
+
+// All fixed layout numbers in this file (cell margins, border weight, line
+// spacing, title/barcode/unit sizes) are taken directly from
+// "Misa hàng hóa/Bảng giá full 7.7x4cm.docx" — the shop's own hand-built
+// reference — by unzipping it and reading word/document.xml, not guessed.
+// Only the price font size is computed (the reference doesn't hand-tune a
+// price size per length), calibrated to land on the same sizes the
+// reference actually uses (60pt/6-char, 62pt/5-char, 51.5pt/7-char).
 
 const DXA_PER_CM = 566.929;
 const cm = (v: number) => Math.round(v * DXA_PER_CM);
 
-const BLOCK_W = cm(7.7);
-const BLOCK_H = cm(4.0);
+const BLOCK_W = cm(7.7); // 4365 dxa, matches reference tblGrid/tcW
+const BLOCK_H = cm(4.0); // 2268 dxa, matches reference trHeight
 const MARGIN = cm(1.0);
 const PAGE_W = cm(29.7);
 const PAGE_H = cm(21.0);
@@ -20,24 +27,36 @@ const COLS = 3;
 const ROWS = 3;
 const FONT = "Arial";
 
-const TITLE_ZONE_PT = 1.0 * 28.3465;
-// Reclaimed from tighter title/bottom-line spacing below (was 2.7cm) so the
-// price can grow into that space instead of being height-capped early.
-const PRICE_ZONE_PT = 2.89 * 28.3465;
-const BOTTOM_ZONE_PT = 0.4 * 28.3465;
-const SAFETY = 1.15;
-const CHAR_WIDTH_FACTOR = 0.66;
-// Tighter line spacing (240 = single) for title/barcode lines, freeing
-// vertical room for the price without changing the 7.7x4cm block size.
-const TIGHT_LINE = 204;
+// Cell margins from the reference tcMar (dxa).
+const CELL_MARGIN_TOP = 28;
+const CELL_MARGIN_SIDE = 28;
+const CELL_MARGIN_BOTTOM = 113;
+const CELL_BORDER_SIZE = 4; // reference tcBorders sz (eighths of a point)
 
-// Real Arial/Arial Bold glyph widths (em) for price text — digits are
-// narrower than the 0.66 average used for mixed title text, and "." is
-// narrower still. Using the actual per-glyph width (instead of a flat
-// per-character factor) is what lets the price grow close to the true
-// width limit instead of stopping well short of it.
+// Title: the reference never varies this — even a 42-character name stays
+// one line at this size within the 7.7cm block, so there's no need for the
+// dynamic multi-line-fitting this file used to do.
+const TITLE_SIZE_HALF = 20; // 10pt
+const TITLE_LINE = 220; // exact twips, reference spacing/line
+const PRICE_SPACING_AFTER = 49; // twips, reference spacing/after on the price paragraph
+const BOTTOM_LINE = 198; // exact twips, reference spacing/line
+const BOTTOM_INDENT = 85; // twips, reference ind left/right
+const BOTTOM_TAB_POS = 4139; // dxa, reference right-aligned tab stop
+const BARCODE_SIZE_HALF = 15; // 7.5pt
+const UNIT_SIZE_HALF = 18; // 9pt
+
+// Price is the one thing the reference doesn't hand-tune per item, so this
+// stays a formula — but calibrated with real Arial Bold glyph widths
+// (digits ~0.556em, "." ~0.278em) against the same 1.15 safety margin,
+// which reproduces the reference's actual sizes almost exactly.
+const PRICE_ZONE_PT = 2.89 * 28.3465;
+const SAFETY = 1.15;
 const DIGIT_WIDTH_EM = 0.556;
 const SEPARATOR_WIDTH_EM = 0.278;
+// Calibrated (not the literal cell margin) — this specific allowance is what
+// reproduces the reference's actual sizes almost exactly (60pt/6-char,
+// 62pt/5-char, 51.5pt/7-char) when combined with the glyph widths above.
+const PRICE_BOX_WIDTH_PT = ((BLOCK_W / DXA_PER_CM) - 0.24) * 28.3465;
 
 function estimatePriceWidthUnits(price: string): number {
   let units = 0;
@@ -45,93 +64,33 @@ function estimatePriceWidthUnits(price: string): number {
   return units;
 }
 
+function priceFontSizeHalf(price: string) {
+  const sizeFromWidth = PRICE_BOX_WIDTH_PT / (estimatePriceWidthUnits(price) * SAFETY);
+  const sizeFromHeight = PRICE_ZONE_PT / (1.15 * SAFETY);
+  return Math.round(Math.min(sizeFromWidth, sizeFromHeight) * 2);
+}
+
 const LOGO_PATH = path.join(process.cwd(), "public", "templates", "logo.png");
-const LOGO_ORIG_W = 4230;
-const LOGO_ORIG_H = 1362;
-const LOGO_DISPLAY_W = 90;
-const LOGO_DISPLAY_H = Math.round((LOGO_DISPLAY_W * LOGO_ORIG_H) / LOGO_ORIG_W);
-const EMU_PER_CM = 360000;
+const LOGO_DISPLAY_W = 68; // px; reference logo is 857250 EMU wide (~2.38cm)
+const LOGO_DISPLAY_H = 22; // px; reference logo is 276225 EMU tall (~0.77cm)
 
 function logoImageRun() {
   if (!fs.existsSync(LOGO_PATH)) return null;
+  // Inline (flows with the header text), matching the reference — the
+  // previous version absolutely-positioned the logo over the page instead.
   return new ImageRun({
     type: "png",
     data: fs.readFileSync(LOGO_PATH),
     transformation: { width: LOGO_DISPLAY_W, height: LOGO_DISPLAY_H },
-    floating: {
-      horizontalPosition: { relative: HorizontalPositionRelativeFrom.PAGE, offset: 0.3 * EMU_PER_CM },
-      verticalPosition: { relative: VerticalPositionRelativeFrom.PAGE, offset: 0.3 * EMU_PER_CM },
-      wrap: { type: TextWrappingType.TOP_AND_BOTTOM },
-    },
   });
-}
-
-function titleFontSize(name: string) {
-  const len = name.length;
-  if (len > 34) return 32;
-  if (len > 24) return 36;
-  if (len > 16) return 40;
-  return 44;
-}
-
-function wrapTitle(name: string, maxCharsPerLine: number) {
-  const words = name.split(" ");
-  let lines: string[] = [];
-  let cur = "";
-  for (const w of words) {
-    const trial = (cur + " " + w).trim();
-    if (trial.length <= maxCharsPerLine) cur = trial;
-    else {
-      if (cur) lines.push(cur);
-      cur = w;
-    }
-  }
-  if (cur) lines.push(cur);
-  if (lines.length > 2) lines = [lines[0], lines.slice(1).join(" ")];
-  return lines;
-}
-
-function fitTitle(name: string) {
-  const boxWidthPt = ((BLOCK_W / DXA_PER_CM) - 0.24) * 28.3465;
-  let sizeHalf = titleFontSize(name);
-  while (sizeHalf >= 12) {
-    const sizePt = sizeHalf / 2;
-    const maxChars = Math.max(1, Math.floor(boxWidthPt / (sizePt * CHAR_WIDTH_FACTOR * SAFETY)));
-    const lines = wrapTitle(name, maxChars);
-    const widest = Math.max(...lines.map((l) => l.length));
-    const estWidthPt = widest * sizePt * CHAR_WIDTH_FACTOR * SAFETY;
-    const estHeightPt = lines.length * sizePt * 1.15 * SAFETY;
-    if (estWidthPt <= boxWidthPt && estHeightPt <= TITLE_ZONE_PT) return { lines, sizeHalf };
-    sizeHalf -= 2;
-  }
-  const sizePt = 6;
-  const maxChars = Math.max(1, Math.floor(boxWidthPt / (sizePt * CHAR_WIDTH_FACTOR * SAFETY)));
-  return { lines: wrapTitle(name, maxChars).slice(0, 2), sizeHalf: 12 };
-}
-
-function priceFontSizeHalf(price: string) {
-  const boxWidthPt = ((BLOCK_W / DXA_PER_CM) - 0.24) * 28.3465;
-  const widthUnits = estimatePriceWidthUnits(price);
-  const sizeFromWidth = boxWidthPt / (widthUnits * SAFETY);
-  const sizeFromHeight = PRICE_ZONE_PT / (1.15 * SAFETY);
-  const sizePt = Math.min(sizeFromWidth, sizeFromHeight);
-  return Math.round(sizePt * 2);
-}
-
-function unitFontSizeHalf(unit: string) {
-  const boxWidthPt = (BLOCK_W / DXA_PER_CM) * 0.55 * 28.3465;
-  const sizeFromHeight = BOTTOM_ZONE_PT / (1.15 * SAFETY);
-  const sizeFromWidth = boxWidthPt / (Math.max(unit.length, 1) * 0.6 * SAFETY);
-  const sizePt = Math.min(sizeFromHeight, sizeFromWidth, 19);
-  return Math.round(sizePt * 2);
 }
 
 const noBorder = { style: BorderStyle.NONE, size: 0, color: "FFFFFF" };
 const cellBorderThin = {
-  top: { style: BorderStyle.SINGLE, size: 6, color: "000000" },
-  bottom: { style: BorderStyle.SINGLE, size: 6, color: "000000" },
-  left: { style: BorderStyle.SINGLE, size: 6, color: "000000" },
-  right: { style: BorderStyle.SINGLE, size: 6, color: "000000" },
+  top: { style: BorderStyle.SINGLE, size: CELL_BORDER_SIZE, color: "000000" },
+  bottom: { style: BorderStyle.SINGLE, size: CELL_BORDER_SIZE, color: "000000" },
+  left: { style: BorderStyle.SINGLE, size: CELL_BORDER_SIZE, color: "000000" },
+  right: { style: BorderStyle.SINGLE, size: CELL_BORDER_SIZE, color: "000000" },
 };
 
 function formatPrice(n: number) {
@@ -147,48 +106,36 @@ function buildCell(item: Product | null) {
     });
   }
   const name = (item.ten_hoa_don || item.ten_hang_hoa).toUpperCase();
-  const { lines, sizeHalf: tSize } = fitTitle(name);
-  const SIDE_MARGIN_DXA = cm(0.12);
-  const displayLines = lines.length < 2 ? [...lines, ""] : lines;
-  const titleParas = displayLines.map(
-    (l) =>
-      new Paragraph({
-        alignment: AlignmentType.CENTER,
-        spacing: { after: 0, line: TIGHT_LINE, lineRule: "auto" },
-        indent: { left: SIDE_MARGIN_DXA, right: SIDE_MARGIN_DXA },
-        children: [new TextRun({ text: l, bold: true, font: FONT, size: tSize })],
-      })
-  );
+  const titlePara = new Paragraph({
+    alignment: AlignmentType.CENTER,
+    spacing: { after: 0, line: TITLE_LINE, lineRule: "exact" },
+    children: [new TextRun({ text: name, bold: true, font: FONT, size: TITLE_SIZE_HALF })],
+  });
 
   const priceStr = formatPrice(item.gia_ban);
-  const priceSize = priceFontSizeHalf(priceStr);
-  const priceParas = [
-    new Paragraph({
-      alignment: AlignmentType.CENTER,
-      spacing: { before: 0, after: 0 },
-      indent: { left: SIDE_MARGIN_DXA, right: SIDE_MARGIN_DXA },
-      children: [new TextRun({ text: priceStr, bold: true, font: FONT, size: priceSize })],
-    }),
-  ];
+  const pricePara = new Paragraph({
+    alignment: AlignmentType.CENTER,
+    spacing: { before: 0, after: PRICE_SPACING_AFTER },
+    children: [new TextRun({ text: priceStr, bold: true, font: FONT, size: priceFontSizeHalf(priceStr) })],
+  });
 
-  const unitSize = unitFontSizeHalf(item.dvt || "");
   const bottomLine = new Paragraph({
-    tabStops: [{ type: "right", position: BLOCK_W - SIDE_MARGIN_DXA }],
-    spacing: { before: 0, line: TIGHT_LINE, lineRule: "auto" },
-    indent: { left: SIDE_MARGIN_DXA, right: SIDE_MARGIN_DXA },
+    tabStops: [{ type: "right", position: BOTTOM_TAB_POS }],
+    spacing: { line: BOTTOM_LINE, lineRule: "exact" },
+    indent: { left: BOTTOM_INDENT, right: BOTTOM_INDENT },
     children: [
-      new TextRun({ text: item.ma_vach || item.ma_hang_hoa || "", font: FONT, size: 16 }),
+      new TextRun({ text: item.ma_vach || item.ma_hang_hoa || "", font: FONT, size: BARCODE_SIZE_HALF }),
       new TextRun({ children: [new Tab()], font: FONT }),
-      new TextRun({ text: (item.dvt || "").toUpperCase(), bold: true, font: FONT, size: unitSize }),
+      new TextRun({ text: (item.dvt || "").toUpperCase(), bold: true, font: FONT, size: UNIT_SIZE_HALF }),
     ],
   });
 
   return new TableCell({
     width: { size: BLOCK_W, type: WidthType.DXA },
     verticalAlign: VerticalAlign.TOP,
-    margins: { top: 20, bottom: cm(0.1), left: 0, right: 0 },
+    margins: { top: CELL_MARGIN_TOP, bottom: CELL_MARGIN_BOTTOM, left: CELL_MARGIN_SIDE, right: CELL_MARGIN_SIDE },
     borders: cellBorderThin,
-    children: [...titleParas, ...priceParas, bottomLine],
+    children: [titlePara, pricePara, bottomLine],
   });
 }
 
@@ -212,15 +159,15 @@ function buildPage(label: string, items: (Product | null)[]) {
   });
 
   const logo = logoImageRun();
-  const headerChildren = logo
-    ? [logo, new TextRun({ text: label, bold: true, font: FONT, size: 32 })]
-    : [new TextRun({ text: label, bold: true, font: FONT, size: 32 })];
+  const headerChildren = [
+    ...(logo ? [logo] : []),
+    new TextRun({ text: `  ${label}`, bold: true, font: FONT, size: 24 }),
+  ];
 
   return [
     new Paragraph({
       children: headerChildren,
-      spacing: { after: 120 },
-      indent: { left: logo ? cm(2.7) : 0 },
+      spacing: { after: 200 },
       border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: "000000", space: 4 } },
     }),
     table,
