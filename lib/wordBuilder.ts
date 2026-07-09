@@ -73,6 +73,22 @@ function priceFontSizeHalf(price: string) {
   return Math.round(Math.min(sizeFromWidth, sizeFromHeight) * 2);
 }
 
+// Most real prices are width-capped (e.g. every 6-character price lands at
+// 60pt regardless of the height ceiling above), so the price paragraph's own
+// line is usually much shorter than the vertical budget it was given —
+// leaving the leftover gap sitting uselessly above the barcode/unit line
+// instead of at the true bottom of the block. Spacing the price paragraph's
+// "after" value out to consume exactly that leftover pins the barcode/unit
+// line flush against the (0.1cm) bottom margin no matter which size the
+// price ends up at.
+const FIXED_ZONES_DXA = CELL_MARGIN_TOP + TITLE_LINE + BOTTOM_LINE + CELL_MARGIN_BOTTOM;
+
+function priceAfterSpacingDxa(priceSizeHalf: number): number {
+  const priceLineDxa = Math.round((priceSizeHalf / 2) * 1.15 * 20);
+  const remaining = BLOCK_H - FIXED_ZONES_DXA - priceLineDxa;
+  return Math.max(PRICE_SPACING_AFTER, remaining);
+}
+
 const LOGO_PATH = path.join(process.cwd(), "public", "templates", "logo.png");
 const LOGO_DISPLAY_W = 68; // px; reference logo is 857250 EMU wide (~2.38cm)
 const LOGO_DISPLAY_H = 22; // px; reference logo is 276225 EMU tall (~0.77cm)
@@ -116,10 +132,11 @@ function buildCell(item: Product | null) {
   });
 
   const priceStr = formatPrice(item.gia_ban);
+  const priceSize = priceFontSizeHalf(priceStr);
   const pricePara = new Paragraph({
     alignment: AlignmentType.CENTER,
-    spacing: { before: 0, after: PRICE_SPACING_AFTER },
-    children: [new TextRun({ text: priceStr, bold: true, font: FONT, size: priceFontSizeHalf(priceStr) })],
+    spacing: { before: 0, after: priceAfterSpacingDxa(priceSize) },
+    children: [new TextRun({ text: priceStr, bold: true, font: FONT, size: priceSize })],
   });
 
   const bottomLine = new Paragraph({
