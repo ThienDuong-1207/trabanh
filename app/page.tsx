@@ -16,6 +16,7 @@ export default function Home() {
   const [tab, setTab] = useState<"all" | "pending">("all");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [exporting, setExporting] = useState<"misa" | "word" | null>(null);
+  const [exportingToolBarcode, setExportingToolBarcode] = useState(false);
   const [exportingAll, setExportingAll] = useState<"category" | "brand" | "word" | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [dismissing, setDismissing] = useState(false);
@@ -148,6 +149,35 @@ export default function Home() {
       alert("Xuất file thất bại: " + e.message);
     } finally {
       setExporting(null);
+    }
+  }
+
+  // Reference tag for "Công cụ dụng cụ" only — unlike doExport(), this
+  // doesn't mark last_exported_at: the selection can include non-CCDC items
+  // (silently skipped server-side), so blanket-marking the whole selection
+  // as exported would be wrong for products this file never actually covers.
+  async function doExportToolBarcode() {
+    if (selected.size === 0) {
+      alert("Chọn ít nhất 1 sản phẩm để xuất file.");
+      return;
+    }
+    setExportingToolBarcode(true);
+    try {
+      const res = await fetch("/api/export-tool-barcode", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: Array.from(selected) }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error || (await res.text()));
+      }
+      const blob = await res.blob();
+      downloadBlob(blob, "Tem_ma_vach_CCDC.docx");
+    } catch (e: any) {
+      alert("Xuất file thất bại: " + e.message);
+    } finally {
+      setExportingToolBarcode(false);
     }
   }
 
@@ -376,6 +406,9 @@ export default function Home() {
             </button>
             <button className="btn" disabled={exporting !== null} onClick={() => doExport("word")}>
               {exporting === "word" ? "Đang xuất..." : "Xuất bảng giá (.docx)"}
+            </button>
+            <button className="btn" disabled={exportingToolBarcode} onClick={doExportToolBarcode}>
+              {exportingToolBarcode ? "Đang xuất..." : "Xuất tem mã vạch (CCDC)"}
             </button>
             {tab === "pending" && (
               <button className="btn btn-danger" disabled={dismissing} onClick={dismissPending}>
