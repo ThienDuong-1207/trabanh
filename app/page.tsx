@@ -17,6 +17,7 @@ export default function Home() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [exporting, setExporting] = useState<"misa" | "word" | null>(null);
   const [exportingToolBarcode, setExportingToolBarcode] = useState(false);
+  const [exportingRollLabel, setExportingRollLabel] = useState(false);
   const [exportingAll, setExportingAll] = useState<"category" | "brand" | "word" | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [dismissing, setDismissing] = useState(false);
@@ -178,6 +179,40 @@ export default function Home() {
       alert("Xuất file thất bại: " + e.message);
     } finally {
       setExportingToolBarcode(false);
+    }
+  }
+
+  // Single-tag-per-page 5x3cm label for roll label printers (iPOS IP3350...).
+  // Products without a mã vạch get one minted server-side and saved back —
+  // marks last_exported_at same as doExport(), since this prints the price.
+  async function doExportRollLabel() {
+    if (selected.size === 0) {
+      alert("Chọn ít nhất 1 sản phẩm để xuất file.");
+      return;
+    }
+    setExportingRollLabel(true);
+    try {
+      const res = await fetch("/api/export-roll-label", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: Array.from(selected) }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error || (await res.text()));
+      }
+      const blob = await res.blob();
+      downloadBlob(blob, "Tem_cuon_5x3cm.docx");
+
+      const now = new Date().toISOString();
+      const { error } = await supabase.from("products").update({ last_exported_at: now }).in("id", Array.from(selected));
+      if (error) throw error;
+      await loadProducts();
+      setSelected(new Set());
+    } catch (e: any) {
+      alert("Xuất file thất bại: " + e.message);
+    } finally {
+      setExportingRollLabel(false);
     }
   }
 
@@ -409,6 +444,9 @@ export default function Home() {
             </button>
             <button className="btn" disabled={exportingToolBarcode} onClick={doExportToolBarcode}>
               {exportingToolBarcode ? "Đang xuất..." : "Xuất tem mã vạch (CCDC)"}
+            </button>
+            <button className="btn" disabled={exportingRollLabel} onClick={doExportRollLabel}>
+              {exportingRollLabel ? "Đang xuất..." : "Xuất tem cuộn 5x3cm"}
             </button>
             {tab === "pending" && (
               <button className="btn btn-danger" disabled={dismissing} onClick={dismissPending}>
