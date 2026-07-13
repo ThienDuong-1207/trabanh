@@ -35,6 +35,12 @@ const MARGIN = cm(0.15);
 const CONTENT_WIDTH_DXA = PAGE_W - 2 * MARGIN;
 const CONTENT_WIDTH_PT = CONTENT_WIDTH_DXA / TWIPS_PER_PT;
 
+// docx's ImageRun `transformation.width/height` are pixels at 96 DPI, NOT
+// points — 1440 twips/inch ÷ 96 px/inch = 15 twips/px. Dividing by
+// TWIPS_PER_PT (20, twips/point) here would under-size every barcode image
+// by 20/15 (25% smaller than intended).
+const TWIPS_PER_PX_96DPI = 15;
+
 const FONT = "Arial";
 const TITLE_SIZE_PT = 7;
 const TITLE_MIN_SIZE_PT = 5;
@@ -48,6 +54,18 @@ const PRICE_SIZE_HALF = 20; // 10pt
 const UNIT_SIZE_HALF = 15; // 7.5pt
 const BOTTOM_LINE = 200; // exact twips, from reference
 const BOTTOM_RIGHT_PAD = cm(0.15); // extra padding beyond the page margin, from reference
+
+// The reference's 4.2cm-wide barcode extent only fits because that one
+// barcode's native aspect ratio happens to leave enough vertical room. Short
+// codes (e.g. a 4-digit Code128 value) render relatively taller for the same
+// width — scaling by width alone let that taller image push the bottom
+// price/unit line onto a second page within the same section, which on this
+// page's fixed 3cm height showed up as a near-blank extra "tag". Cap the
+// image's height to whatever's actually left after the title and bottom
+// line reserve their space, and shrink width to match if needed.
+const CONTENT_HEIGHT_DXA = PAGE_H - 2 * MARGIN;
+const TITLE_ZONE_DXA = 2 * ZONE_SPACING + TITLE_LINE;
+const BARCODE_MAX_HEIGHT_DXA = CONTENT_HEIGHT_DXA - TITLE_ZONE_DXA - BOTTOM_LINE - ZONE_SPACING;
 
 function fitTitleOneLine(name: string): { text: string; sizeHalf: number } {
   for (let sizePt = TITLE_SIZE_PT; sizePt >= TITLE_MIN_SIZE_PT; sizePt -= 0.5) {
@@ -80,9 +98,13 @@ async function buildLabelSection(item: Product, barcodeValue: string) {
   let barcodeChildren: (ImageRun | TextRun)[];
   if (barcodePng) {
     const { width, height } = pngDimensions(barcodePng);
-    const displayWidth = BARCODE_MAX_WIDTH_DXA;
-    const displayHeight = Math.round((displayWidth * height) / width);
-    barcodeChildren = [new ImageRun({ type: "png", data: barcodePng, transformation: { width: displayWidth / TWIPS_PER_PT, height: displayHeight / TWIPS_PER_PT } })];
+    let displayWidth = BARCODE_MAX_WIDTH_DXA;
+    let displayHeight = Math.round((displayWidth * height) / width);
+    if (displayHeight > BARCODE_MAX_HEIGHT_DXA) {
+      displayHeight = BARCODE_MAX_HEIGHT_DXA;
+      displayWidth = Math.round((displayHeight * width) / height);
+    }
+    barcodeChildren = [new ImageRun({ type: "png", data: barcodePng, transformation: { width: displayWidth / TWIPS_PER_PX_96DPI, height: displayHeight / TWIPS_PER_PX_96DPI } })];
   } else {
     barcodeChildren = [new TextRun({ text: barcodeValue, font: FONT, size: 14 })];
   }
@@ -115,8 +137,17 @@ async function buildLabelSection(item: Product, barcodeValue: string) {
   };
 }
 
+// A section always emits title+barcode+bottom-line together from one
+// product's data, so a "blank tag" can't come from a genuinely missing
+// field further down the line — but skip defensively anyway rather than
+// ever hand a broken/incomplete tag to the printer.
+function hasUsableData(item: Product, barcode: string): boolean {
+  const name = (item.ten_hoa_don || item.ten_hang_hoa || "").trim();
+  return name.length > 0 && barcode.trim().length > 0;
+}
+
 export async function buildRollLabelFile(items: { product: Product; barcode: string }[]): Promise<Buffer> {
-  const eligible = items.filter((it) => it.product.gia_ban);
+  const eligible = items.filter((it) => it.product.gia_ban && hasUsableData(it.product, it.barcode));
   const sections = await Promise.all(eligible.map((it) => buildLabelSection(it.product, it.barcode)));
 
   if (sections.length === 0) {
