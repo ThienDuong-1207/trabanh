@@ -35,6 +35,19 @@ const MARGIN = cm(0.15);
 const CONTENT_WIDTH_DXA = PAGE_W - 2 * MARGIN;
 const CONTENT_WIDTH_PT = CONTENT_WIDTH_DXA / TWIPS_PER_PT;
 
+// estimateTextWidthPt is an approximation (published AFM metrics, not the
+// actual installed font's real hinting), and fitTitleOneLine's truncation
+// loop below stops as soon as the estimate says it fits — landing right at
+// the boundary with ~0 real margin. A title that JUST needs full truncation
+// to fit hit this: our estimate said 132.41pt fit inside a 133.25pt budget
+// (0.6% to spare), but Word's actual render came out wider and wrapped to a
+// second line, which overflowed this section onto a blank extra page
+// (TITLE_LINE's "exact" height budgets for exactly one line). Shrink the
+// budget those comparisons use so a small estimation error can never
+// actually reach the true page width.
+const TITLE_FIT_SAFETY = 1.08;
+const TITLE_FIT_WIDTH_PT = CONTENT_WIDTH_PT / TITLE_FIT_SAFETY;
+
 // docx's ImageRun `transformation.width/height` are pixels at 96 DPI, NOT
 // points — 1440 twips/inch ÷ 96 px/inch = 15 twips/px. Dividing by
 // TWIPS_PER_PT (20, twips/point) here would under-size every barcode image
@@ -69,12 +82,12 @@ const BARCODE_MAX_HEIGHT_DXA = CONTENT_HEIGHT_DXA - TITLE_ZONE_DXA - BOTTOM_LINE
 
 function fitTitleOneLine(name: string): { text: string; sizeHalf: number } {
   for (let sizePt = TITLE_SIZE_PT; sizePt >= TITLE_MIN_SIZE_PT; sizePt -= 0.5) {
-    if (estimateTextWidthPt(name, sizePt) <= CONTENT_WIDTH_PT) {
+    if (estimateTextWidthPt(name, sizePt) <= TITLE_FIT_WIDTH_PT) {
       return { text: name, sizeHalf: Math.round(sizePt * 2) };
     }
   }
   let truncated = name;
-  while (truncated.length > 1 && estimateTextWidthPt(truncated + "…", TITLE_MIN_SIZE_PT) > CONTENT_WIDTH_PT) {
+  while (truncated.length > 1 && estimateTextWidthPt(truncated + "…", TITLE_MIN_SIZE_PT) > TITLE_FIT_WIDTH_PT) {
     truncated = truncated.slice(0, -1);
   }
   return { text: truncated + "…", sizeHalf: Math.round(TITLE_MIN_SIZE_PT * 2) };
