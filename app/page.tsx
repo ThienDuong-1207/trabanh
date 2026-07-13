@@ -20,6 +20,7 @@ export default function Home() {
   const [exportingAll, setExportingAll] = useState<"category" | "brand" | "word" | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [dismissing, setDismissing] = useState(false);
+  const [deletingSelected, setDeletingSelected] = useState(false);
   const [importing, setImporting] = useState(false);
   const [formTarget, setFormTarget] = useState<"new" | Product | null>(null);
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
@@ -203,6 +204,30 @@ export default function Home() {
       alert("Thao tác thất bại: " + e.message);
     } finally {
       setDismissing(false);
+    }
+  }
+
+  async function deleteSelected() {
+    if (selected.size === 0) {
+      alert("Chọn ít nhất 1 sản phẩm để xóa.");
+      return;
+    }
+    if (!confirm(`Xóa VĨNH VIỄN ${selected.size} sản phẩm đã chọn? Không thể hoàn tác.`)) return;
+    setDeletingSelected(true);
+    try {
+      const res = await fetch("/api/products", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: Array.from(selected) }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Xóa thất bại");
+      setSelected(new Set());
+      await loadProducts();
+    } catch (e: any) {
+      alert("Xóa sản phẩm thất bại: " + e.message);
+    } finally {
+      setDeletingSelected(false);
     }
   }
 
@@ -414,6 +439,9 @@ export default function Home() {
             </button>
             <button className="btn" disabled={exportingRollLabel} onClick={doExportRollLabel}>
               {exportingRollLabel ? "Đang xuất..." : "Xuất tem cuộn 5x3cm"}
+            </button>
+            <button className="btn btn-danger" disabled={deletingSelected} onClick={deleteSelected}>
+              {deletingSelected ? "Đang xóa..." : "Xóa tất cả đã chọn"}
             </button>
             {tab === "pending" && (
               <button className="btn btn-danger" disabled={dismissing} onClick={dismissPending}>

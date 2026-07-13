@@ -24,3 +24,22 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }
+
+// Bulk delete for the "Xóa tất cả đã chọn" action — one request instead of
+// one DELETE per product when the selection is large.
+export async function DELETE(req: NextRequest) {
+  try {
+    const { ids } = (await req.json()) as { ids: string[] };
+    if (!ids || ids.length === 0) {
+      return NextResponse.json({ error: "Chưa chọn sản phẩm nào" }, { status: 400 });
+    }
+
+    const supabase = supabaseAdmin();
+    const { error } = await supabase.from("products").delete().in("id", ids);
+    if (error) throw error;
+
+    return NextResponse.json({ ok: true, deleted: ids.length });
+  } catch (e: any) {
+    return NextResponse.json({ error: e.message }, { status: 500 });
+  }
+}
