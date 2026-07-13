@@ -15,7 +15,7 @@ export default function Home() {
   const [missingOnly, setMissingOnly] = useState(false);
   const [tab, setTab] = useState<"all" | "pending">("all");
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [exporting, setExporting] = useState<"misa" | "word" | null>(null);
+  const [exporting, setExporting] = useState<"misa" | "word" | "misa-update" | null>(null);
   const [exportingRollLabel, setExportingRollLabel] = useState(false);
   const [exportingAll, setExportingAll] = useState<"category" | "brand" | "word" | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
@@ -119,7 +119,7 @@ export default function Home() {
     setSelected(new Set(visible.map((p) => p.id)));
   }
 
-  async function doExport(kind: "misa" | "word") {
+  async function doExport(kind: "misa" | "word" | "misa-update") {
     if (selected.size === 0) {
       alert("Chọn ít nhất 1 sản phẩm để xuất file.");
       return;
@@ -136,7 +136,12 @@ export default function Home() {
         throw new Error(t);
       }
       const blob = await res.blob();
-      downloadBlob(blob, kind === "misa" ? "MISA_Import_Update.xlsx" : "Bang_gia_block_7.7x4cm_Update.docx");
+      const filenames = {
+        misa: "MISA_Import_Update.xlsx",
+        word: "Bang_gia_block_7.7x4cm_Update.docx",
+        "misa-update": "MISA_Cap_nhat_thong_tin.xlsx",
+      };
+      downloadBlob(blob, filenames[kind]);
 
       const now = new Date().toISOString();
       const { error } = await supabase
@@ -433,6 +438,9 @@ export default function Home() {
             </span>
             <button className="btn btn-primary solid-primary" disabled={exporting !== null} onClick={() => doExport("misa")}>
               {exporting === "misa" ? "Đang xuất..." : "Xuất MISA (.xlsx)"}
+            </button>
+            <button className="btn" disabled={exporting !== null} onClick={() => doExport("misa-update")}>
+              {exporting === "misa-update" ? "Đang xuất..." : "Xuất cập nhật MISA"}
             </button>
             <button className="btn" disabled={exporting !== null} onClick={() => doExport("word")}>
               {exporting === "word" ? "Đang xuất..." : "Xuất bảng giá (.docx)"}
