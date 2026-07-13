@@ -56,7 +56,11 @@ const TWIPS_PER_PX_96DPI = 15;
 
 const FONT = "Arial";
 const TITLE_SIZE_PT = 7;
-const TITLE_MIN_SIZE_PT = 5;
+// Pushed down from 5pt: prefer shrinking a one-line title as far as
+// legibly possible before giving up and wrapping to a second line (which
+// costs an extra TITLE_LINE of vertical budget that would otherwise go to
+// the barcode/price).
+const TITLE_MIN_SIZE_PT = 4;
 const TITLE_LINE = 200; // exact twips, from reference
 const ZONE_SPACING = 50; // twips, from reference — the "chia đều khoảng cách" gaps
 
@@ -75,22 +79,71 @@ const BOTTOM_RIGHT_PAD = cm(0.15); // extra padding beyond the page margin, from
 // price/unit line onto a second page within the same section, which on this
 // page's fixed 3cm height showed up as a near-blank extra "tag". Cap the
 // image's height to whatever's actually left after the title and bottom
-// line reserve their space, and shrink width to match if needed.
+// line reserve their space, and shrink width to match if needed. A two-line
+// title costs one extra TITLE_LINE, so this budget depends on how many
+// lines the title actually ended up using.
 const CONTENT_HEIGHT_DXA = PAGE_H - 2 * MARGIN;
-const TITLE_ZONE_DXA = 2 * ZONE_SPACING + TITLE_LINE;
-const BARCODE_MAX_HEIGHT_DXA = CONTENT_HEIGHT_DXA - TITLE_ZONE_DXA - BOTTOM_LINE - ZONE_SPACING;
+const MIN_BARCODE_HEIGHT_DXA = cm(0.3); // floor so an extreme (2-line, min-size) title can't zero out the image
 
-function fitTitleOneLine(name: string): { text: string; sizeHalf: number } {
+function barcodeMaxHeightDxa(titleLines: number): number {
+  const titleZoneDxa = 2 * ZONE_SPACING + titleLines * TITLE_LINE;
+  return Math.max(MIN_BARCODE_HEIGHT_DXA, CONTENT_HEIGHT_DXA - titleZoneDxa - BOTTOM_LINE - ZONE_SPACING);
+}
+
+// Splits `name` across exactly two lines at a word boundary, greedily
+// filling line 1. Returns null if that boundary split still doesn't fit
+// (e.g. the remainder is wider than the page even alone), so the caller can
+// try a smaller size before falling back to truncation.
+function splitTwoLines(name: string, sizePt: number, maxWidthPt: number): [string, string] | null {
+  const words = name.split(" ");
+  if (words.length < 2) return null;
+  let line1 = words[0];
+  let idx = 1;
+  for (; idx < words.length; idx++) {
+    const candidate = `${line1} ${words[idx]}`;
+    if (estimateTextWidthPt(candidate, sizePt) > maxWidthPt) break;
+    line1 = candidate;
+  }
+  const line2 = words.slice(idx).join(" ");
+  if (!line2 || estimateTextWidthPt(line2, sizePt) > maxWidthPt) return null;
+  return [line1, line2];
+}
+
+// Prefers a single line, shrinking down to TITLE_MIN_SIZE_PT before ever
+// wrapping — wrapping costs an extra line of vertical budget the
+// barcode/price would otherwise get. Only wraps to two lines if no size
+// lets the whole name fit on one; only truncates (last resort) if not even
+// two lines at the smallest size can fit the whole name.
+function fitTitle(name: string): { lines: string[]; sizeHalf: number } {
   for (let sizePt = TITLE_SIZE_PT; sizePt >= TITLE_MIN_SIZE_PT; sizePt -= 0.5) {
     if (estimateTextWidthPt(name, sizePt) <= TITLE_FIT_WIDTH_PT) {
-      return { text: name, sizeHalf: Math.round(sizePt * 2) };
+      return { lines: [name], sizeHalf: Math.round(sizePt * 2) };
     }
   }
-  let truncated = name;
-  while (truncated.length > 1 && estimateTextWidthPt(truncated + "…", TITLE_MIN_SIZE_PT) > TITLE_FIT_WIDTH_PT) {
-    truncated = truncated.slice(0, -1);
+  for (let sizePt = TITLE_SIZE_PT; sizePt >= TITLE_MIN_SIZE_PT; sizePt -= 0.5) {
+    const split = splitTwoLines(name, sizePt, TITLE_FIT_WIDTH_PT);
+    if (split) return { lines: split, sizeHalf: Math.round(sizePt * 2) };
   }
-  return { text: truncated + "…", sizeHalf: Math.round(TITLE_MIN_SIZE_PT * 2) };
+
+  // Even two lines at the smallest size doesn't cleanly fit at a word
+  // boundary (an extremely long name) — force it: fill line 1 with as many
+  // words as fit, then truncate whatever's left for line 2.
+  const words = name.split(" ");
+  let line1 = words[0] ?? name;
+  let idx = 1;
+  for (; idx < words.length; idx++) {
+    const candidate = `${line1} ${words[idx]}`;
+    if (estimateTextWidthPt(candidate, TITLE_MIN_SIZE_PT) > TITLE_FIT_WIDTH_PT) break;
+    line1 = candidate;
+  }
+  while (line1.length > 1 && estimateTextWidthPt(line1, TITLE_MIN_SIZE_PT) > TITLE_FIT_WIDTH_PT) {
+    line1 = line1.slice(0, -1);
+  }
+  let line2 = words.slice(idx).join(" ");
+  while (line2.length > 1 && estimateTextWidthPt(`${line2}…`, TITLE_MIN_SIZE_PT) > TITLE_FIT_WIDTH_PT) {
+    line2 = line2.slice(0, -1);
+  }
+  return { lines: [line1, `${line2}…`], sizeHalf: Math.round(TITLE_MIN_SIZE_PT * 2) };
 }
 
 function formatPrice(n: number) {
@@ -99,22 +152,25 @@ function formatPrice(n: number) {
 
 async function buildLabelSection(item: Product, barcodeValue: string) {
   const name = (item.ten_hoa_don || item.ten_hang_hoa).toUpperCase();
-  const { text: titleText, sizeHalf: titleSizeHalf } = fitTitleOneLine(name);
+  const { lines: titleLines, sizeHalf: titleSizeHalf } = fitTitle(name);
 
   const titlePara = new Paragraph({
     alignment: AlignmentType.CENTER,
     spacing: { before: ZONE_SPACING, after: ZONE_SPACING, line: TITLE_LINE, lineRule: "exact" },
-    children: [new TextRun({ text: titleText, bold: true, font: FONT, size: titleSizeHalf })],
+    children: titleLines.map(
+      (line, i) => new TextRun({ text: line, bold: true, font: FONT, size: titleSizeHalf, break: i > 0 ? 1 : undefined })
+    ),
   });
 
+  const barcodeMaxHeight = barcodeMaxHeightDxa(titleLines.length);
   const barcodePng = await generateBarcodePng(barcodeValue);
   let barcodeChildren: (ImageRun | TextRun)[];
   if (barcodePng) {
     const { width, height } = pngDimensions(barcodePng);
     let displayWidth = BARCODE_MAX_WIDTH_DXA;
     let displayHeight = Math.round((displayWidth * height) / width);
-    if (displayHeight > BARCODE_MAX_HEIGHT_DXA) {
-      displayHeight = BARCODE_MAX_HEIGHT_DXA;
+    if (displayHeight > barcodeMaxHeight) {
+      displayHeight = barcodeMaxHeight;
       displayWidth = Math.round((displayHeight * width) / height);
     }
     barcodeChildren = [new ImageRun({ type: "png", data: barcodePng, transformation: { width: displayWidth / TWIPS_PER_PX_96DPI, height: displayHeight / TWIPS_PER_PX_96DPI } })];
