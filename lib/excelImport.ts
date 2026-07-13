@@ -6,8 +6,11 @@ const SKIP_SHEETS = new Set(["HUONG DAN", "Master (Tổng hợp)", "Hướng d�
 
 const COLUMN_TO_FIELD: Record<string, string> = {
   "Mã nội bộ": "ma_noi_bo",
+  "Mã hàng hóa": "ma_noi_bo", // alternate header used by the xuất-nhập-tồn report format
   "Tên hàng hóa (gốc)": "ten_hang_hoa",
+  "Tên hàng hóa": "ten_hang_hoa", // alternate header, same report format
   "Tên trên hóa đơn": "ten_hoa_don",
+  "Tên hàng hóa trên Hóa đơn": "ten_hoa_don", // alternate header, same report format
   "Đơn vị tính": "dvt",
   "Giá bán lẻ": "gia_ban",
   "Giá thùng": "gia_thung",
@@ -33,6 +36,16 @@ export type ImportSummary = {
   skippedSheets: string[];
 };
 
+// Google Sheets sometimes appends a disambiguation suffix to a tab name
+// (e.g. "Trà (76,18,77,78)") after a copy/merge conflict — strip a trailing
+// parenthetical and retry before giving up on a sheet that would otherwise
+// silently get skipped despite genuinely being one of our categories.
+function resolveCategoryName(sheetName: string): string | null {
+  if (CATEGORY_ORDER.includes(sheetName)) return sheetName;
+  const stripped = sheetName.replace(/\s*\([^)]*\)\s*$/, "").trim();
+  return CATEGORY_ORDER.includes(stripped) ? stripped : null;
+}
+
 function cellValue(raw: ExcelJS.CellValue): string | number | null {
   const value = raw && typeof raw === "object" && "result" in raw ? (raw as { result: unknown }).result : raw;
   if (value === undefined || value === null || value === "") return null;
@@ -54,7 +67,8 @@ export async function importProductsFromWorkbook(buffer: Buffer): Promise<Import
   for (const worksheet of workbook.worksheets) {
     const name = worksheet.name;
     if (SKIP_SHEETS.has(name)) continue;
-    if (!CATEGORY_ORDER.includes(name)) {
+    const category = resolveCategoryName(name);
+    if (!category) {
       skippedSheets.push(name);
       continue;
     }
@@ -67,7 +81,7 @@ export async function importProductsFromWorkbook(buffer: Buffer): Promise<Import
 
     worksheet.eachRow((row, rowNumber) => {
       if (rowNumber === 1) return;
-      const record: Record<string, string | number | null> = { category_sheet: name };
+      const record: Record<string, string | number | null> = { category_sheet: category };
       let hasMaNoiBo = false;
       fieldByCol.forEach((field, colNumber) => {
         const value = cellValue(row.getCell(colNumber).value);
