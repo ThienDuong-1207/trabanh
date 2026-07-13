@@ -18,7 +18,17 @@ export async function POST(req: NextRequest) {
     const supabase = supabaseAdmin();
     const { data, error } = await supabase.from("products").select("*").in("id", ids);
     if (error) throw error;
-    const products = data as Product[];
+
+    // Only products with a giá bán lẻ actually get printed (the tag shows
+    // the price) — skip the rest before minting any mã vạch, so a product
+    // that never makes it onto a label doesn't burn a barcode for nothing.
+    const products = (data as Product[]).filter((p) => p.gia_ban);
+    if (products.length === 0) {
+      return NextResponse.json(
+        { error: "Không có sản phẩm nào có giá bán lẻ trong danh sách đã chọn." },
+        { status: 400 }
+      );
+    }
 
     // Products missing a mã vạch get a freshly-minted, permanent EAN-13
     // ("200" GS1 internal-use prefix) instead of a one-off value that would
