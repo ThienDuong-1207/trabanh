@@ -93,20 +93,28 @@ export async function importProductsFromWorkbook(buffer: Buffer): Promise<Import
   }
 
   // Fail fast with a clear message: an upsert can't apply two rows with the
-  // same conflict key (ma_noi_bo) in one statement, and Postgres's resulting
-  // error doesn't say which one — so check before hitting the database.
-  const sheetsByCode = new Map<string, string[]>();
-  for (const r of rows) {
-    const code = r.ma_noi_bo as string;
-    const sheets = sheetsByCode.get(code) ?? [];
-    sheets.push(r.category_sheet as string);
-    sheetsByCode.set(code, sheets);
+  // same conflict key (ma_noi_bo) in one statement, and a raw unique-index
+  // violation (ma_noi_bo, but also ma_vach/ma_thung which the DB also
+  // enforces as unique) doesn't say which rows collided — so check every
+  // one of these before hitting the database at all.
+  function checkDuplicates(field: "ma_noi_bo" | "ma_vach" | "ma_thung", label: string) {
+    const sheetsByValue = new Map<string, string[]>();
+    for (const r of rows) {
+      const value = r[field];
+      if (!value) continue;
+      const sheets = sheetsByValue.get(String(value)) ?? [];
+      sheets.push(r.category_sheet as string);
+      sheetsByValue.set(String(value), sheets);
+    }
+    const duplicates = [...sheetsByValue.entries()].filter(([, sheets]) => sheets.length > 1);
+    if (duplicates.length > 0) {
+      const detail = duplicates.map(([value, sheets]) => `"${value}" (${sheets.length} lần, sheet: ${sheets.join(", ")})`).join("; ");
+      throw new Error(`File có ${label} bị trùng, cần sửa trong Excel trước khi nhập: ${detail}`);
+    }
   }
-  const duplicates = [...sheetsByCode.entries()].filter(([, sheets]) => sheets.length > 1);
-  if (duplicates.length > 0) {
-    const detail = duplicates.map(([code, sheets]) => `"${code}" (${sheets.length} lần, sheet: ${sheets.join(", ")})`).join("; ");
-    throw new Error(`File có Mã nội bộ bị trùng, cần sửa trong Excel trước khi nhập: ${detail}`);
-  }
+  checkDuplicates("ma_noi_bo", "Mã nội bộ");
+  checkDuplicates("ma_vach", "Mã vạch");
+  checkDuplicates("ma_thung", "Mã thùng");
 
   const supabase = supabaseAdmin();
 
