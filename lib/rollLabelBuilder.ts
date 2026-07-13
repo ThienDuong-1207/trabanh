@@ -2,6 +2,7 @@ import { Document, Packer, Paragraph, TextRun, ImageRun, Tab, AlignmentType } fr
 import { Product } from "./types";
 import { generateBarcodePng, pngDimensions } from "./barcodeImage";
 import { estimateTextWidthPt } from "./textWidth";
+import { fixDuplicateDocPrIds } from "./docxFixup";
 
 // Single-label-per-page layout for roll label printers (e.g. iPOS IP3350):
 // each page IS one physical 5x3cm label, not a grid of many labels on an
@@ -126,5 +127,5 @@ export async function buildRollLabelFile(items: { product: Product; barcode: str
   }
 
   const doc = new Document({ sections });
-  return Buffer.from(await Packer.toBuffer(doc));
+  return fixDuplicateDocPrIds(Buffer.from(await Packer.toBuffer(doc)));
 }

@@ -6,6 +6,7 @@ import {
   HeightRule, PageOrientation, TableLayoutType, Tab, ImageRun,
 } from "docx";
 import { Product } from "./types";
+import { fixDuplicateDocPrIds } from "./docxFixup";
 
 // All fixed layout numbers in this file (cell margins, border weight, line
 // spacing, title/barcode/unit sizes) are taken directly from
@@ -230,5 +231,5 @@ export async function buildWordFile(items: Product[]): Promise<Buffer> {
   }
 
   const doc = new Document({ sections });
-  return Buffer.from(await Packer.toBuffer(doc));
+  return fixDuplicateDocPrIds(Buffer.from(await Packer.toBuffer(doc)));
 }
