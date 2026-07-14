@@ -74,9 +74,13 @@ export default function Home() {
     [products]
   );
 
-  const visible = useMemo(() => {
+  // Everything except the tab (Tất cả / Chờ xuất file) filter — used both to
+  // build `visible` and to count each tab accurately for the CURRENT
+  // category/brand/search filters, instead of showing a raw whole-catalog
+  // count that doesn't match what the tab actually shows once other filters
+  // are active.
+  const filteredByCriteria = useMemo(() => {
     let list = products;
-    if (tab === "pending") list = list.filter((p) => pendingIds.has(p.id));
     if (category !== "Tất cả") list = list.filter((p) => p.category_sheet === category);
     if (brandFilter !== "Tất cả") list = list.filter((p) => p.brand?.name === brandFilter);
     if (missingOnly) list = list.filter(isMissingInfo);
@@ -91,7 +95,17 @@ export default function Home() {
       );
     }
     return list;
-  }, [products, tab, category, brandFilter, missingOnly, search, pendingIds]);
+  }, [products, category, brandFilter, missingOnly, search]);
+
+  const visible = useMemo(() => {
+    if (tab === "pending") return filteredByCriteria.filter((p) => pendingIds.has(p.id));
+    return filteredByCriteria;
+  }, [filteredByCriteria, tab, pendingIds]);
+
+  const pendingInFilter = useMemo(
+    () => filteredByCriteria.filter((p) => pendingIds.has(p.id)).length,
+    [filteredByCriteria, pendingIds]
+  );
 
   async function savePrice(p: Product, field: "gia_ban" | "gia_thung", value: string) {
     const num = value.trim() === "" ? null : Number(value.replace(/[^\d]/g, ""));
@@ -441,10 +455,10 @@ export default function Home() {
         <div className="view-row-left">
           <div className="segmented">
             <button className={tab === "all" ? "active" : ""} onClick={() => setTab("all")}>
-              Tất cả ({products.length})
+              Tất cả ({filteredByCriteria.length})
             </button>
             <button className={tab === "pending" ? "active" : ""} onClick={() => setTab("pending")}>
-              Chờ xuất file ({pendingIds.size})
+              Chờ xuất file ({pendingInFilter})
             </button>
           </div>
           <button className="btn btn-neutral" onClick={selectAllVisible}>
