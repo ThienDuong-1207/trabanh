@@ -46,7 +46,7 @@ function itemToRowSpecs(item: Product) {
     C: hasConv ? LOAI_HANG_CHA : LOAI_KHONG_THUOC_TINH,
     D: ma,
     E: item.ma_vach || "",
-    G: (item.ten_hoa_don || item.ten_hang_hoa || "").trim(),
+    G: (item.ten_hang_hoa || item.ten_hoa_don || "").trim(),
     I: (item.dvt || "").trim(),
     L: item.brand?.name || "",
     N: item.category_sheet || "",
@@ -76,7 +76,6 @@ export async function buildMisaFile(items: Product[]): Promise<Buffer> {
   for (const it of items) {
     allSpecs.push(...itemToRowSpecs(it));
   }
-  const n = allSpecs.length;
   const newRows = allSpecs.map(([v, nv], i) => buildRow(6 + i, v, nv)).join("");
 
   const templateBuf = fs.readFileSync(TEMPLATE_PATH);
@@ -87,12 +86,17 @@ export async function buildMisaFile(items: Product[]): Promise<Buffer> {
   if (!sheetXmlFile) throw new Error("Không tìm thấy sheet2.xml trong file mẫu MISA");
   const sheetXml = await sheetXmlFile.async("string");
 
-  const start = sheetXml.indexOf('<row r="6"');
-  const endRowNum = 6 + n;
-  let end = sheetXml.indexOf(`<row r="${endRowNum}"`);
-  if (end === -1) end = sheetXml.indexOf("</sheetData>");
+  // The shipped template has no real data rows below the row-5 header (this
+  // was sanitized after discovering MISA's own worked examples — an "áo
+  // thun" parent+4-children block and a "sữa tươi" one — sat in rows 6-16
+  // and leaked into small exports whenever generated content didn't fully
+  // overwrite them). Always insert right before </sheetData> rather than
+  // searching for a specific row number, so this can't regress even if the
+  // template changes again.
+  const end = sheetXml.indexOf("</sheetData>");
+  if (end === -1) throw new Error("Không tìm thấy vùng dữ liệu trong file mẫu MISA");
 
-  const newSheetXml = sheetXml.slice(0, start) + newRows + sheetXml.slice(end);
+  const newSheetXml = sheetXml.slice(0, end) + newRows + sheetXml.slice(end);
   zip.file(sheetPath, newSheetXml);
 
   const outBuf = await zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });
