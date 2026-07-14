@@ -505,7 +505,7 @@ export default function Home() {
                       <input type="checkbox" checked={selected.has(p.id)} onChange={() => toggleSelect(p.id)} />
                     </td>
                     <td className="name-cell">
-                      {p.ten_hoa_don || p.ten_hang_hoa}
+                      {p.ten_hang_hoa}
                       <span className="sub code-cell" title={`Mã nội bộ: ${p.ma_noi_bo}`}>
                         {productCodesLine(p)}
                       </span>
@@ -662,7 +662,7 @@ function DashboardView({ products, pendingCount }: { products: Product[]; pendin
             <div className="activity-row" key={p.id}>
               <div className="activity-dot" />
               <div>
-                {p.ten_hoa_don || p.ten_hang_hoa}
+                {p.ten_hang_hoa}
                 <div className="t">{relativeTimeVi(p.updated_at)}</div>
               </div>
             </div>
