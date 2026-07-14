@@ -151,7 +151,7 @@ function formatPrice(n: number) {
 }
 
 async function buildLabelSection(item: Product, barcodeValue: string) {
-  const name = (item.ten_hoa_don || item.ten_hang_hoa).toUpperCase();
+  const name = item.ten_hang_hoa.toUpperCase();
   const { lines: titleLines, sizeHalf: titleSizeHalf } = fitTitle(name);
 
   const titlePara = new Paragraph({
@@ -211,7 +211,7 @@ async function buildLabelSection(item: Product, barcodeValue: string) {
 // field further down the line — but skip defensively anyway rather than
 // ever hand a broken/incomplete tag to the printer.
 function hasUsableData(item: Product, barcode: string): boolean {
-  const name = (item.ten_hoa_don || item.ten_hang_hoa || "").trim();
+  const name = (item.ten_hang_hoa || "").trim();
   return name.length > 0 && barcode.trim().length > 0;
 }
 

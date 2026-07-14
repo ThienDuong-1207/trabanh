@@ -127,7 +127,7 @@ function buildCell(item: Product | null) {
       children: [new Paragraph({ text: "" })],
     });
   }
-  const name = (item.ten_hoa_don || item.ten_hang_hoa).toUpperCase();
+  const name = item.ten_hang_hoa.toUpperCase();
   const titlePara = new Paragraph({
     alignment: AlignmentType.CENTER,
     spacing: { after: 0, line: TITLE_LINE, lineRule: "exact" },
