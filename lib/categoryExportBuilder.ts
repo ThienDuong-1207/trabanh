@@ -6,9 +6,8 @@ const LOAI_HANG_HOA_MAC_DINH = "Hàng hóa thường";
 const HEADER = [
   "Mã hàng hóa", "Tên hàng hóa (gốc)", "Tên trên hóa đơn", "Đơn vị tính",
   "Giá bán lẻ", "Giá thùng", "Quy cách thùng", "Tỷ lệ quy đổi",
-  "Thương hiệu", "Nhà cung cấp", "Mã hàng hóa gốc (NCC/POS)", "Mã vạch",
-  "Mã thùng", "Loại hàng hóa", "Trạng thái", "Tên sàn Shopee",
-  "Tên sàn TikTok Shop", "Xuất xứ",
+  "Thương hiệu", "Nhà cung cấp", "Mã vạch",
+  "Mã thùng", "Loại hàng hóa", "Trạng thái", "Xuất xứ",
 ];
 
 function toRow(p: Product): (string | number | null)[] {
@@ -16,9 +15,8 @@ function toRow(p: Product): (string | number | null)[] {
   return [
     p.ma_noi_bo, p.ten_hang_hoa, p.ten_hoa_don, p.dvt,
     p.gia_ban, p.gia_thung, p.quy_cach, p.ty_le,
-    brandName, brandName, p.ma_hang_hoa, p.ma_vach,
-    p.ma_thung, LOAI_HANG_HOA_MAC_DINH, p.trang_thai, p.ten_shopee,
-    p.ten_tiktok, p.xuat_xu,
+    brandName, brandName, p.ma_vach,
+    p.ma_thung, LOAI_HANG_HOA_MAC_DINH, p.trang_thai, p.xuat_xu,
   ];
 }
 

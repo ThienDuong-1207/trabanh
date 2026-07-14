@@ -10,13 +10,10 @@ export type Product = {
   ty_le: number | null;
   brand_id: string | null;
   brand?: { name: string } | null; // populated only when a query joins brand:brands(name)
-  ma_hang_hoa: string | null;
   ma_vach: string | null;
   ma_thung: string | null;
   ma_nhom_thay_the: string | null;
   trang_thai: string | null;
-  ten_shopee: string | null;
-  ten_tiktok: string | null;
   xuat_xu: string | null;
   category_sheet: string;
   updated_at: string;

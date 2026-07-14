@@ -18,13 +18,10 @@ const COLUMN_TO_FIELD: Record<string, string> = {
   "Tỷ lệ quy đổi": "ty_le",
   "Thương hiệu": "thuong_hieu",
   "Nhà cung cấp": "nha_cung_cap",
-  "Mã hàng hóa (NCC/POS)": "ma_hang_hoa",
   "Mã vạch": "ma_vach",
   "Mã thùng": "ma_thung",
   "Mã nhóm thay thế": "ma_nhom_thay_the",
   "Trạng thái": "trang_thai",
-  "Tên sàn Shopee": "ten_shopee",
-  "Tên sàn TikTok Shop": "ten_tiktok",
   "Xuất xứ": "xuat_xu",
 };
 

@@ -148,7 +148,7 @@ function buildCell(item: Product | null) {
     spacing: { line: BOTTOM_LINE, lineRule: "exact" },
     indent: { left: BOTTOM_INDENT, right: BOTTOM_INDENT },
     children: [
-      new TextRun({ text: item.ma_vach || item.ma_hang_hoa || "", font: FONT, size: BARCODE_SIZE_HALF }),
+      new TextRun({ text: item.ma_vach || "", font: FONT, size: BARCODE_SIZE_HALF }),
       new TextRun({ children: [new Tab()], font: FONT }),
       new TextRun({ text: (item.dvt || "").toUpperCase(), bold: true, font: FONT, size: UNIT_SIZE_HALF }),
     ],

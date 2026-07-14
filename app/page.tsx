@@ -607,13 +607,10 @@ type FormState = {
   quy_cach: string;
   ty_le: string;
   brand: string;
-  ma_hang_hoa: string;
   ma_vach: string;
   ma_thung: string;
   ma_nhom_thay_the: string;
   trang_thai: string;
-  ten_shopee: string;
-  ten_tiktok: string;
   xuat_xu: string;
   category_sheet: string;
 };
@@ -629,13 +626,10 @@ function productToFormState(p: Product | null): FormState {
     quy_cach: p?.quy_cach ?? "",
     ty_le: p?.ty_le?.toString() ?? "",
     brand: p?.brand?.name ?? "",
-    ma_hang_hoa: p?.ma_hang_hoa ?? "",
     ma_vach: p?.ma_vach ?? "",
     ma_thung: p?.ma_thung ?? "",
     ma_nhom_thay_the: p?.ma_nhom_thay_the ?? "",
     trang_thai: p?.trang_thai ?? "",
-    ten_shopee: p?.ten_shopee ?? "",
-    ten_tiktok: p?.ten_tiktok ?? "",
     xuat_xu: p?.xuat_xu ?? "",
     category_sheet: p?.category_sheet ?? CATEGORY_ORDER[0],
   };
@@ -654,13 +648,10 @@ function formStateToInput(f: FormState): ProductInput {
     quy_cach: str(f.quy_cach),
     ty_le: num(f.ty_le),
     brand: str(f.brand),
-    ma_hang_hoa: str(f.ma_hang_hoa),
     ma_vach: str(f.ma_vach),
     ma_thung: str(f.ma_thung),
     ma_nhom_thay_the: str(f.ma_nhom_thay_the),
     trang_thai: str(f.trang_thai),
-    ten_shopee: str(f.ten_shopee),
-    ten_tiktok: str(f.ten_tiktok),
     xuat_xu: str(f.xuat_xu),
     category_sheet: f.category_sheet,
   };
@@ -806,9 +797,6 @@ function ProductForm({
                 </select>
               )}
             </Field>
-            <Field label="Mã hàng hóa (NCC/POS)">
-              <input value={form.ma_hang_hoa} onChange={(e) => set("ma_hang_hoa", e.target.value)} />
-            </Field>
             <Field label="Mã vạch">
               <input value={form.ma_vach} onChange={(e) => set("ma_vach", e.target.value)} />
             </Field>
@@ -829,12 +817,6 @@ function ProductForm({
             </Field>
             <Field label="Xuất xứ">
               <input value={form.xuat_xu} onChange={(e) => set("xuat_xu", e.target.value)} />
-            </Field>
-            <Field label="Tên sàn Shopee">
-              <input value={form.ten_shopee} onChange={(e) => set("ten_shopee", e.target.value)} />
-            </Field>
-            <Field label="Tên sàn TikTok Shop">
-              <input value={form.ten_tiktok} onChange={(e) => set("ten_tiktok", e.target.value)} />
             </Field>
           </div>
         </div>
