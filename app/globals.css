@@ -207,7 +207,7 @@ button, input, select { font: inherit; color: inherit; }
 }
 .search-field { position: relative; flex: 1 1 240px; min-width: 200px; }
 .search-field svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--faint); pointer-events: none; }
-.search-field input { width: 100%; padding: 8px 10px 8px 32px; }
+.search-field input { width: 100%; }
 
 .toolbar select,
 .search-field input {
@@ -215,6 +215,11 @@ button, input, select { font: inherit; color: inherit; }
   background: var(--surface-sunken); color: var(--ink); font-size: 13.5px;
   padding: 8px 10px;
 }
+/* Must come after the shared rule above (same specificity) so the icon
+   never overlaps the field's own text — a previous version of this same
+   left-padding declaration got silently clobbered by the shared rule since
+   both matched with equal specificity and this one was declared first. */
+.search-field input { padding-left: 36px; }
 .toolbar select:focus-visible,
 .search-field input:focus-visible {
   outline: 2px solid var(--focus); outline-offset: 1px; background: var(--surface);
