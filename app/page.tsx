@@ -5,7 +5,10 @@ import { supabase } from "@/lib/supabaseClient";
 import { Product, ProductInput, CATEGORY_ORDER } from "@/lib/types";
 import { QUY_CACH_SUGGESTIONS, TY_LE_SUGGESTIONS, extractQuantityFromQuyCach } from "@/lib/suggestionLists";
 
+type View = "hanghoa" | "tonkho" | "baocao";
+
 export default function Home() {
+  const [activeView, setActiveView] = useState<View>("hanghoa");
   const [products, setProducts] = useState<Product[]>([]);
   const [brandNames, setBrandNames] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
@@ -329,7 +332,11 @@ export default function Home() {
   }
 
   return (
-    <main className="app">
+    <div className="shell">
+      <Sidebar activeView={activeView} onChange={setActiveView} pendingCount={pendingIds.size} />
+      <main className="main">
+        {activeView === "hanghoa" && (
+    <div className="app">
       <header className="app-header">
         <h1>Quản lý giá sản phẩm — Tiệm Trà Bánh</h1>
         <div className="stat-chips">
@@ -545,7 +552,143 @@ export default function Home() {
           onSave={handleSaveProduct}
         />
       )}
-    </main>
+    </div>
+        )}
+        {activeView === "tonkho" && <InventoryView />}
+        {activeView === "baocao" && <DashboardView products={products} pendingCount={pendingIds.size} />}
+      </main>
+    </div>
+  );
+}
+
+function Sidebar({
+  activeView,
+  onChange,
+  pendingCount,
+}: {
+  activeView: View;
+  onChange: (v: View) => void;
+  pendingCount: number;
+}) {
+  return (
+    <nav className="sidebar">
+      <div className="brand">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img className="brand-logo" src="/templates/logo.png" alt="Trà & Bánh" />
+        <div className="brand-text-under">Quản lý sản phẩm</div>
+      </div>
+      <div className="nav">
+        <button className={`nav-item${activeView === "hanghoa" ? " active" : ""}`} onClick={() => onChange("hanghoa")}>
+          <TagIcon />
+          Quản lý hàng hóa
+        </button>
+        <button className={`nav-item${activeView === "tonkho" ? " active" : ""}`} onClick={() => onChange("tonkho")}>
+          <ArchiveIcon />
+          Quản lý tồn kho
+        </button>
+        <button className={`nav-item${activeView === "baocao" ? " active" : ""}`} onClick={() => onChange("baocao")}>
+          <ChartIcon />
+          Báo cáo
+          {pendingCount > 0 && <span className="badge">{pendingCount}</span>}
+        </button>
+      </div>
+    </nav>
+  );
+}
+
+function DashboardView({ products, pendingCount }: { products: Product[]; pendingCount: number }) {
+  const totalValue = products.reduce((sum, p) => sum + (p.gia_ban ?? 0), 0);
+  const missingPrice = products.filter((p) => !p.gia_ban).length;
+
+  const byCategory = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const p of products) counts.set(p.category_sheet, (counts.get(p.category_sheet) ?? 0) + 1);
+    return CATEGORY_ORDER.map((c) => ({ name: c, count: counts.get(c) ?? 0 })).sort((a, b) => b.count - a.count);
+  }, [products]);
+  const maxCount = Math.max(1, ...byCategory.map((c) => c.count));
+
+  const recent = useMemo(
+    () => [...products].sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()).slice(0, 8),
+    [products]
+  );
+
+  return (
+    <div className="app">
+      <div className="view-header">
+        <div>
+          <h1>Báo cáo</h1>
+          <p>Tổng quan nhanh về danh mục sản phẩm và tình trạng đồng bộ.</p>
+        </div>
+      </div>
+
+      <div className="kpi-grid">
+        <div className="kpi-card">
+          <div className="label">Tổng sản phẩm</div>
+          <div className="value">{products.length}</div>
+          <div className="delta">{byCategory.filter((c) => c.count > 0).length} nhóm hàng</div>
+        </div>
+        <div className="kpi-card">
+          <div className="label">Giá trị bán lẻ ước tính</div>
+          <div className="value">{totalValue.toLocaleString("vi-VN")} ₫</div>
+        </div>
+        <div className="kpi-card">
+          <div className="label">Chờ xuất file</div>
+          <div className="value accent">{pendingCount}</div>
+          <div className="delta warm">cần đồng bộ MISA</div>
+        </div>
+        <div className="kpi-card">
+          <div className="label">Thiếu giá bán lẻ</div>
+          <div className="value accent">{missingPrice}</div>
+        </div>
+      </div>
+
+      <div className="panels">
+        <div className="panel">
+          <h3>Sản phẩm theo nhóm hàng</h3>
+          {byCategory.map((c) => (
+            <div className="bar-row" key={c.name}>
+              <div className="cat-name">{c.name}</div>
+              <div className="bar-track">
+                <div className="bar-fill" style={{ width: `${(c.count / maxCount) * 100}%` }} />
+              </div>
+              <div className="n">{c.count}</div>
+            </div>
+          ))}
+        </div>
+        <div className="panel">
+          <h3>Cập nhật gần đây</h3>
+          {recent.length === 0 && <p style={{ color: "var(--muted)", fontSize: 12.5 }}>Chưa có dữ liệu.</p>}
+          {recent.map((p) => (
+            <div className="activity-row" key={p.id}>
+              <div className="activity-dot" />
+              <div>
+                {p.ten_hoa_don || p.ten_hang_hoa}
+                <div className="t">{relativeTimeVi(p.updated_at)}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function InventoryView() {
+  return (
+    <div className="app">
+      <div className="view-header">
+        <div>
+          <h1>Quản lý tồn kho</h1>
+          <p>Theo dõi tồn đầu kỳ / nhập / xuất / tồn cuối kỳ theo từng sản phẩm.</p>
+        </div>
+      </div>
+      <div className="empty-state" style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--radius-md)" }}>
+        Chưa có dữ liệu tồn kho trong hệ thống.
+        <br />
+        Các file MISA xuất-nhập-tồn bạn đang dùng có sẵn cột &quot;Đầu kỳ / Nhập kho / Xuất kho / Cuối kỳ&quot;, nhưng
+        database hiện chưa lưu các cột này — cần bổ sung trước khi mục này hiển thị được số liệu thật.
+      </div>
+    </div>
   );
 }
 
@@ -882,6 +1025,34 @@ function relativeTimeVi(iso: string): string {
   return `${diffMonth} tháng trước`;
 }
 
+function TagIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M20.59 13.41 13.42 20.6a2 2 0 0 1-2.83 0L3 13v-3a2 2 0 0 1 2-2h4l7.59 7.59a2 2 0 0 1 0 2.82Z" />
+      <circle cx="7.5" cy="9.5" r="1" />
+      <path d="M13 21 21.03 12.97" />
+    </svg>
+  );
+}
+function ArchiveIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="4" width="18" height="5" rx="1.2" />
+      <path d="M5 9v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9" />
+      <path d="M10 13h4" />
+    </svg>
+  );
+}
+function ChartIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 3v16a2 2 0 0 0 2 2h16" />
+      <path d="M7 15v3" />
+      <path d="M12 10v8" />
+      <path d="M17 6v12" />
+    </svg>
+  );
+}
 function SearchIcon() {
   return (
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
