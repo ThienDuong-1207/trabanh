@@ -25,6 +25,7 @@ export default function Home() {
   const [dismissing, setDismissing] = useState(false);
   const [deletingSelected, setDeletingSelected] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [importOnlyNew, setImportOnlyNew] = useState(true);
   const [formTarget, setFormTarget] = useState<"new" | Product | null>(null);
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -270,11 +271,15 @@ export default function Home() {
     try {
       const form = new FormData();
       form.append("file", file);
+      form.append("mode", importOnlyNew ? "new-only" : "update-all");
       const res = await fetch("/api/import-products", { method: "POST", body: form });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Nhập file thất bại");
       const skipped = data.skippedSheets?.length ? ` (bỏ qua sheet: ${data.skippedSheets.join(", ")})` : "";
-      alert(`Đã nhập ${data.productsUpserted} sản phẩm, ${data.brandsUpserted} thương hiệu.${skipped}`);
+      const summary = importOnlyNew
+        ? `Đã thêm ${data.newCount} sản phẩm mới. ${data.existingCount} sản phẩm đã tồn tại (giữ nguyên, không thay đổi).`
+        : `Đã cập nhật ${data.existingCount} sản phẩm đã có và thêm ${data.newCount} sản phẩm mới.`;
+      alert(`${summary} ${data.brandsUpserted} thương hiệu.${skipped}`);
       await loadProducts();
       await loadBrandNames();
     } catch (e: any) {
@@ -390,6 +395,20 @@ export default function Home() {
                 <ImportIcon />
                 Nhập từ Excel
               </button>
+              <label
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  padding: "6px 10px 8px",
+                  fontSize: 12.5,
+                  color: "var(--muted)",
+                  cursor: "pointer",
+                }}
+              >
+                <input type="checkbox" checked={importOnlyNew} onChange={(e) => setImportOnlyNew(e.target.checked)} />
+                Chỉ thêm sản phẩm mới (giữ nguyên sản phẩm đã có)
+              </label>
               <div className="menu-divider" />
               <button onClick={() => doExportAll("category")}>
                 <SheetIcon />

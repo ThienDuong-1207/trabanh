@@ -27,8 +27,11 @@ const COLUMN_TO_FIELD: Record<string, string> = {
 
 const NUMERIC_FIELDS = new Set(["gia_ban", "gia_thung", "ty_le"]);
 
+export type ImportMode = "new-only" | "update-all";
+
 export type ImportSummary = {
-  productsUpserted: number;
+  newCount: number;
+  existingCount: number;
   brandsUpserted: number;
   skippedSheets: string[];
 };
@@ -51,7 +54,18 @@ function cellValue(raw: ExcelJS.CellValue): string | number | null {
 
 // Parses a workbook shaped like "Misa hàng hóa/1. Quản lý hàng hóa hợp nhất.xlsx":
 // one sheet per CATEGORY_ORDER entry, columns matching COLUMN_TO_FIELD headers.
-export async function importProductsFromWorkbook(buffer: Buffer): Promise<ImportSummary> {
+//
+// `mode` controls what happens to rows whose Mã nội bộ already exists:
+// - "new-only" (default, safe): only inserts genuinely new products, leaves
+//   existing ones untouched. Protects against a "hợp nhất" master file that
+//   only added a few new products from silently overwriting everything else
+//   with whatever's currently in that file (prices, names, codes) — the
+//   exact kind of mass-reimport data loss that's bitten this shop before.
+// - "update-all": the old behavior — upsert every row, overwriting existing
+//   products with the file's values. Still available for when the file
+//   really is the source of truth to sync from (e.g. deliberate bulk
+//   corrections).
+export async function importProductsFromWorkbook(buffer: Buffer, mode: ImportMode = "new-only"): Promise<ImportSummary> {
   const workbook = new ExcelJS.Workbook();
   // exceljs's own .d.ts redeclares an ambient `Buffer extends ArrayBuffer`, which
   // conflicts with @types/node's real Buffer under TS's newer resizable-ArrayBuffer
@@ -128,10 +142,34 @@ export async function importProductsFromWorkbook(buffer: Buffer): Promise<Import
   if (brandsFetchError) throw new Error(`Không đọc được danh sách thương hiệu: ${brandsFetchError.message}`);
   const brandIdByName = new Map((brands ?? []).map((b) => [b.name as string, b.id as string]));
 
-  const productRows = rows.map(({ thuong_hieu, nha_cung_cap, ...rest }) => ({
-    ...rest,
-    brand_id: typeof thuong_hieu === "string" ? brandIdByName.get(thuong_hieu) ?? null : null,
-  }));
+  let productRows: (Record<string, string | number | null> & { brand_id: string | null })[] = rows.map(
+    ({ thuong_hieu, nha_cung_cap, ...rest }) => ({
+      ...rest,
+      brand_id: typeof thuong_hieu === "string" ? brandIdByName.get(thuong_hieu) ?? null : null,
+    })
+  );
+
+  // Find which of the file's Mã nội bộ values already exist, batched to stay
+  // well under any reasonable IN-clause size.
+  const existingSet = new Set<string>();
+  const allCodes = productRows.map((r) => r.ma_noi_bo as string);
+  const LOOKUP_BATCH = 200;
+  for (let i = 0; i < allCodes.length; i += LOOKUP_BATCH) {
+    const chunk = allCodes.slice(i, i + LOOKUP_BATCH);
+    const { data: existing, error: existingError } = await supabase
+      .from("products")
+      .select("ma_noi_bo")
+      .in("ma_noi_bo", chunk);
+    if (existingError) throw new Error(`Kiểm tra sản phẩm đã tồn tại thất bại: ${existingError.message}`);
+    for (const row of existing ?? []) existingSet.add(row.ma_noi_bo as string);
+  }
+
+  const newCount = productRows.filter((r) => !existingSet.has(r.ma_noi_bo as string)).length;
+  const existingCount = productRows.length - newCount;
+
+  if (mode === "new-only") {
+    productRows = productRows.filter((r) => !existingSet.has(r.ma_noi_bo as string));
+  }
 
   const BATCH = 200;
   for (let i = 0; i < productRows.length; i += BATCH) {
@@ -140,5 +178,5 @@ export async function importProductsFromWorkbook(buffer: Buffer): Promise<Import
     if (error) throw new Error(`Nhập sản phẩm thất bại (dòng ${i + 1}-${i + chunk.length}): ${error.message}`);
   }
 
-  return { productsUpserted: productRows.length, brandsUpserted: brandNames.length, skippedSheets };
+  return { newCount, existingCount, brandsUpserted: brandNames.length, skippedSheets };
 }
