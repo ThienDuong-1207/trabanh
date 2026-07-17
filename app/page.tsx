@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { Product, ProductInput, CATEGORY_ORDER } from "@/lib/types";
+import { Product, ProductInput, PriceHistoryEntry, CATEGORY_ORDER } from "@/lib/types";
 import { QUY_CACH_SUGGESTIONS, TY_LE_SUGGESTIONS, extractQuantityFromQuyCach } from "@/lib/suggestionLists";
 
 type View = "hanghoa" | "tonkho" | "baocao";
@@ -412,16 +412,29 @@ export default function Home() {
               <label
                 style={{
                   display: "flex",
-                  alignItems: "center",
+                  alignItems: "flex-start",
                   gap: 8,
-                  padding: "6px 10px 8px",
+                  padding: "6px 10px 4px",
                   fontSize: 12.5,
                   color: "var(--muted)",
                   cursor: "pointer",
                 }}
               >
-                <input type="checkbox" checked={importOnlyNew} onChange={(e) => setImportOnlyNew(e.target.checked)} />
-                Chỉ thêm sản phẩm mới (giữ nguyên sản phẩm đã có)
+                <input
+                  type="checkbox"
+                  checked={importOnlyNew}
+                  onChange={(e) => setImportOnlyNew(e.target.checked)}
+                  style={{ marginTop: 2 }}
+                />
+                <span>
+                  Chỉ thêm sản phẩm mới (giữ nguyên sản phẩm đã có)
+                  <br />
+                  <span style={{ fontSize: 11.5 }}>
+                    {importOnlyNew
+                      ? "Bỏ tick để cập nhật giá/tên/mã vạch... của sản phẩm đã có theo file."
+                      : "Sẽ cập nhật mọi thông tin theo file. Riêng Mã nội bộ không bao giờ bị đổi qua import — chỉ sửa được bằng tay."}
+                  </span>
+                </span>
               </label>
               <div className="menu-divider" />
               <button onClick={() => doExportAll("category")}>
@@ -629,6 +642,109 @@ function Sidebar({
   );
 }
 
+function currentMonthValue() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function PriceHistoryPanel() {
+  const [month, setMonth] = useState(currentMonthValue());
+  const [entries, setEntries] = useState<PriceHistoryEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [unavailable, setUnavailable] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      setLoading(true);
+      const [y, m] = month.split("-").map(Number);
+      const start = new Date(Date.UTC(y, m - 1, 1)).toISOString();
+      const end = new Date(Date.UTC(m === 12 ? y + 1 : y, m === 12 ? 0 : m, 1)).toISOString();
+      const { data, error } = await supabase
+        .from("price_history")
+        .select("*, product:products(ten_hang_hoa, ma_noi_bo)")
+        .gte("changed_at", start)
+        .lt("changed_at", end)
+        .order("changed_at", { ascending: false });
+      if (cancelled) return;
+      if (error) {
+        // Table doesn't exist yet (migration not run) — show a quiet
+        // explanation instead of a raw error.
+        setUnavailable(true);
+      } else {
+        setEntries((data as PriceHistoryEntry[]) ?? []);
+      }
+      setLoading(false);
+    }
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [month]);
+
+  return (
+    <div className="panel" style={{ marginTop: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+        <h3 style={{ margin: 0 }}>Lịch sử thay đổi giá</h3>
+        <input type="month" value={month} onChange={(e) => setMonth(e.target.value)} />
+      </div>
+      {unavailable ? (
+        <p style={{ color: "var(--muted)", fontSize: 12.5 }}>
+          Chưa có bảng lưu lịch sử giá trong database — cần chạy đoạn SQL tạo bảng <code>price_history</code> trong
+          Supabase trước khi mục này hiển thị được dữ liệu.
+        </p>
+      ) : loading ? (
+        <p style={{ color: "var(--muted)", fontSize: 12.5 }}>Đang tải...</p>
+      ) : entries.length === 0 ? (
+        <p style={{ color: "var(--muted)", fontSize: 12.5 }}>Không có thay đổi giá nào trong tháng này.</p>
+      ) : (
+        <div className="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Sản phẩm</th>
+                <th className="num">Giá bán lẻ</th>
+                <th className="num">Giá thùng</th>
+                <th>Thời điểm</th>
+              </tr>
+            </thead>
+            <tbody>
+              {entries.map((e) => (
+                <tr key={e.id}>
+                  <td className="name-cell">
+                    {e.product?.ten_hang_hoa ?? "(sản phẩm đã xóa)"}
+                    <span className="sub code-cell">{e.product?.ma_noi_bo}</span>
+                  </td>
+                  <td className="num">
+                    {e.gia_ban_old !== e.gia_ban_new ? (
+                      <>
+                        {e.gia_ban_old?.toLocaleString("vi-VN") ?? "—"} → <b>{e.gia_ban_new?.toLocaleString("vi-VN") ?? "—"}</b>
+                      </>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
+                  <td className="num">
+                    {e.gia_thung_old !== e.gia_thung_new ? (
+                      <>
+                        {e.gia_thung_old?.toLocaleString("vi-VN") ?? "—"} →{" "}
+                        <b>{e.gia_thung_new?.toLocaleString("vi-VN") ?? "—"}</b>
+                      </>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
+                  <td>{formatDate(e.changed_at)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function DashboardView({ products, pendingCount }: { products: Product[]; pendingCount: number }) {
   const totalValue = products.reduce((sum, p) => sum + (p.gia_ban ?? 0), 0);
   const missingPrice = products.filter((p) => !p.gia_ban).length;
@@ -702,6 +818,8 @@ function DashboardView({ products, pendingCount }: { products: Product[]; pendin
           ))}
         </div>
       </div>
+
+      <PriceHistoryPanel />
     </div>
   );
 }

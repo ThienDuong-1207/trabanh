@@ -27,6 +27,17 @@ export type ProductInput = Omit<Product, "id" | "brand_id" | "brand" | "updated_
   brand: string | null;
 };
 
+export type PriceHistoryEntry = {
+  id: string;
+  product_id: string;
+  gia_ban_old: number | null;
+  gia_ban_new: number | null;
+  gia_thung_old: number | null;
+  gia_thung_new: number | null;
+  changed_at: string;
+  product?: { ten_hang_hoa: string; ma_noi_bo: string } | null;
+};
+
 export const CATEGORY_ORDER = [
   "Trà", "Sữa tươi", "Sữa đặc", "Kem đông lạnh", "Syrup", "Bột",
   "Trân châu", "Mứt", "Đồ lon", "Mặt hàng khác", "Công cụ dụng cụ",

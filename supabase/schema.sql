@@ -92,3 +92,48 @@ alter table brands enable row level security;
 create policy "Public read access" on brands
   for select using (true);
 -- No write policy: brands are only inserted via the service-role seed script.
+
+-- Price change history: captured automatically at the DB level (trigger,
+-- not app code) so every price change is logged regardless of source —
+-- manual web edit, "Cập nhật toàn bộ" Excel import, or any future write
+-- path — without having to remember to log it in each one.
+create table if not exists price_history (
+  id uuid primary key default gen_random_uuid(),
+  product_id uuid not null references products(id) on delete cascade,
+  gia_ban_old numeric,
+  gia_ban_new numeric,
+  gia_thung_old numeric,
+  gia_thung_new numeric,
+  changed_at timestamptz not null default now()
+);
+
+create index if not exists idx_price_history_product
+  on price_history (product_id);
+
+create index if not exists idx_price_history_changed_at
+  on price_history (changed_at desc);
+
+create or replace function log_price_change()
+returns trigger as $$
+begin
+  if new.gia_ban is distinct from old.gia_ban or new.gia_thung is distinct from old.gia_thung then
+    insert into price_history (product_id, gia_ban_old, gia_ban_new, gia_thung_old, gia_thung_new)
+    values (new.id, old.gia_ban, new.gia_ban, old.gia_thung, new.gia_thung);
+  end if;
+  return new;
+end;
+$$ language plpgsql;
+
+drop trigger if exists trg_log_price_change on products;
+create trigger trg_log_price_change
+  after update on products
+  for each row
+  execute function log_price_change();
+
+alter table price_history enable row level security;
+
+create policy "Public read access" on price_history
+  for select using (true);
+-- No write policy: rows are only ever inserted by the trigger above (which
+-- runs with the privileges of the triggering statement), never by direct
+-- client writes.
