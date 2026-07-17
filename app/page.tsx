@@ -25,7 +25,7 @@ export default function Home() {
   const [dismissing, setDismissing] = useState(false);
   const [deletingSelected, setDeletingSelected] = useState(false);
   const [importing, setImporting] = useState(false);
-  const [importOnlyNew, setImportOnlyNew] = useState(true);
+  const [importOnlyNew, setImportOnlyNew] = useState(false);
   const [formTarget, setFormTarget] = useState<"new" | Product | null>(null);
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
