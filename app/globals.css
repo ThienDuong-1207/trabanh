@@ -273,6 +273,9 @@ button, input, select { font: inherit; color: inherit; }
 .menu button:hover { background: var(--surface-sunken); }
 .menu button:disabled { opacity: 0.5; cursor: not-allowed; }
 .menu button svg { color: var(--muted); flex-shrink: 0; }
+.menu-item-accent { background: var(--primary-wash); color: var(--primary-ink); font-weight: 600; }
+.menu-item-accent svg { color: var(--primary-ink); }
+.menu-item-accent:hover { background: var(--primary-wash); filter: brightness(0.96); }
 .menu-divider { height: 1px; background: var(--border); margin: 5px 4px; }
 
 /* ---- Tabs + selection bar row ---- */

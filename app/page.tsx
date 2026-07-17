@@ -405,7 +405,7 @@ export default function Home() {
           </button>
           {moreMenuOpen && (
             <div className="menu">
-              <button onClick={() => fileInputRef.current?.click()}>
+              <button className="menu-item-accent" onClick={() => fileInputRef.current?.click()}>
                 <ImportIcon />
                 Nhập từ Excel
               </button>
