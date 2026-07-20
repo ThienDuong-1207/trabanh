@@ -20,6 +20,8 @@ export default function Home() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [exporting, setExporting] = useState<"misa" | "word" | "misa-update" | null>(null);
   const [exportingRollLabel, setExportingRollLabel] = useState(false);
+  const [quoteModalOpen, setQuoteModalOpen] = useState(false);
+  const [exportingQuote, setExportingQuote] = useState(false);
   const [exportingAll, setExportingAll] = useState<"category" | "brand" | "word" | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [dismissing, setDismissing] = useState(false);
@@ -207,6 +209,29 @@ export default function Home() {
       alert("Xuất file thất bại: " + e.message);
     } finally {
       setExportingRollLabel(false);
+    }
+  }
+
+  async function doExportQuote(fields: QuoteFormFields) {
+    setExportingQuote(true);
+    try {
+      const res = await fetch("/api/export-quote", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: Array.from(selected), ...fields }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error || (await res.text()));
+      }
+      const blob = await res.blob();
+      const dateStr = (fields.date || new Date().toISOString().slice(0, 10)).replace(/-/g, "");
+      downloadBlob(blob, `Bao_gia_${dateStr}.pdf`);
+      setQuoteModalOpen(false);
+    } catch (e: any) {
+      alert("Xuất báo giá thất bại: " + e.message);
+    } finally {
+      setExportingQuote(false);
     }
   }
 
@@ -498,6 +523,10 @@ export default function Home() {
             <button className="btn" disabled={exporting !== null} onClick={() => doExport("word")}>
               {exporting === "word" ? "Đang xuất..." : "Xuất bảng giá (.docx)"}
             </button>
+            <button className="btn" onClick={() => setQuoteModalOpen(true)}>
+              <QuoteIcon />
+              Xuất báo giá (PDF)
+            </button>
             <button className="btn" disabled={exportingRollLabel} onClick={doExportRollLabel}>
               {exportingRollLabel ? "Đang xuất..." : "Xuất tem cuộn 5x3cm"}
             </button>
@@ -596,6 +625,15 @@ export default function Home() {
           brandNames={brandNames}
           onCancel={() => setFormTarget(null)}
           onSave={handleSaveProduct}
+        />
+      )}
+
+      {quoteModalOpen && (
+        <QuoteForm
+          selectedCount={selected.size}
+          submitting={exportingQuote}
+          onCancel={() => setQuoteModalOpen(false)}
+          onSubmit={doExportQuote}
         />
       )}
     </div>
@@ -958,6 +996,76 @@ function withCurrent(options: (string | number)[], current: string): string[] {
   return current && !strOptions.includes(current) ? [...strOptions, current] : strOptions;
 }
 
+type QuoteFormFields = {
+  customerName: string;
+  address: string;
+  phone: string;
+  note: string;
+  date: string; // yyyy-mm-dd
+};
+
+function QuoteForm({
+  selectedCount,
+  submitting,
+  onCancel,
+  onSubmit,
+}: {
+  selectedCount: number;
+  submitting: boolean;
+  onCancel: () => void;
+  onSubmit: (fields: QuoteFormFields) => void;
+}) {
+  const [form, setForm] = useState<QuoteFormFields>({
+    customerName: "",
+    address: "",
+    phone: "",
+    note: "",
+    date: new Date().toISOString().slice(0, 10),
+  });
+
+  function set<K extends keyof QuoteFormFields>(key: K, value: string) {
+    setForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  return (
+    <div className="modal-backdrop" onClick={(e) => e.target === e.currentTarget && onCancel()}>
+      <div className="modal">
+        <h2>Xuất báo giá (PDF)</h2>
+        <p className="modal-sub">{selectedCount} sản phẩm đã chọn sẽ đưa vào bảng báo giá.</p>
+
+        <div className="field-group">
+          <div className="field-grid">
+            <Field label="Khách hàng">
+              <input value={form.customerName} onChange={(e) => set("customerName", e.target.value)} />
+            </Field>
+            <Field label="Địa chỉ">
+              <input value={form.address} onChange={(e) => set("address", e.target.value)} />
+            </Field>
+            <Field label="Điện thoại">
+              <input value={form.phone} onChange={(e) => set("phone", e.target.value)} />
+            </Field>
+            <Field label="Ghi chú">
+              <input value={form.note} onChange={(e) => set("note", e.target.value)} />
+            </Field>
+            <Field label="Ngày báo giá">
+              <input type="date" value={form.date} onChange={(e) => set("date", e.target.value)} />
+            </Field>
+          </div>
+        </div>
+
+        <div className="modal-actions">
+          <button className="btn" onClick={onCancel} disabled={submitting}>
+            Hủy
+          </button>
+          <button className="btn btn-primary" disabled={submitting} onClick={() => onSubmit(form)}>
+            {submitting ? "Đang xuất..." : "Xuất PDF"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ProductForm({
   initial,
   brandNames,
@@ -1253,6 +1361,15 @@ function DocIcon() {
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
       <path d="M14 3v4a1 1 0 0 0 1 1h4" />
       <path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2Z" />
+    </svg>
+  );
+}
+function QuoteIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M14 3v4a1 1 0 0 0 1 1h4" />
+      <path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2Z" />
+      <path d="M8 13h5M8 17h3" />
     </svg>
   );
 }
