@@ -573,7 +573,7 @@ export default function Home() {
               {exporting === "misa-update" ? "Đang xuất..." : "Xuất cập nhật MISA"}
             </button>
             <button className="btn" disabled={exporting !== null} onClick={() => doExport("word")}>
-              {exporting === "word" ? "Đang xuất..." : "Xuất bảng giá (.docx)"}
+              {exporting === "word" ? "Đang xuất..." : "Block giá 7.7x4cm"}
             </button>
             <button className="btn" onClick={() => setQuoteModalOpen(true)}>
               <QuoteIcon />
