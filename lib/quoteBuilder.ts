@@ -71,7 +71,8 @@ export async function buildQuotePdf(items: Product[], info: QuoteInfo): Promise<
 
   const content: any[] = [
     { text: "BẢNG BÁO GIÁ", bold: true, fontSize: 16, alignment: "center", margin: [0, 0, 0, 4] },
-    { text: formatDateLine(info.date), fontSize: 12, alignment: "center", margin: [0, 0, 0, 10] },
+    { text: formatDateLine(info.date), fontSize: 12, alignment: "center", margin: [0, 0, 0, 2] },
+    { text: "Bảng báo giá có hiệu lực trong tháng", italics: true, fontSize: 11, alignment: "center", margin: [0, 0, 0, 10] },
     { text: `Khách hàng: ${info.customerName ?? ""}`, bold: true, margin: [0, 0, 0, 2] },
     { text: `Địa chỉ: ${info.address ?? ""}`, bold: true, margin: [0, 0, 0, 2] },
     { text: `Điện thoại: ${info.phone ?? ""}`, bold: true, margin: [0, 0, 0, 2] },
