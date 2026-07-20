@@ -172,7 +172,7 @@ export default function Home() {
         misa: "MISA_Import_Update.xlsx",
         word: "Bang_gia_block_7.7x4cm_Update.docx",
         "misa-update": "MISA_Cap_nhat_thong_tin.xlsx",
-        vertical: "Bang_gia_dung.docx",
+        vertical: "Bang_gia_dung.pdf",
       };
       downloadBlob(blob, filenames[kind]);
 

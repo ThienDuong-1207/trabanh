@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseServer";
-import { buildVerticalPriceDocx } from "@/lib/verticalPriceBuilder";
+import { buildVerticalPricePdf } from "@/lib/verticalPriceBuilder";
 import { Product } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -16,11 +16,11 @@ export async function POST(req: NextRequest) {
     const { data, error } = await supabase.from("products").select("*").in("id", ids);
     if (error) throw error;
 
-    const buf = await buildVerticalPriceDocx(data as Product[]);
+    const buf = await buildVerticalPricePdf(data as Product[]);
     return new NextResponse(new Uint8Array(buf), {
       headers: {
-        "Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        "Content-Disposition": `attachment; filename="Bang_gia_dung.docx"`,
+        "Content-Type": "application/pdf",
+        "Content-Disposition": `attachment; filename="Bang_gia_dung.pdf"`,
       },
     });
   } catch (e: any) {

@@ -1,130 +1,58 @@
 import fs from "fs";
 import path from "path";
-import {
-  Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
-  WidthType, BorderStyle, AlignmentType, VerticalAlign,
-  HeightRule, TableLayoutType, Tab, ImageRun,
-} from "docx";
+import * as fontkit from "fontkit";
+import pdfmake from "./pdfFonts";
 import { CATEGORY_ORDER, Product } from "./types";
-import { fixDuplicateDocPrIds } from "./docxFixup";
 
-// Page size, margins, border weight, and title/price/barcode/unit sizes are
-// all taken directly, fixed, from "Misa hàng hóa/Bang gia dung Sua + Rich lun.docx"
-// — the shop's own hand-built full-page vertical price sign — by unzipping
-// it and reading word/document.xml. Unlike lib/wordBuilder.ts's small price
-// blocks, the price size here is NOT computed per product — the reference
-// uses one fixed size for every product, and that's the size to keep.
+// One full A4 page per product — logo, product name, a big fixed-size price,
+// and a barcode/unit line pinned near the bottom. Switched from a .docx
+// build (lib/wordBuilder.ts-style paragraphs/table) to a PDF: Word's own
+// layout engine reflows cell/paragraph spacing differently across versions,
+// which kept producing layout glitches; pdfmake renders every position
+// exactly as specified, so the same page looks identical everywhere.
 
-const PAGE_W = 11906; // A4 portrait, dxa — matches reference pgSz
-const PAGE_H = 16838;
-const MARGIN_TOP_BOTTOM = 567; // dxa, matches reference pgMar top/bottom
-const MARGIN_SIDE = 0; // matches reference pgMar left/right
+const PAGE_W = 595.28; // A4 portrait, pt
+const PAGE_H = 841.89;
+const MARGIN_X = 24; // pt, keeps text off the border frame
+const MARGIN_TOP = 30;
+const MARGIN_BOTTOM = 24;
 
-const FONT = "Arial";
-const TITLE_SIZE_HALF = 72; // 36pt, matches reference
-const PRICE_SIZE_HALF = 358; // 179pt, matches reference
-const BARCODE_SIZE_HALF = 40; // 20pt, matches reference
-const UNIT_SIZE_HALF = 48; // 24pt, matches reference
-const CELL_BORDER_SIZE = 4; // matches reference tblBorders sz (eighths of a point)
+const TITLE_SIZE = 36; // pt, matches the shop's old vertical-sign reference
+const PRICE_SIZE = 179; // pt, matches the shop's old vertical-sign reference
+const BARCODE_SIZE = 20;
+const UNIT_SIZE = 24;
+const LOGO_WIDTH = 150; // pt — bigger than the reference's tiny corner mark, fills the top area
 
-// The reference has no side padding at all (barcode/unit sit flush against
-// the page edges) — added here so they don't touch the paper's outer edges
-// when printed.
-const CELL_MARGIN_SIDE = 300; // dxa, ~0.53cm
-const BOTTOM_TAB_POS = PAGE_W - CELL_MARGIN_SIDE * 2; // right-aligned tab stop within the padded content area
-
-// Reserves room above the table for the logo line, so the table's own
-// "atLeast" height still leaves the whole page — logo included — on one
-// page instead of spilling onto a second.
-const LOGO_RESERVE_DXA = 1500; // bigger logo needs more headroom than the old 400
-const TABLE_H = PAGE_H - MARGIN_TOP_BOTTOM * 2 - LOGO_RESERVE_DXA;
-
-const TITLE_LINE = Math.round(36 * 1.15 * 20); // twips
-const BOTTOM_LINE = Math.round(24 * 1.15 * 20); // twips, off the larger of the two bottom-line fonts
-const PRICE_SPACING_AFTER = 200; // twips, gap kept between price and the barcode/unit line
-
-const FIXED_ZONES_DXA = TITLE_LINE + BOTTOM_LINE;
-
-function priceSpacingDxa(priceSizeHalf: number): { before: number; after: number } {
-  const priceLineDxa = Math.round((priceSizeHalf / 2) * 1.15 * 20);
-  const leftover = Math.max(0, TABLE_H - FIXED_ZONES_DXA - priceLineDxa);
-  const before = Math.floor(leftover / 2);
-  const after = Math.max(PRICE_SPACING_AFTER, leftover - before);
-  return { before, after };
-}
+const CONTENT_WIDTH = PAGE_W - MARGIN_X * 2;
+const BOTTOM_LINE_Y = PAGE_H - MARGIN_BOTTOM - UNIT_SIZE * 1.2;
 
 const LOGO_PATH = path.join(process.cwd(), "public", "templates", "logo.png");
-// The reference uses the same tiny logo size as the small 7.7x4cm price
-// block (lib/wordBuilder.ts), but on a full A4 page that leaves the top
-// looking mostly empty — sized up here (same aspect ratio, ~2047x659) so it
-// actually fills the top area instead of sitting as a small mark in the corner.
-const LOGO_DISPLAY_W = 200;
-const LOGO_DISPLAY_H = 64;
-
-function logoImageRun() {
-  if (!fs.existsSync(LOGO_PATH)) return null;
-  return new ImageRun({
-    type: "png",
-    data: fs.readFileSync(LOGO_PATH),
-    transformation: { width: LOGO_DISPLAY_W, height: LOGO_DISPLAY_H },
-  });
-}
-
-const cellBorderThin = {
-  top: { style: BorderStyle.SINGLE, size: CELL_BORDER_SIZE, color: "000000" },
-  bottom: { style: BorderStyle.SINGLE, size: CELL_BORDER_SIZE, color: "000000" },
-  left: { style: BorderStyle.SINGLE, size: CELL_BORDER_SIZE, color: "000000" },
-  right: { style: BorderStyle.SINGLE, size: CELL_BORDER_SIZE, color: "000000" },
-};
 
 function formatPrice(n: number) {
   return Math.round(n).toLocaleString("vi-VN").replace(/,/g, ".");
 }
 
-function buildPage(item: Product) {
-  const logo = logoImageRun();
-  const logoPara = new Paragraph({ children: logo ? [logo] : [] });
+// PRICE_SIZE (179pt, from the reference) is only safe for short prices —
+// measured against the real embedded Roboto-Medium glyphs (the actual font
+// this PDF renders with), a 6-digit price like "41.000" is already wider
+// than the page, which is exactly what caused it to wrap mid-number. Treat
+// 179pt as a ceiling instead of a fixed size: shrink only as much as needed
+// for each price to still fit on one line, so short prices still get the
+// full reference size.
+const priceFont = fontkit.openSync(path.join(process.cwd(), "public", "fonts", "Roboto-Medium.ttf"));
+const PRICE_FIT_SAFETY = 0.97;
 
-  const name = item.ten_hang_hoa.toUpperCase();
-  const titlePara = new Paragraph({
-    alignment: AlignmentType.CENTER,
-    children: [new TextRun({ text: name, bold: true, font: FONT, size: TITLE_SIZE_HALF })],
-  });
+function priceEmWidth(text: string): number {
+  const run = priceFont.layout(text);
+  let advance = 0;
+  for (const glyph of run.glyphs) advance += glyph.advanceWidth;
+  return advance / priceFont.unitsPerEm;
+}
 
-  const priceStr = formatPrice(item.gia_ban!);
-  const { before: priceBefore, after: priceAfter } = priceSpacingDxa(PRICE_SIZE_HALF);
-  const pricePara = new Paragraph({
-    alignment: AlignmentType.CENTER,
-    spacing: { before: priceBefore, after: priceAfter },
-    children: [new TextRun({ text: priceStr, bold: true, font: FONT, size: PRICE_SIZE_HALF })],
-  });
-
-  const bottomLine = new Paragraph({
-    tabStops: [{ type: "right", position: BOTTOM_TAB_POS }],
-    alignment: AlignmentType.CENTER,
-    children: [
-      new TextRun({ text: item.ma_vach || "", font: FONT, size: BARCODE_SIZE_HALF }),
-      new TextRun({ children: [new Tab()], font: FONT }),
-      new TextRun({ text: (item.dvt || "").toUpperCase(), bold: true, font: FONT, size: UNIT_SIZE_HALF }),
-    ],
-  });
-
-  const cell = new TableCell({
-    width: { size: PAGE_W, type: WidthType.DXA },
-    verticalAlign: VerticalAlign.TOP,
-    margins: { top: 0, bottom: 0, left: CELL_MARGIN_SIDE, right: CELL_MARGIN_SIDE },
-    borders: cellBorderThin,
-    children: [titlePara, pricePara, bottomLine],
-  });
-
-  const table = new Table({
-    width: { size: PAGE_W, type: WidthType.DXA },
-    columnWidths: [PAGE_W],
-    layout: TableLayoutType.FIXED,
-    rows: [new TableRow({ height: { value: TABLE_H, rule: HeightRule.ATLEAST }, children: [cell] })],
-  });
-
-  return [logoPara, table];
+function fitPriceSize(priceStr: string): number {
+  const emWidth = priceEmWidth(priceStr);
+  const maxByWidth = (CONTENT_WIDTH * PRICE_FIT_SAFETY) / emWidth;
+  return Math.min(PRICE_SIZE, maxByWidth);
 }
 
 function sortForPrint(items: Product[]): Product[] {
@@ -135,26 +63,60 @@ function sortForPrint(items: Product[]): Product[] {
   });
 }
 
-export async function buildVerticalPriceDocx(items: Product[]): Promise<Buffer> {
+function buildProductPage(item: Product, isFirst: boolean): any[] {
+  const hasLogo = fs.existsSync(LOGO_PATH);
+  const priceStr = formatPrice(item.gia_ban!);
+  const priceSize = fitPriceSize(priceStr);
+  return [
+    {
+      stack: [
+        ...(hasLogo ? [{ image: "logo", width: LOGO_WIDTH, margin: [0, 0, 0, 16] }] : []),
+        { text: item.ten_hang_hoa.toUpperCase(), bold: true, fontSize: TITLE_SIZE, alignment: "center" },
+        { text: priceStr, bold: true, fontSize: priceSize, alignment: "center", margin: [0, 90, 0, 0] },
+      ],
+      pageBreak: isFirst ? undefined : "before",
+    },
+    { text: item.ma_vach || "", bold: true, fontSize: BARCODE_SIZE, absolutePosition: { x: MARGIN_X, y: BOTTOM_LINE_Y } },
+    {
+      text: (item.dvt || "").toUpperCase(),
+      bold: true,
+      fontSize: UNIT_SIZE,
+      alignment: "right",
+      width: CONTENT_WIDTH,
+      absolutePosition: { x: MARGIN_X, y: BOTTOM_LINE_Y },
+    },
+  ];
+}
+
+export async function buildVerticalPricePdf(items: Product[]): Promise<Buffer> {
   const priced = sortForPrint(items.filter((it) => it.gia_ban));
 
-  const sections: any[] = priced.map((item) => ({
-    properties: {
-      page: {
-        size: { width: PAGE_W, height: PAGE_H },
-        margin: { top: MARGIN_TOP_BOTTOM, bottom: MARGIN_TOP_BOTTOM, left: MARGIN_SIDE, right: MARGIN_SIDE },
-      },
-    },
-    children: buildPage(item),
-  }));
+  const content: any[] =
+    priced.length === 0
+      ? [{ text: "Không có sản phẩm nào có giá bán lẻ trong danh sách đã chọn." }]
+      : priced.flatMap((item, i) => buildProductPage(item, i === 0));
 
-  if (sections.length === 0) {
-    sections.push({
-      properties: { page: { size: { width: PAGE_W, height: PAGE_H } } },
-      children: [new Paragraph({ text: "Không có sản phẩm nào có giá bán lẻ trong danh sách đã chọn." })],
-    });
-  }
+  const docDefinition: any = {
+    pageSize: "A4",
+    pageMargins: [MARGIN_X, MARGIN_TOP, MARGIN_X, MARGIN_BOTTOM],
+    images: fs.existsSync(LOGO_PATH) ? { logo: LOGO_PATH } : undefined,
+    background: (_page: number, pageSize: { width: number; height: number }) => ({
+      canvas: [
+        {
+          type: "rect",
+          x: 10,
+          y: 10,
+          w: pageSize.width - 20,
+          h: pageSize.height - 20,
+          lineWidth: 1,
+          lineColor: "#000000",
+        },
+      ],
+    }),
+    defaultStyle: { font: "Roboto" },
+    content,
+  };
 
-  const doc = new Document({ sections });
-  return fixDuplicateDocPrIds(Buffer.from(await Packer.toBuffer(doc)));
+  const doc = pdfmake.createPdf(docDefinition);
+  return doc.getBuffer();
 }
