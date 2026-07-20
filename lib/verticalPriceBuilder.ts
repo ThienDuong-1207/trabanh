@@ -1,15 +1,14 @@
-import fs from "fs";
 import path from "path";
 import * as fontkit from "fontkit";
 import pdfmake from "./pdfFonts";
 import { CATEGORY_ORDER, Product } from "./types";
 
-// One full A4 page per product — logo, product name, a big fixed-size price,
-// and a barcode/unit line pinned near the bottom. Switched from a .docx
-// build (lib/wordBuilder.ts-style paragraphs/table) to a PDF: Word's own
-// layout engine reflows cell/paragraph spacing differently across versions,
-// which kept producing layout glitches; pdfmake renders every position
-// exactly as specified, so the same page looks identical everywhere.
+// One full A4 page per product — product name, a big fixed-size price, and a
+// barcode/unit line pinned near the bottom. Switched from a .docx build
+// (lib/wordBuilder.ts-style paragraphs/table) to a PDF: Word's own layout
+// engine reflows cell/paragraph spacing differently across versions, which
+// kept producing layout glitches; pdfmake renders every position exactly as
+// specified, so the same page looks identical everywhere.
 
 const PAGE_W = 595.28; // A4 portrait, pt
 const PAGE_H = 841.89;
@@ -21,12 +20,9 @@ const TITLE_SIZE = 36; // pt, matches the shop's old vertical-sign reference
 const PRICE_SIZE = 179; // pt, matches the shop's old vertical-sign reference
 const BARCODE_SIZE = 20;
 const UNIT_SIZE = 24;
-const LOGO_WIDTH = 150; // pt — bigger than the reference's tiny corner mark, fills the top area
 
 const CONTENT_WIDTH = PAGE_W - MARGIN_X * 2;
 const BOTTOM_LINE_Y = PAGE_H - MARGIN_BOTTOM - UNIT_SIZE * 1.2;
-
-const LOGO_PATH = path.join(process.cwd(), "public", "templates", "logo.png");
 
 function formatPrice(n: number) {
   return Math.round(n).toLocaleString("vi-VN").replace(/,/g, ".");
@@ -64,13 +60,11 @@ function sortForPrint(items: Product[]): Product[] {
 }
 
 function buildProductPage(item: Product, isFirst: boolean): any[] {
-  const hasLogo = fs.existsSync(LOGO_PATH);
   const priceStr = formatPrice(item.gia_ban!);
   const priceSize = fitPriceSize(priceStr);
   return [
     {
       stack: [
-        ...(hasLogo ? [{ image: "logo", width: LOGO_WIDTH, margin: [0, 0, 0, 16] }] : []),
         { text: item.ten_hang_hoa.toUpperCase(), bold: true, fontSize: TITLE_SIZE, alignment: "center" },
         { text: priceStr, bold: true, fontSize: priceSize, alignment: "center", margin: [0, 90, 0, 0] },
       ],
@@ -99,7 +93,6 @@ export async function buildVerticalPricePdf(items: Product[]): Promise<Buffer> {
   const docDefinition: any = {
     pageSize: "A4",
     pageMargins: [MARGIN_X, MARGIN_TOP, MARGIN_X, MARGIN_BOTTOM],
-    images: fs.existsSync(LOGO_PATH) ? { logo: LOGO_PATH } : undefined,
     background: (_page: number, pageSize: { width: number; height: number }) => ({
       canvas: [
         {
