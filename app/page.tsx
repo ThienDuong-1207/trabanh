@@ -109,6 +109,15 @@ export default function Home() {
     [filteredByCriteria, pendingIds]
   );
 
+  // Products picked earlier (e.g. a whole different category) that the
+  // current filter/tab no longer shows — kept visible below `visible` instead
+  // of disappearing, so a multi-category selection stays reviewable while
+  // browsing to add more.
+  const selectedElsewhere = useMemo(() => {
+    const visibleIds = new Set(visible.map((p) => p.id));
+    return products.filter((p) => selected.has(p.id) && !visibleIds.has(p.id));
+  }, [products, selected, visible]);
+
   async function savePrice(p: Product, field: "gia_ban" | "gia_thung", value: string) {
     const num = value.trim() === "" ? null : Number(value.replace(/[^\d]/g, ""));
     if (value.trim() !== "" && (num === null || Number.isNaN(num))) {
@@ -379,6 +388,45 @@ export default function Home() {
     }
   }
 
+  function renderProductRow(p: Product, extraClassName?: string) {
+    const isPending = pendingIds.has(p.id);
+    const className = [isPending ? "is-pending" : "", extraClassName ?? ""].filter(Boolean).join(" ");
+    return (
+      <tr key={p.id} className={className}>
+        <td>
+          <input type="checkbox" checked={selected.has(p.id)} onChange={() => toggleSelect(p.id)} />
+        </td>
+        <td className="name-cell">
+          {p.ten_hang_hoa}
+          <span className="sub code-cell" title={`Mã nội bộ: ${p.ma_noi_bo}`}>
+            {productCodesLine(p)}
+          </span>
+        </td>
+        <td>{p.category_sheet}</td>
+        <td>{p.dvt}</td>
+        <td className="num">
+          <PriceInput value={p.gia_ban} onSave={(v) => savePrice(p, "gia_ban", v)} saving={savingId === p.id} />
+        </td>
+        <td className="num">
+          <PriceInput value={p.gia_thung} onSave={(v) => savePrice(p, "gia_thung", v)} saving={savingId === p.id} />
+        </td>
+        <td>
+          <StatusPill product={p} isPending={isPending} />
+        </td>
+        <td>
+          <div className="row-actions">
+            <button className="icon-btn" title="Sửa" aria-label="Sửa sản phẩm" onClick={() => setFormTarget(p)}>
+              <EditIcon />
+            </button>
+            <button className="icon-btn danger" title="Xóa" aria-label="Xóa sản phẩm" onClick={() => handleDeleteProduct(p)}>
+              <TrashIcon />
+            </button>
+          </div>
+        </td>
+      </tr>
+    );
+  }
+
   return (
     <div className="shell">
       <Sidebar activeView={activeView} onChange={setActiveView} pendingCount={pendingIds.size} />
@@ -576,43 +624,15 @@ export default function Home() {
                   </td>
                 </tr>
               )}
-              {visible.map((p) => {
-                const isPending = pendingIds.has(p.id);
-                return (
-                  <tr key={p.id} className={isPending ? "is-pending" : ""}>
-                    <td>
-                      <input type="checkbox" checked={selected.has(p.id)} onChange={() => toggleSelect(p.id)} />
-                    </td>
-                    <td className="name-cell">
-                      {p.ten_hang_hoa}
-                      <span className="sub code-cell" title={`Mã nội bộ: ${p.ma_noi_bo}`}>
-                        {productCodesLine(p)}
-                      </span>
-                    </td>
-                    <td>{p.category_sheet}</td>
-                    <td>{p.dvt}</td>
-                    <td className="num">
-                      <PriceInput value={p.gia_ban} onSave={(v) => savePrice(p, "gia_ban", v)} saving={savingId === p.id} />
-                    </td>
-                    <td className="num">
-                      <PriceInput value={p.gia_thung} onSave={(v) => savePrice(p, "gia_thung", v)} saving={savingId === p.id} />
-                    </td>
-                    <td>
-                      <StatusPill product={p} isPending={isPending} />
-                    </td>
-                    <td>
-                      <div className="row-actions">
-                        <button className="icon-btn" title="Sửa" aria-label="Sửa sản phẩm" onClick={() => setFormTarget(p)}>
-                          <EditIcon />
-                        </button>
-                        <button className="icon-btn danger" title="Xóa" aria-label="Xóa sản phẩm" onClick={() => handleDeleteProduct(p)}>
-                          <TrashIcon />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
+              {visible.map((p) => renderProductRow(p))}
+              {selectedElsewhere.length > 0 && (
+                <tr className="section-divider-row">
+                  <td colSpan={8} className="section-divider">
+                    Đã chọn ở bộ lọc khác ({selectedElsewhere.length})
+                  </td>
+                </tr>
+              )}
+              {selectedElsewhere.map((p) => renderProductRow(p, "is-selected-elsewhere"))}
             </tbody>
           </table>
         </div>

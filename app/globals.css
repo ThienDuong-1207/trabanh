@@ -309,6 +309,14 @@ tbody td { padding: 10px 14px; border-bottom: 1px solid var(--border); font-size
 tbody tr:last-child td { border-bottom: none; }
 tbody tr:hover { background: var(--surface-sunken); }
 tbody tr.is-pending { background: var(--warm-wash); }
+tbody tr.is-selected-elsewhere { background: var(--primary-wash); }
+tbody tr.is-selected-elsewhere:hover { background: var(--primary-wash); }
+
+.section-divider-row td { padding: 7px 14px; }
+.section-divider {
+  font-size: 11.5px; font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase;
+  color: var(--primary-ink); background: var(--primary-wash);
+}
 
 .code-cell { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12.5px; color: var(--muted); }
 .name-cell { font-weight: 550; }
