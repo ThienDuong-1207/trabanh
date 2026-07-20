@@ -135,8 +135,12 @@ export default function Home() {
     });
   }
 
+  // Additive on purpose: lets a user pick all of one category's products,
+  // switch the category filter, then "chọn tất cả đang hiện" again to add the
+  // next category on top — building up one combined selection (e.g. for a
+  // multi-category báo giá) instead of each click replacing the last one.
   function selectAllVisible() {
-    setSelected(new Set(visible.map((p) => p.id)));
+    setSelected((prev) => new Set([...prev, ...visible.map((p) => p.id)]));
   }
 
   async function doExport(kind: "misa" | "word" | "misa-update") {
