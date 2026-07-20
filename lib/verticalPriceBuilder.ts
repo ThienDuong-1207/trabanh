@@ -26,12 +26,17 @@ const PRICE_SIZE_HALF = 358; // 179pt, matches reference
 const BARCODE_SIZE_HALF = 40; // 20pt, matches reference
 const UNIT_SIZE_HALF = 48; // 24pt, matches reference
 const CELL_BORDER_SIZE = 4; // matches reference tblBorders sz (eighths of a point)
-const BOTTOM_TAB_POS = PAGE_W; // right-aligned tab stop at the full page width
+
+// The reference has no side padding at all (barcode/unit sit flush against
+// the page edges) — added here so they don't touch the paper's outer edges
+// when printed.
+const CELL_MARGIN_SIDE = 300; // dxa, ~0.53cm
+const BOTTOM_TAB_POS = PAGE_W - CELL_MARGIN_SIDE * 2; // right-aligned tab stop within the padded content area
 
 // Reserves room above the table for the logo line, so the table's own
 // "atLeast" height still leaves the whole page — logo included — on one
 // page instead of spilling onto a second.
-const LOGO_RESERVE_DXA = 400;
+const LOGO_RESERVE_DXA = 1500; // bigger logo needs more headroom than the old 400
 const TABLE_H = PAGE_H - MARGIN_TOP_BOTTOM * 2 - LOGO_RESERVE_DXA;
 
 const TITLE_LINE = Math.round(36 * 1.15 * 20); // twips
@@ -49,8 +54,12 @@ function priceSpacingDxa(priceSizeHalf: number): { before: number; after: number
 }
 
 const LOGO_PATH = path.join(process.cwd(), "public", "templates", "logo.png");
-const LOGO_DISPLAY_W = 68; // px; reference logo is 857250 EMU wide (~2.38cm)
-const LOGO_DISPLAY_H = 22; // px; reference logo is 276225 EMU tall (~0.77cm)
+// The reference uses the same tiny logo size as the small 7.7x4cm price
+// block (lib/wordBuilder.ts), but on a full A4 page that leaves the top
+// looking mostly empty — sized up here (same aspect ratio, ~2047x659) so it
+// actually fills the top area instead of sitting as a small mark in the corner.
+const LOGO_DISPLAY_W = 200;
+const LOGO_DISPLAY_H = 64;
 
 function logoImageRun() {
   if (!fs.existsSync(LOGO_PATH)) return null;
@@ -103,7 +112,7 @@ function buildPage(item: Product) {
   const cell = new TableCell({
     width: { size: PAGE_W, type: WidthType.DXA },
     verticalAlign: VerticalAlign.TOP,
-    margins: { top: 0, bottom: 0, left: 0, right: 0 },
+    margins: { top: 0, bottom: 0, left: CELL_MARGIN_SIDE, right: CELL_MARGIN_SIDE },
     borders: cellBorderThin,
     children: [titlePara, pricePara, bottomLine],
   });
