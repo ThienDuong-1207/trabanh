@@ -8,13 +8,12 @@ import {
 import { CATEGORY_ORDER, Product } from "./types";
 import { fixDuplicateDocPrIds } from "./docxFixup";
 
-// Page size, margins, border weight, and title/barcode/unit sizes are taken
-// directly from "Misa hàng hóa/Bang gia dung Sua + Rich lun.docx" — the
-// shop's own hand-built full-page vertical price sign — by unzipping it and
-// reading word/document.xml. Only the price font size is computed (the
-// reference hand-tunes it per product instead), reusing the same
-// width/height-fit approach as lib/wordBuilder.ts's small price blocks,
-// recalibrated for a full A4 page instead of a 7.7x4cm cell.
+// Page size, margins, border weight, and title/price/barcode/unit sizes are
+// all taken directly, fixed, from "Misa hàng hóa/Bang gia dung Sua + Rich lun.docx"
+// — the shop's own hand-built full-page vertical price sign — by unzipping
+// it and reading word/document.xml. Unlike lib/wordBuilder.ts's small price
+// blocks, the price size here is NOT computed per product — the reference
+// uses one fixed size for every product, and that's the size to keep.
 
 const PAGE_W = 11906; // A4 portrait, dxa — matches reference pgSz
 const PAGE_H = 16838;
@@ -23,6 +22,7 @@ const MARGIN_SIDE = 0; // matches reference pgMar left/right
 
 const FONT = "Arial";
 const TITLE_SIZE_HALF = 72; // 36pt, matches reference
+const PRICE_SIZE_HALF = 358; // 179pt, matches reference
 const BARCODE_SIZE_HALF = 40; // 20pt, matches reference
 const UNIT_SIZE_HALF = 48; // 24pt, matches reference
 const CELL_BORDER_SIZE = 4; // matches reference tblBorders sz (eighths of a point)
@@ -37,26 +37,6 @@ const TABLE_H = PAGE_H - MARGIN_TOP_BOTTOM * 2 - LOGO_RESERVE_DXA;
 const TITLE_LINE = Math.round(36 * 1.15 * 20); // twips
 const BOTTOM_LINE = Math.round(24 * 1.15 * 20); // twips, off the larger of the two bottom-line fonts
 const PRICE_SPACING_AFTER = 200; // twips, gap kept between price and the barcode/unit line
-
-const SAFETY = 1.15;
-const DIGIT_WIDTH_EM = 0.556;
-const SEPARATOR_WIDTH_EM = 0.278;
-const DXA_PER_CM = 566.929;
-const PRICE_BOX_WIDTH_PT = (PAGE_W / DXA_PER_CM - 1) * 28.3465; // -1cm allowance for cell padding
-
-function estimatePriceWidthUnits(price: string): number {
-  let units = 0;
-  for (const ch of price) units += /[.,]/.test(ch) ? SEPARATOR_WIDTH_EM : DIGIT_WIDTH_EM;
-  return units;
-}
-
-const PRICE_ZONE_PT = (TABLE_H - TITLE_LINE - PRICE_SPACING_AFTER - BOTTOM_LINE) / 20;
-
-function priceFontSizeHalf(price: string) {
-  const sizeFromWidth = PRICE_BOX_WIDTH_PT / (estimatePriceWidthUnits(price) * SAFETY);
-  const sizeFromHeight = PRICE_ZONE_PT / (1.15 * SAFETY);
-  return Math.round(Math.min(sizeFromWidth, sizeFromHeight) * 2);
-}
 
 const FIXED_ZONES_DXA = TITLE_LINE + BOTTOM_LINE;
 
@@ -103,12 +83,11 @@ function buildPage(item: Product) {
   });
 
   const priceStr = formatPrice(item.gia_ban!);
-  const priceSize = priceFontSizeHalf(priceStr);
-  const { before: priceBefore, after: priceAfter } = priceSpacingDxa(priceSize);
+  const { before: priceBefore, after: priceAfter } = priceSpacingDxa(PRICE_SIZE_HALF);
   const pricePara = new Paragraph({
     alignment: AlignmentType.CENTER,
     spacing: { before: priceBefore, after: priceAfter },
-    children: [new TextRun({ text: priceStr, bold: true, font: FONT, size: priceSize })],
+    children: [new TextRun({ text: priceStr, bold: true, font: FONT, size: PRICE_SIZE_HALF })],
   });
 
   const bottomLine = new Paragraph({
