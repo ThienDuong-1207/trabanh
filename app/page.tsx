@@ -18,14 +18,13 @@ export default function Home() {
   const [missingOnly, setMissingOnly] = useState(false);
   const [tab, setTab] = useState<"all" | "pending">("all");
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [exporting, setExporting] = useState<"misa" | "word" | "misa-update" | null>(null);
+  const [exporting, setExporting] = useState<"misa" | "word" | "misa-update" | "vertical" | null>(null);
   const [exportingRollLabel, setExportingRollLabel] = useState(false);
   const [quoteModalOpen, setQuoteModalOpen] = useState(false);
   const [exportingQuote, setExportingQuote] = useState(false);
   const [exportingAll, setExportingAll] = useState<"category" | "brand" | "word" | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [dismissing, setDismissing] = useState(false);
-  const [deletingSelected, setDeletingSelected] = useState(false);
   const [importing, setImporting] = useState(false);
   const [importOnlyNew, setImportOnlyNew] = useState(false);
   const [formTarget, setFormTarget] = useState<"new" | Product | null>(null);
@@ -152,7 +151,7 @@ export default function Home() {
     setSelected((prev) => new Set([...prev, ...visible.map((p) => p.id)]));
   }
 
-  async function doExport(kind: "misa" | "word" | "misa-update") {
+  async function doExport(kind: "misa" | "word" | "misa-update" | "vertical") {
     if (selected.size === 0) {
       alert("Chọn ít nhất 1 sản phẩm để xuất file.");
       return;
@@ -173,6 +172,7 @@ export default function Home() {
         misa: "MISA_Import_Update.xlsx",
         word: "Bang_gia_block_7.7x4cm_Update.docx",
         "misa-update": "MISA_Cap_nhat_thong_tin.xlsx",
+        vertical: "Bang_gia_dung.docx",
       };
       downloadBlob(blob, filenames[kind]);
 
@@ -265,30 +265,6 @@ export default function Home() {
       alert("Thao tác thất bại: " + e.message);
     } finally {
       setDismissing(false);
-    }
-  }
-
-  async function deleteSelected() {
-    if (selected.size === 0) {
-      alert("Chọn ít nhất 1 sản phẩm để xóa.");
-      return;
-    }
-    if (!confirm(`Xóa VĨNH VIỄN ${selected.size} sản phẩm đã chọn? Không thể hoàn tác.`)) return;
-    setDeletingSelected(true);
-    try {
-      const res = await fetch("/api/products", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids: Array.from(selected) }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Xóa thất bại");
-      setSelected(new Set());
-      await loadProducts();
-    } catch (e: any) {
-      alert("Xóa sản phẩm thất bại: " + e.message);
-    } finally {
-      setDeletingSelected(false);
     }
   }
 
@@ -575,15 +551,15 @@ export default function Home() {
             <button className="btn" disabled={exporting !== null} onClick={() => doExport("word")}>
               {exporting === "word" ? "Đang xuất..." : "Block giá 7.7x4cm"}
             </button>
+            <button className="btn" disabled={exporting !== null} onClick={() => doExport("vertical")}>
+              {exporting === "vertical" ? "Đang xuất..." : "Bảng giá đứng"}
+            </button>
             <button className="btn" onClick={() => setQuoteModalOpen(true)}>
               <QuoteIcon />
               Xuất báo giá (PDF)
             </button>
             <button className="btn" disabled={exportingRollLabel} onClick={doExportRollLabel}>
               {exportingRollLabel ? "Đang xuất..." : "Xuất tem cuộn 5x3cm"}
-            </button>
-            <button className="btn btn-danger" disabled={deletingSelected} onClick={deleteSelected}>
-              {deletingSelected ? "Đang xóa..." : "Xóa tất cả đã chọn"}
             </button>
             {tab === "pending" && (
               <button className="btn btn-danger" disabled={dismissing} onClick={dismissPending}>
