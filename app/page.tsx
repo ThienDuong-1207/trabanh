@@ -901,14 +901,24 @@ function downloadBlob(blob: Blob, filename: string) {
 
 function PriceInput({ value, onSave, saving }: { value: number | null; onSave: (v: string) => void; saving: boolean }) {
   const [local, setLocal] = useState(value?.toString() ?? "");
-  useEffect(() => setLocal(value?.toString() ?? ""), [value]);
+  const [focused, setFocused] = useState(false);
+  useEffect(() => {
+    if (!focused) setLocal(value?.toString() ?? "");
+  }, [value, focused]);
   return (
     <input
       className="price-input"
-      value={local}
+      // Shown formatted ("113.000") while at rest, raw digits while being
+      // typed — formatting mid-edit would fight the cursor position.
+      value={focused ? local : value?.toLocaleString("vi-VN") ?? ""}
       disabled={saving}
+      onFocus={() => {
+        setFocused(true);
+        setLocal(value?.toString() ?? "");
+      }}
       onChange={(e) => setLocal(e.target.value)}
       onBlur={() => {
+        setFocused(false);
         if (local !== (value?.toString() ?? "")) onSave(local);
       }}
       onKeyDown={(e) => {
