@@ -21,7 +21,7 @@ const MARGIN_BOTTOM = 24;
 // title sits right above the price instead of up near the top of the page,
 // both so they read as one block and so a physical sign holder/frame (whose
 // edge covers the first stretch of the page) can't hide the title behind it.
-const TITLE_PRICE_GAP = 20;
+const TITLE_PRICE_GAP = 50;
 
 const TITLE_SIZE = 36; // pt, Arial
 const PRICE_SIZE = 179; // pt, Arial
