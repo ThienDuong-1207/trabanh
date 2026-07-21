@@ -1,0 +1,15 @@
+name: Sync products from Google Sheet
+
+on:
+  schedule:
+    - cron: "0 * * * *" # every hour, on the hour
+  workflow_dispatch: {} # lets you trigger a run manually from the Actions tab, to test
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call sync-sheet endpoint
+        run: |
+          curl -sf -X POST "${{ secrets.SYNC_ENDPOINT_URL }}" \
+            -H "Authorization: Bearer ${{ secrets.SYNC_SECRET }}"

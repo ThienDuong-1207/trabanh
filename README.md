@@ -57,6 +57,44 @@ npx vercel
 Sau khi deploy xong, mọi lần đổi giá bạn chỉ cần mở đúng link Vercel đó —
 không cần chat lại với Claude nữa.
 
+## Đồng bộ tự động từ Google Sheet
+
+Thay vì bấm "Nhập từ Excel" thủ công, có thể sửa giá trực tiếp trên 1 Google Sheet (cùng cấu trúc:
+1 tab theo mỗi nhóm hàng trong `CATEGORY_ORDER`, cùng tên cột) — web sẽ tự đọc và cập nhật vào
+database mỗi giờ (`.github/workflows/sync-sheet.yml`, có thể đổi lịch bằng cách sửa dòng `cron` trong
+file đó). Đây là kiểu **ghi đè** (Sheet luôn là nguồn đúng, ghi đè giá/tên trong database theo `Mã nội
+bộ`) — không tự xóa sản phẩm nào dù bị xóa khỏi Sheet.
+
+### Việc cần tự làm (không thể làm hộ vì cần tài khoản Google của bạn)
+
+Dùng **API key** (không dùng Service Account) — vì Google Cloud mặc định chặn tạo Service Account
+key ở hầu hết project mới (kể cả tài khoản cá nhân), API key không bị chặn bởi chính sách đó.
+Đánh đổi: Sheet phải để chế độ chia sẻ **"Anyone with the link: Viewer"** — ai có link (hoặc đoán
+được ID) cũng đọc được dữ liệu giá/sản phẩm (không sửa được), thay vì chỉ 1 tài khoản cụ thể mới
+xem được.
+
+1. Mở Google Sheet cần đồng bộ → **Share** → đổi sang **"Anyone with the link"**, quyền **Viewer**.
+2. Vào https://console.cloud.google.com → tạo (hoặc chọn) 1 project → **APIs & Services → Library**
+   → tìm bật **Google Sheets API**.
+3. **APIs & Services → Credentials → Create Credentials → API key** → copy chuỗi key vừa tạo.
+   (Khuyến khích bấm **Restrict Key** → **API restrictions** → chỉ chọn **Google Sheets API**, để
+   key này không dùng được cho việc khác nếu lỡ lộ.)
+4. Điền `GOOGLE_API_KEY` (key vừa tạo) và `GOOGLE_SHEET_ID` (đoạn giữa `/d/` và `/edit` trên URL
+   Sheet, ví dụ `.../d/12BWeIZuYHPE1ZsM-TNNQ9KXsPZobB_VZ/edit...` thì ID là
+   `12BWeIZuYHPE1ZsM-TNNQ9KXsPZobB_VZ`) vào `.env.local` (xem `.env.local.example`) để test ở máy
+   bạn, và vào **Vercel → Project Settings → Environment Variables** để dùng khi deploy.
+5. Nghĩ ra 1 chuỗi bất kỳ làm `SYNC_SECRET`, điền vào **cả 2 nơi**: biến môi trường ở Vercel, và
+   **GitHub repo → Settings → Secrets and variables → Actions → New repository secret** (tên
+   `SYNC_SECRET`).
+6. Thêm 1 GitHub repo secret nữa tên `SYNC_ENDPOINT_URL`, giá trị là
+   `https://<domain-vercel-cua-ban>/api/sync-sheet`.
+
+Test thử ngay (không cần đợi lịch giờ): vào tab **Actions** trên GitHub → chọn workflow
+"Sync products from Google Sheet" → **Run workflow**.
+
+> Lưu ý: GitHub tự tắt lịch chạy tự động nếu repo không có commit nào suốt 60 ngày — thấy đồng bộ
+> ngừng thì vào tab Actions bật lại là được.
+
 ## Cách dùng hằng ngày
 
 **Sửa giá sản phẩm đã có:**
@@ -86,6 +124,7 @@ app/
   api/export-by-category/route.ts - API xuất Excel theo nhóm hàng (toàn bộ danh mục)
   api/export-by-brand/route.ts    - API xuất Excel theo thương hiệu (toàn bộ danh mục)
   api/import-products/route.ts    - API nhập Excel hàng loạt (tạo mới + cập nhật theo Mã nội bộ)
+  api/sync-sheet/route.ts         - API đồng bộ từ Google Sheet (gọi định kỳ bởi GitHub Actions)
   api/products/route.ts           - API tạo sản phẩm mới
   api/products/[id]/route.ts      - API sửa / xóa 1 sản phẩm
 lib/
@@ -93,7 +132,8 @@ lib/
   wordBuilder.ts          - Logic dựng file Word (3 vùng: tiêu đề/giá/mã vạch, đúng 7.7x4cm)
   categoryExportBuilder.ts - Dựng file Excel "theo loại", 1 sheet/nhóm hàng
   brandExportBuilder.ts   - Dựng file Excel "theo thương hiệu", 1 sheet/brand + sheet tổng quan
-  excelImport.ts          - Đọc file Excel nhập hàng loạt, map cột → field, upsert brands + products
+  excelImport.ts          - Đọc file Excel nhập hàng loạt, map cột → field, upsertProductRows() dùng chung
+  googleSheetSync.ts      - Đọc Google Sheet (cùng map cột với excelImport.ts), gọi lại upsertProductRows()
   brands.ts               - Resolve-or-create 1 thương hiệu theo tên
   row6_template.json      - Style của từng cột trong file mẫu MISA (không tự sửa tay)
   types.ts                - Kiểu dữ liệu Product/ProductInput dùng chung
