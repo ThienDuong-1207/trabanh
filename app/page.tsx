@@ -16,6 +16,7 @@ export default function Home() {
   const [category, setCategory] = useState<string>("Tất cả");
   const [brandFilter, setBrandFilter] = useState<string>("Tất cả");
   const [missingOnly, setMissingOnly] = useState(false);
+  const [compactView, setCompactView] = useState(false);
   const [tab, setTab] = useState<"all" | "pending">("all");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [exporting, setExporting] = useState<"misa" | "word" | "misa-update" | "vertical" | null>(null);
@@ -378,27 +379,31 @@ export default function Home() {
             {productCodesLine(p)}
           </span>
         </td>
-        <td>{p.category_sheet}</td>
-        <td>{p.dvt}</td>
+        {!compactView && <td>{p.category_sheet}</td>}
+        {!compactView && <td>{p.dvt}</td>}
         <td className="num">
           <PriceInput value={p.gia_ban} onSave={(v) => savePrice(p, "gia_ban", v)} saving={savingId === p.id} />
         </td>
         <td className="num">
           <PriceInput value={p.gia_thung} onSave={(v) => savePrice(p, "gia_thung", v)} saving={savingId === p.id} />
         </td>
-        <td>
-          <StatusPill product={p} isPending={isPending} />
-        </td>
-        <td>
-          <div className="row-actions">
-            <button className="icon-btn" title="Sửa" aria-label="Sửa sản phẩm" onClick={() => setFormTarget(p)}>
-              <EditIcon />
-            </button>
-            <button className="icon-btn danger" title="Xóa" aria-label="Xóa sản phẩm" onClick={() => handleDeleteProduct(p)}>
-              <TrashIcon />
-            </button>
-          </div>
-        </td>
+        {!compactView && (
+          <td>
+            <StatusPill product={p} isPending={isPending} />
+          </td>
+        )}
+        {!compactView && (
+          <td>
+            <div className="row-actions">
+              <button className="icon-btn" title="Sửa" aria-label="Sửa sản phẩm" onClick={() => setFormTarget(p)}>
+                <EditIcon />
+              </button>
+              <button className="icon-btn danger" title="Xóa" aria-label="Xóa sản phẩm" onClick={() => handleDeleteProduct(p)}>
+                <TrashIcon />
+              </button>
+            </div>
+          </td>
+        )}
       </tr>
     );
   }
@@ -442,6 +447,10 @@ export default function Home() {
           <input type="checkbox" checked={missingOnly} onChange={(e) => setMissingOnly(e.target.checked)} />
           <WarningIcon />
           Thiếu thông tin
+        </label>
+        <label className={`toggle-pill${compactView ? " active" : ""}`}>
+          <input type="checkbox" checked={compactView} onChange={(e) => setCompactView(e.target.checked)} />
+          Xem gọn (chỉ giá)
         </label>
 
         <div className="toolbar-spacer" />
@@ -577,12 +586,12 @@ export default function Home() {
               <tr>
                 <th style={{ width: 36 }}></th>
                 <th>Mã · Tên sản phẩm</th>
-                <th>Nhóm</th>
-                <th>ĐVT</th>
+                {!compactView && <th>Nhóm</th>}
+                {!compactView && <th>ĐVT</th>}
                 <th className="num">Giá bán lẻ</th>
                 <th className="num">Giá thùng</th>
-                <th>Trạng thái</th>
-                <th style={{ width: 76 }}></th>
+                {!compactView && <th>Trạng thái</th>}
+                {!compactView && <th style={{ width: 76 }}></th>}
               </tr>
             </thead>
             <tbody>
