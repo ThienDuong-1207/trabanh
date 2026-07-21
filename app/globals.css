@@ -233,6 +233,9 @@ button, input, select { font: inherit; color: inherit; }
 }
 .toggle-pill input { display: none; }
 .toggle-pill.active { background: var(--warm-wash); border-color: transparent; color: var(--warm-ink); font-weight: 600; }
+/* Always-orange variant (not tied to checked state) for the "Update giá" toggle */
+.toggle-pill-warm { background: var(--warm-wash); border-color: transparent; color: var(--warm-ink); font-weight: 600; }
+.toggle-pill-warm:hover { background: var(--warm); color: #fff; }
 
 .toolbar-spacer { flex: 1 1 auto; min-width: 0; }
 

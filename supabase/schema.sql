@@ -113,6 +113,12 @@ create index if not exists idx_price_history_product
 create index if not exists idx_price_history_changed_at
   on price_history (changed_at desc);
 
+-- security definer: without it, this runs as whichever role fired the
+-- UPDATE — including the anon (browser) role for inline web edits — and its
+-- insert into price_history gets blocked by RLS since that table has no
+-- insert policy (deliberately, so only this trigger can write to it). With
+-- security definer it always runs as the function's owner, bypassing RLS,
+-- regardless of who edited the price.
 create or replace function log_price_change()
 returns trigger as $$
 begin
@@ -122,7 +128,7 @@ begin
   end if;
   return new;
 end;
-$$ language plpgsql;
+$$ language plpgsql security definer set search_path = public;
 
 drop trigger if exists trg_log_price_change on products;
 create trigger trg_log_price_change

@@ -448,9 +448,9 @@ export default function Home() {
           <WarningIcon />
           Thiếu thông tin
         </label>
-        <label className={`toggle-pill${compactView ? " active" : ""}`}>
+        <label className="toggle-pill toggle-pill-warm">
           <input type="checkbox" checked={compactView} onChange={(e) => setCompactView(e.target.checked)} />
-          Xem gọn (chỉ giá)
+          Update giá
         </label>
 
         <div className="toolbar-spacer" />
