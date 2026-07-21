@@ -21,10 +21,10 @@ const MARGIN_X = 14; // pt, keeps text off the border frame — narrow enough th
 const MARGIN_TOP = 80;
 const MARGIN_BOTTOM = 24;
 
-const TITLE_SIZE = 36; // pt, matches the shop's old vertical-sign reference
-const PRICE_SIZE = 179; // pt, matches the shop's old vertical-sign reference
-const BARCODE_SIZE = 20;
-const UNIT_SIZE = 24;
+const TITLE_SIZE = 36; // pt, Arial
+const PRICE_SIZE = 179; // pt, Arial
+const BARCODE_SIZE = 24; // pt, Arial
+const UNIT_SIZE = 24; // pt, Arial
 
 const CONTENT_WIDTH = PAGE_W - MARGIN_X * 2;
 const BOTTOM_LINE_Y = PAGE_H - MARGIN_BOTTOM - UNIT_SIZE * 1.2;
@@ -33,14 +33,13 @@ function formatPrice(n: number) {
   return Math.round(n).toLocaleString("vi-VN").replace(/,/g, ".");
 }
 
-// PRICE_SIZE (179pt, from the reference) is only safe for short prices —
-// measured against the real embedded Roboto-Medium glyphs (the actual font
-// this PDF renders with), a 6-digit price like "41.000" is already wider
-// than the page, which is exactly what caused it to wrap mid-number. Treat
-// 179pt as a ceiling instead of a fixed size: shrink only as much as needed
-// for each price to still fit on one line, so short prices still get the
-// full reference size.
-const priceFont = fontkit.openSync(path.join(process.cwd(), "public", "fonts", "Roboto-Medium.ttf"));
+// PRICE_SIZE (179pt) is only safe for short prices — measured against the
+// real embedded Arimo-Bold glyphs (the actual font this PDF renders with), a
+// 7+ digit price is wider than the page, which is exactly what caused it to
+// wrap mid-number. Treat 179pt as a ceiling instead of a fixed size: shrink
+// only as much as needed for each price to still fit on one line, so short
+// prices still get the full size.
+const priceFont = fontkit.openSync(path.join(process.cwd(), "public", "fonts", "Arimo-Bold.ttf"));
 const PRICE_FIT_SAFETY = 0.99;
 
 function priceEmWidth(text: string): number {
@@ -125,7 +124,7 @@ export async function buildVerticalPricePdf(items: Product[]): Promise<Buffer> {
         },
       ],
     }),
-    defaultStyle: { font: "Roboto" },
+    defaultStyle: { font: "Arimo" },
     content,
   };
 

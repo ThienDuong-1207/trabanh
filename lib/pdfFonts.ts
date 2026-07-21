@@ -15,6 +15,18 @@ pdfmake.addFonts({
     italics: path.join(FONT_DIR, "Roboto-Italic.ttf"),
     bolditalics: path.join(FONT_DIR, "Roboto-MediumItalic.ttf"),
   },
+  // Arimo: an Arial-metric-compatible, openly-licensed (OFL) typeface, for
+  // builders where the shop specifically wants an Arial look. Built from
+  // @fontsource/arimo's "latin" + "vietnamese" subset files merged into one
+  // file per weight with `python -m fontTools.merge` — each subset alone is
+  // missing glyphs the other has (e.g. "latin" alone has no Đ/Ữ/Ặ, and the
+  // "vietnamese" subset alone has no plain ASCII digits/letters).
+  Arimo: {
+    normal: path.join(FONT_DIR, "Arimo-Regular.ttf"),
+    bold: path.join(FONT_DIR, "Arimo-Bold.ttf"),
+    italics: path.join(FONT_DIR, "Arimo-Regular.ttf"),
+    bolditalics: path.join(FONT_DIR, "Arimo-Bold.ttf"),
+  },
 });
 // docDefinition content never references remote resources, so deny those —
 // but local access must stay allowed since the Roboto font files above are
