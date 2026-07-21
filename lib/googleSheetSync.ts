@@ -46,6 +46,12 @@ export async function syncFromGoogleSheet(): Promise<ImportSummary> {
     const { data } = await sheets.spreadsheets.values.batchGet({
       spreadsheetId,
       ranges: matchedTabs.map((t) => `'${t.name}'!A:Z`),
+      // Without this, cells formatted as currency come back as their DISPLAY
+      // string (e.g. "82.000 đ") instead of the raw number — Number() on
+      // that yields NaN, which JSON-serializes to null and silently wipes
+      // the price in the database. UNFORMATTED_VALUE returns the real
+      // underlying value (82000) regardless of how the cell is formatted.
+      valueRenderOption: "UNFORMATTED_VALUE",
     });
 
     (data.valueRanges ?? []).forEach((range, i) => {
@@ -67,7 +73,15 @@ export async function syncFromGoogleSheet(): Promise<ImportSummary> {
           const raw = row[colIndex];
           const value = raw === undefined || raw === "" ? null : raw;
           if (field === "ma_noi_bo" && value) hasMaNoiBo = true;
-          record[field] = NUMERIC_FIELDS.has(field) && value !== null ? Number(value) : value;
+          if (NUMERIC_FIELDS.has(field) && value !== null) {
+            const n = Number(value);
+            // Guard against ever writing NaN — it JSON-serializes to null and
+            // would silently wipe an existing price if some cell still comes
+            // back unparsable despite UNFORMATTED_VALUE.
+            record[field] = Number.isNaN(n) ? null : n;
+          } else {
+            record[field] = value;
+          }
         });
         if (hasMaNoiBo) rows.push(record);
       }
