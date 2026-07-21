@@ -12,7 +12,9 @@ import { CATEGORY_ORDER, Product } from "./types";
 
 const PAGE_W = 595.28; // A4 portrait, pt
 const PAGE_H = 841.89;
-const MARGIN_X = 24; // pt, keeps text off the border frame
+const MARGIN_X = 14; // pt, keeps text off the border frame — narrow enough that a
+// typical 6-char price (page 1 of the reference: "30.000") still fits at the
+// full 179pt instead of being shrunk
 const MARGIN_TOP = 30;
 const MARGIN_BOTTOM = 24;
 
@@ -36,7 +38,7 @@ function formatPrice(n: number) {
 // for each price to still fit on one line, so short prices still get the
 // full reference size.
 const priceFont = fontkit.openSync(path.join(process.cwd(), "public", "fonts", "Roboto-Medium.ttf"));
-const PRICE_FIT_SAFETY = 0.97;
+const PRICE_FIT_SAFETY = 0.99;
 
 function priceEmWidth(text: string): number {
   const run = priceFont.layout(text);
