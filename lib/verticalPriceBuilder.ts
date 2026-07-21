@@ -15,11 +15,13 @@ const PAGE_H = 841.89;
 const MARGIN_X = 14; // pt, keeps text off the border frame — narrow enough that a
 // typical 6-char price (page 1 of the reference: "30.000") still fits at the
 // full 179pt instead of being shrunk
-// Generous top clearance: these pages get slid into a physical sign holder/
-// frame, whose edge covers the first stretch of the page — a tight top
-// margin would hide the title behind it.
-const MARGIN_TOP = 80;
+const MARGIN_TOP = 24;
 const MARGIN_BOTTOM = 24;
+// Gap kept between the title's baseline area and the price above it — the
+// title sits right above the price instead of up near the top of the page,
+// both so they read as one block and so a physical sign holder/frame (whose
+// edge covers the first stretch of the page) can't hide the title behind it.
+const TITLE_PRICE_GAP = 20;
 
 const TITLE_SIZE = 36; // pt, Arial
 const PRICE_SIZE = 179; // pt, Arial
@@ -72,12 +74,15 @@ function buildProductPage(item: Product, isFirst: boolean): any[] {
   const priceStr = formatPrice(item.gia_ban!);
   const priceSize = fitPriceSize(priceStr);
   const priceY = PAGE_H / 2 - (priceSize * LINE_HEIGHT_FACTOR) / 2;
+  const titleY = priceY - TITLE_PRICE_GAP - TITLE_SIZE * LINE_HEIGHT_FACTOR;
   return [
     {
       text: item.ten_hang_hoa.toUpperCase(),
       bold: true,
       fontSize: TITLE_SIZE,
       alignment: "center",
+      width: CONTENT_WIDTH,
+      absolutePosition: { x: MARGIN_X, y: titleY },
       pageBreak: isFirst ? undefined : "before",
     },
     {
