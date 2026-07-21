@@ -15,7 +15,10 @@ const PAGE_H = 841.89;
 const MARGIN_X = 14; // pt, keeps text off the border frame — narrow enough that a
 // typical 6-char price (page 1 of the reference: "30.000") still fits at the
 // full 179pt instead of being shrunk
-const MARGIN_TOP = 30;
+// Generous top clearance: these pages get slid into a physical sign holder/
+// frame, whose edge covers the first stretch of the page — a tight top
+// margin would hide the title behind it.
+const MARGIN_TOP = 80;
 const MARGIN_BOTTOM = 24;
 
 const TITLE_SIZE = 36; // pt, matches the shop's old vertical-sign reference
@@ -61,16 +64,30 @@ function sortForPrint(items: Product[]): Product[] {
   });
 }
 
+// Roughly the visual height of a line of bold digits (cap-height to
+// baseline, no descenders) — used only to center the price box on the page,
+// not for precise typographic measurement.
+const LINE_HEIGHT_FACTOR = 1.15;
+
 function buildProductPage(item: Product, isFirst: boolean): any[] {
   const priceStr = formatPrice(item.gia_ban!);
   const priceSize = fitPriceSize(priceStr);
+  const priceY = PAGE_H / 2 - (priceSize * LINE_HEIGHT_FACTOR) / 2;
   return [
     {
-      stack: [
-        { text: item.ten_hang_hoa.toUpperCase(), bold: true, fontSize: TITLE_SIZE, alignment: "center" },
-        { text: priceStr, bold: true, fontSize: priceSize, alignment: "center", margin: [0, 90, 0, 0] },
-      ],
+      text: item.ten_hang_hoa.toUpperCase(),
+      bold: true,
+      fontSize: TITLE_SIZE,
+      alignment: "center",
       pageBreak: isFirst ? undefined : "before",
+    },
+    {
+      text: priceStr,
+      bold: true,
+      fontSize: priceSize,
+      alignment: "center",
+      width: CONTENT_WIDTH,
+      absolutePosition: { x: MARGIN_X, y: priceY },
     },
     { text: item.ma_vach || "", bold: true, fontSize: BARCODE_SIZE, absolutePosition: { x: MARGIN_X, y: BOTTOM_LINE_Y } },
     {
