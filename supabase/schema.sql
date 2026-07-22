@@ -28,8 +28,11 @@ create table if not exists products (
   xuat_xu text,
   category_sheet text not null,             -- Tra, Sua tuoi, Sua dac, ... (nhom hang / sheet)
   updated_at timestamptz not null default now(),
-  last_exported_at timestamptz              -- null = chua tung xuat file
+  last_exported_at timestamptz,             -- null = chua tung xuat file
+  is_draft boolean not null default false   -- true = Sales vua them, cho Ke toan hoan thien
 );
+
+alter table products add column if not exists is_draft boolean not null default false;
 
 -- Speeds up the "pending export" query (updated_at > last_exported_at)
 create index if not exists idx_products_pending
@@ -91,6 +94,13 @@ create table if not exists profiles (
   role user_role,
   created_at timestamptz not null default now()
 );
+
+-- Đăng nhập tài khoản/mật khẩu (song song Google) — username do Admin đặt
+-- khi tạo tài khoản (xem app/api/users/route.ts); must_change_password bắt
+-- buộc người dùng tự đặt mật khẩu mới ngay sau lần đăng nhập đầu bằng mật
+-- khẩu tạm (xem app/page.tsx / app/set-password/page.tsx).
+alter table profiles add column if not exists username text unique;
+alter table profiles add column if not exists must_change_password boolean not null default false;
 
 -- Tự tạo 1 profile (role = null) ngay khi ai đó đăng nhập Google lần đầu —
 -- security definer vì thao tác insert này chạy trong ngữ cảnh chưa có role
@@ -203,3 +213,47 @@ create policy "Public read access" on price_history
 -- No write policy: rows are only ever inserted by the trigger above (which
 -- runs with the privileges of the triggering statement), never by direct
 -- client writes.
+
+-- Giai đoạn 2: Sales (Hưng) không sửa giá trực tiếp — chỉ đề xuất, Kế toán/
+-- Admin duyệt hoặc từ chối. Áp dụng đề xuất (ghi vào products.gia_ban/
+-- gia_thung) luôn làm ở tầng API route (supabaseAdmin), không qua policy
+-- update ở đây — bảng này chỉ cần insert (Sales tạo) + update trạng thái
+-- (Kế toán/Admin duyệt), không cần policy update products thêm.
+do $$ begin
+  create type request_status as enum ('pending', 'approved', 'rejected');
+exception
+  when duplicate_object then null;
+end $$;
+
+create table if not exists price_change_requests (
+  id uuid primary key default gen_random_uuid(),
+  product_id uuid not null references products(id) on delete cascade,
+  proposed_gia_ban numeric,
+  proposed_gia_thung numeric,
+  proposed_by uuid not null references profiles(id),
+  status request_status not null default 'pending',
+  reviewed_by uuid references profiles(id),
+  reviewed_at timestamptz,
+  note text,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_price_requests_status on price_change_requests(status);
+create index if not exists idx_price_requests_product on price_change_requests(product_id);
+
+alter table price_change_requests enable row level security;
+
+drop policy if exists "Sales tạo đề xuất của mình" on price_change_requests;
+create policy "Sales tạo đề xuất của mình" on price_change_requests
+  for insert
+  with check (
+    proposed_by = auth.uid()
+    and exists (select 1 from profiles where id = auth.uid() and role = 'sales')
+  );
+
+drop policy if exists "Xem đề xuất theo quyền" on price_change_requests;
+create policy "Xem đề xuất theo quyền" on price_change_requests
+  for select using (
+    proposed_by = auth.uid()
+    or exists (select 1 from profiles where id = auth.uid() and role in ('accountant', 'admin'))
+  );

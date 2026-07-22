@@ -18,13 +18,30 @@ export type Product = {
   category_sheet: string;
   updated_at: string;
   last_exported_at: string | null;
+  is_draft: boolean;
 };
 
 // Shape sent from the product create/edit form: same editable fields as
 // Product, minus server-assigned ones, with `brand` as a plain name instead
 // of `brand_id` (the API resolves-or-creates the brand row by name).
-export type ProductInput = Omit<Product, "id" | "brand_id" | "brand" | "updated_at" | "last_exported_at"> & {
+export type ProductInput = Omit<Product, "id" | "brand_id" | "brand" | "updated_at" | "last_exported_at" | "is_draft"> & {
   brand: string | null;
+};
+
+export type RequestStatus = "pending" | "approved" | "rejected";
+
+export type PriceChangeRequest = {
+  id: string;
+  product_id: string;
+  proposed_gia_ban: number | null;
+  proposed_gia_thung: number | null;
+  proposed_by: string;
+  status: RequestStatus;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  note: string | null;
+  created_at: string;
+  product?: { ten_hang_hoa: string; ma_noi_bo: string } | null;
 };
 
 export type PriceHistoryEntry = {
@@ -36,6 +53,16 @@ export type PriceHistoryEntry = {
   gia_thung_new: number | null;
   changed_at: string;
   product?: { ten_hang_hoa: string; ma_noi_bo: string } | null;
+};
+
+export type Profile = {
+  id: string;
+  username: string | null;
+  email: string | null;
+  display_name: string | null;
+  role: "sales" | "accountant" | "admin" | null;
+  must_change_password: boolean;
+  created_at: string;
 };
 
 export const CATEGORY_ORDER = [

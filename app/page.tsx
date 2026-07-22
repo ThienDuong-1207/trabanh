@@ -9,7 +9,13 @@ export default async function Page() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { data: profile } = await supabase.from("profiles").select("role, display_name").eq("id", user.id).single();
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role, display_name, must_change_password")
+    .eq("id", user.id)
+    .single();
+
+  if (profile?.must_change_password) redirect("/set-password");
 
   if (!profile?.role) {
     return (

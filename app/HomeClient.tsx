@@ -2,10 +2,11 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { Product, ProductInput, PriceHistoryEntry, CATEGORY_ORDER } from "@/lib/types";
+import { Product, ProductInput, PriceHistoryEntry, PriceChangeRequest, Profile, CATEGORY_ORDER } from "@/lib/types";
 import { QUY_CACH_SUGGESTIONS, TY_LE_SUGGESTIONS, extractQuantityFromQuyCach } from "@/lib/suggestionLists";
+import PasswordChecklist from "@/components/PasswordChecklist";
 
-type View = "hanghoa" | "tonkho" | "baocao";
+type View = "hanghoa" | "tonkho" | "baocao" | "duyetgia" | "users";
 export type Role = "sales" | "accountant" | "admin";
 
 const ROLE_LABEL: Record<Role, string> = {
@@ -24,7 +25,12 @@ export default function HomeClient({ displayName, role }: { displayName: string;
   const [brandFilter, setBrandFilter] = useState<string>("Tất cả");
   const [missingOnly, setMissingOnly] = useState(false);
   const [compactView, setCompactView] = useState(false);
-  const [tab, setTab] = useState<"all" | "pending">("all");
+  const [tab, setTab] = useState<"all" | "pending" | "draft">("all");
+  const [priceRequests, setPriceRequests] = useState<PriceChangeRequest[]>([]);
+  const [priceProposalTarget, setPriceProposalTarget] = useState<Product | null>(null);
+  const [submittingProposal, setSubmittingProposal] = useState(false);
+  const [reviewingRequestId, setReviewingRequestId] = useState<string | null>(null);
+  const [completeDraftTarget, setCompleteDraftTarget] = useState<Product | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [exporting, setExporting] = useState<"misa" | "word" | "misa-update" | "vertical" | null>(null);
   const [exportingRollLabel, setExportingRollLabel] = useState(false);
@@ -60,9 +66,21 @@ export default function HomeClient({ displayName, role }: { displayName: string;
     if (!error) setBrandNames((data ?? []).map((b) => b.name as string));
   }
 
+  // RLS already scopes this per role (Giai đoạn 2): sales only sees their own
+  // requests, kế toán/admin sees everyone's — so no client-side filtering by
+  // "who can see what" is needed here.
+  async function loadPriceRequests() {
+    const { data, error } = await supabase
+      .from("price_change_requests")
+      .select("*, product:products(ten_hang_hoa, ma_noi_bo)")
+      .order("created_at", { ascending: false });
+    if (!error) setPriceRequests((data ?? []) as PriceChangeRequest[]);
+  }
+
   useEffect(() => {
     loadProducts();
     loadBrandNames();
+    loadPriceRequests();
   }, []);
 
   useEffect(() => {
@@ -108,8 +126,22 @@ export default function HomeClient({ displayName, role }: { displayName: string;
 
   const visible = useMemo(() => {
     if (tab === "pending") return filteredByCriteria.filter((p) => pendingIds.has(p.id));
+    if (tab === "draft") return filteredByCriteria.filter((p) => p.is_draft);
     return filteredByCriteria;
   }, [filteredByCriteria, tab, pendingIds]);
+
+  const draftInFilter = useMemo(() => filteredByCriteria.filter((p) => p.is_draft).length, [filteredByCriteria]);
+
+  // Only ever one meaningful "pending" request per product in practice — if
+  // more than one somehow exists, the most recent wins (price_requests is
+  // already ordered newest-first by loadPriceRequests).
+  const pendingRequestByProduct = useMemo(() => {
+    const map = new Map<string, PriceChangeRequest>();
+    for (const r of priceRequests) {
+      if (r.status === "pending" && !map.has(r.product_id)) map.set(r.product_id, r);
+    }
+    return map;
+  }, [priceRequests]);
 
   const pendingInFilter = useMemo(
     () => filteredByCriteria.filter((p) => pendingIds.has(p.id)).length,
@@ -141,6 +173,83 @@ export default function HomeClient({ displayName, role }: { displayName: string;
     setProducts((prev) =>
       prev.map((x) => (x.id === p.id ? { ...x, [field]: num, updated_at: new Date().toISOString() } : x))
     );
+  }
+
+  async function submitPriceProposal(giaBan: string, giaThung: string) {
+    if (!priceProposalTarget) return;
+    const parse = (s: string) => (s.trim() === "" ? null : Number(s.replace(/[^\d]/g, "")));
+    const proposed_gia_ban = parse(giaBan);
+    const proposed_gia_thung = parse(giaThung);
+    if (proposed_gia_ban === null && proposed_gia_thung === null) {
+      alert("Nhập ít nhất 1 giá đề xuất.");
+      return;
+    }
+    setSubmittingProposal(true);
+    try {
+      const res = await fetch("/api/price-requests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ product_id: priceProposalTarget.id, proposed_gia_ban, proposed_gia_thung }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Gửi đề xuất thất bại");
+      setPriceProposalTarget(null);
+      await loadPriceRequests();
+    } catch (e: any) {
+      alert("Gửi đề xuất thất bại: " + e.message);
+    } finally {
+      setSubmittingProposal(false);
+    }
+  }
+
+  async function reviewPriceRequest(id: string, action: "approve" | "reject") {
+    if (action === "reject" && !confirm("Từ chối đề xuất giá này?")) return;
+    setReviewingRequestId(id);
+    try {
+      const res = await fetch(`/api/price-requests/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Xử lý thất bại");
+      await Promise.all([loadPriceRequests(), action === "approve" ? loadProducts() : Promise.resolve()]);
+    } catch (e: any) {
+      alert("Xử lý đề xuất thất bại: " + e.message);
+    } finally {
+      setReviewingRequestId(null);
+    }
+  }
+
+  async function submitCompleteDraft(fields: {
+    ma_noi_bo: string;
+    ten_hoa_don: string;
+    quy_cach: string;
+    dvt: string;
+    ty_le: string;
+    brand: string;
+  }) {
+    if (!completeDraftTarget) return;
+    try {
+      const res = await fetch(`/api/products/${completeDraftTarget.id}/complete-draft`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ma_noi_bo: fields.ma_noi_bo,
+          ten_hoa_don: fields.ten_hoa_don || null,
+          quy_cach: fields.quy_cach || null,
+          dvt: fields.dvt || null,
+          ty_le: fields.ty_le ? Number(fields.ty_le) : null,
+          brand: fields.brand || null,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Hoàn thiện sản phẩm thất bại");
+      setCompleteDraftTarget(null);
+      await loadProducts();
+    } catch (e: any) {
+      alert("Hoàn thiện sản phẩm thất bại: " + e.message);
+    }
   }
 
   function toggleSelect(id: string) {
@@ -375,6 +484,7 @@ export default function HomeClient({ displayName, role }: { displayName: string;
   function renderProductRow(p: Product, extraClassName?: string) {
     const isPending = pendingIds.has(p.id);
     const className = [isPending ? "is-pending" : "", extraClassName ?? ""].filter(Boolean).join(" ");
+    const pendingRequest = pendingRequestByProduct.get(p.id);
     return (
       <tr key={p.id} className={className}>
         <td>
@@ -382,6 +492,7 @@ export default function HomeClient({ displayName, role }: { displayName: string;
         </td>
         <td className="name-cell">
           {p.ten_hang_hoa}
+          {p.is_draft && <span className="draft-badge">Nháp</span>}
           <span className="sub code-cell" title={`Mã nội bộ: ${p.ma_noi_bo}`}>
             {productCodesLine(p)}
           </span>
@@ -404,6 +515,40 @@ export default function HomeClient({ displayName, role }: { displayName: string;
             readOnly={role === "sales"}
           />
         </td>
+        <td>
+          {pendingRequest ? (
+            <div className="price-request-cell">
+              <span className="price-request-values">
+                {formatVnd(pendingRequest.proposed_gia_ban)} / {formatVnd(pendingRequest.proposed_gia_thung)}
+              </span>
+              {(role === "accountant" || role === "admin") && (
+                <div className="row-actions">
+                  <button
+                    className="btn btn-quiet"
+                    disabled={reviewingRequestId === pendingRequest.id}
+                    onClick={() => reviewPriceRequest(pendingRequest.id, "approve")}
+                  >
+                    Duyệt
+                  </button>
+                  <button
+                    className="btn btn-quiet"
+                    disabled={reviewingRequestId === pendingRequest.id}
+                    onClick={() => reviewPriceRequest(pendingRequest.id, "reject")}
+                  >
+                    Từ chối
+                  </button>
+                </div>
+              )}
+              {role === "sales" && <span className="sub">Đang chờ duyệt</span>}
+            </div>
+          ) : (
+            role === "sales" && (
+              <button className="btn btn-quiet" onClick={() => setPriceProposalTarget(p)}>
+                Đề xuất giá
+              </button>
+            )
+          )}
+        </td>
         {!compactView && (
           <td>
             <StatusPill product={p} isPending={isPending} />
@@ -412,12 +557,21 @@ export default function HomeClient({ displayName, role }: { displayName: string;
         {!compactView && (
           <td>
             <div className="row-actions">
-              <button className="icon-btn" title="Sửa" aria-label="Sửa sản phẩm" onClick={() => setFormTarget(p)}>
-                <EditIcon />
-              </button>
-              <button className="icon-btn danger" title="Xóa" aria-label="Xóa sản phẩm" onClick={() => handleDeleteProduct(p)}>
-                <TrashIcon />
-              </button>
+              {p.is_draft && (role === "accountant" || role === "admin") && (
+                <button className="btn btn-quiet" onClick={() => setCompleteDraftTarget(p)}>
+                  Hoàn thiện
+                </button>
+              )}
+              {!p.is_draft && (role === "accountant" || role === "admin") && (
+                <button className="icon-btn" title="Sửa" aria-label="Sửa sản phẩm" onClick={() => setFormTarget(p)}>
+                  <EditIcon />
+                </button>
+              )}
+              {role === "admin" && (
+                <button className="icon-btn danger" title="Xóa" aria-label="Xóa sản phẩm" onClick={() => handleDeleteProduct(p)}>
+                  <TrashIcon />
+                </button>
+              )}
             </div>
           </td>
         )}
@@ -427,7 +581,14 @@ export default function HomeClient({ displayName, role }: { displayName: string;
 
   return (
     <div className="shell">
-      <Sidebar activeView={activeView} onChange={setActiveView} pendingCount={pendingIds.size} displayName={displayName} role={role} />
+      <Sidebar
+        activeView={activeView}
+        onChange={setActiveView}
+        pendingCount={pendingIds.size}
+        priceRequestCount={priceRequests.filter((r) => r.status === "pending").length}
+        displayName={displayName}
+        role={role}
+      />
       <main className="main">
         {activeView === "hanghoa" && (
     <div className="app">
@@ -554,6 +715,9 @@ export default function HomeClient({ displayName, role }: { displayName: string;
             <button className={tab === "pending" ? "active" : ""} onClick={() => setTab("pending")}>
               Chờ xuất file ({pendingInFilter})
             </button>
+            <button className={tab === "draft" ? "active" : ""} onClick={() => setTab("draft")}>
+              Chưa hoàn chỉnh ({draftInFilter})
+            </button>
           </div>
           <button className="btn btn-neutral" onClick={selectAllVisible}>
             Chọn tất cả đang hiện
@@ -609,6 +773,7 @@ export default function HomeClient({ displayName, role }: { displayName: string;
                 {!compactView && <th>ĐVT</th>}
                 <th className="num">Giá bán lẻ</th>
                 <th className="num">Giá thùng</th>
+                <th>Đề xuất giá</th>
                 {!compactView && <th>Trạng thái</th>}
                 {!compactView && <th style={{ width: 76 }}></th>}
               </tr>
@@ -651,6 +816,7 @@ export default function HomeClient({ displayName, role }: { displayName: string;
         <ProductForm
           initial={formTarget === "new" ? null : formTarget}
           brandNames={brandNames}
+          role={role}
           onCancel={() => setFormTarget(null)}
           onSave={handleSaveProduct}
         />
@@ -664,10 +830,37 @@ export default function HomeClient({ displayName, role }: { displayName: string;
           onSubmit={doExportQuote}
         />
       )}
+
+      {priceProposalTarget && (
+        <PriceProposalForm
+          product={priceProposalTarget}
+          submitting={submittingProposal}
+          onCancel={() => setPriceProposalTarget(null)}
+          onSubmit={submitPriceProposal}
+        />
+      )}
+
+      {completeDraftTarget && (
+        <CompleteDraftForm
+          product={completeDraftTarget}
+          brandNames={brandNames}
+          onCancel={() => setCompleteDraftTarget(null)}
+          onSubmit={submitCompleteDraft}
+        />
+      )}
     </div>
         )}
         {activeView === "tonkho" && <InventoryView />}
         {activeView === "baocao" && <DashboardView products={products} pendingCount={pendingIds.size} />}
+        {activeView === "duyetgia" && (
+          <PriceRequestsView
+            requests={priceRequests}
+            role={role}
+            reviewingRequestId={reviewingRequestId}
+            onReview={reviewPriceRequest}
+          />
+        )}
+        {activeView === "users" && role === "admin" && <UserManagementView />}
       </main>
     </div>
   );
@@ -677,12 +870,14 @@ function Sidebar({
   activeView,
   onChange,
   pendingCount,
+  priceRequestCount,
   displayName,
   role,
 }: {
   activeView: View;
   onChange: (v: View) => void;
   pendingCount: number;
+  priceRequestCount: number;
   displayName: string;
   role: Role;
 }) {
@@ -712,6 +907,17 @@ function Sidebar({
           Báo cáo
           {pendingCount > 0 && <span className="badge">{pendingCount}</span>}
         </button>
+        <button className={`nav-item${activeView === "duyetgia" ? " active" : ""}`} onClick={() => onChange("duyetgia")}>
+          <TagIcon />
+          Chờ duyệt giá
+          {priceRequestCount > 0 && <span className="badge">{priceRequestCount}</span>}
+        </button>
+        {role === "admin" && (
+          <button className={`nav-item${activeView === "users" ? " active" : ""}`} onClick={() => onChange("users")}>
+            <UsersIcon />
+            Quản lý người dùng
+          </button>
+        )}
       </div>
       <div className="sidebar-foot sidebar-account">
         <div className="sidebar-account-name">{displayName}</div>
@@ -902,6 +1108,328 @@ function DashboardView({ products, pendingCount }: { products: Product[]; pendin
       </div>
 
       <PriceHistoryPanel />
+    </div>
+  );
+}
+
+function PriceRequestsView({
+  requests,
+  role,
+  reviewingRequestId,
+  onReview,
+}: {
+  requests: PriceChangeRequest[];
+  role: Role;
+  reviewingRequestId: string | null;
+  onReview: (id: string, action: "approve" | "reject") => void;
+}) {
+  const canReview = role === "accountant" || role === "admin";
+  const sorted = useMemo(
+    () => [...requests].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
+    [requests]
+  );
+
+  return (
+    <div className="app">
+      <div className="view-header">
+        <div>
+          <h1>Chờ duyệt giá</h1>
+          <p>{canReview ? "Đề xuất giá từ Sales, chờ Kế toán/Admin duyệt." : "Đề xuất giá bạn đã gửi và trạng thái xử lý."}</p>
+        </div>
+      </div>
+
+      <div className="table-card">
+        <div className="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Sản phẩm</th>
+                <th className="num">Giá đề xuất</th>
+                <th>Trạng thái</th>
+                <th>Thời điểm</th>
+                {canReview && <th style={{ width: 140 }}></th>}
+              </tr>
+            </thead>
+            <tbody>
+              {sorted.length === 0 && (
+                <tr>
+                  <td colSpan={canReview ? 5 : 4} style={{ textAlign: "center", color: "var(--muted)" }}>
+                    Chưa có đề xuất nào.
+                  </td>
+                </tr>
+              )}
+              {sorted.map((r) => (
+                <tr key={r.id}>
+                  <td className="name-cell">
+                    {r.product?.ten_hang_hoa ?? "(sản phẩm đã xóa)"}
+                    <span className="sub code-cell">{r.product?.ma_noi_bo}</span>
+                  </td>
+                  <td className="num">
+                    {formatVnd(r.proposed_gia_ban)} / {formatVnd(r.proposed_gia_thung)}
+                  </td>
+                  <td>
+                    {r.status === "pending" && "Đang chờ duyệt"}
+                    {r.status === "approved" && "Đã duyệt"}
+                    {r.status === "rejected" && "Đã từ chối"}
+                  </td>
+                  <td>{formatDate(r.created_at)}</td>
+                  {canReview && (
+                    <td>
+                      {r.status === "pending" && (
+                        <div className="row-actions">
+                          <button
+                            className="btn btn-quiet"
+                            disabled={reviewingRequestId === r.id}
+                            onClick={() => onReview(r.id, "approve")}
+                          >
+                            Duyệt
+                          </button>
+                          <button
+                            className="btn btn-quiet"
+                            disabled={reviewingRequestId === r.id}
+                            onClick={() => onReview(r.id, "reject")}
+                          >
+                            Từ chối
+                          </button>
+                        </div>
+                      )}
+                    </td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function generateTempPassword(): string {
+  const specials = "!@#$%^&*";
+  const letters = "abcdefghijkmnpqrstuvwxyz";
+  const rand = (s: string) => s[Math.floor(Math.random() * s.length)];
+  let body = "";
+  for (let i = 0; i < 5; i++) body += rand(letters);
+  return (
+    letters[Math.floor(Math.random() * letters.length)].toUpperCase() +
+    body +
+    Math.floor(10 + Math.random() * 90) +
+    rand(specials)
+  );
+}
+
+function UserManagementView() {
+  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const [username, setUsername] = useState("");
+  const [displayName, setDisplayName] = useState("");
+  const [newRole, setNewRole] = useState<Role>("sales");
+  const [tempPassword, setTempPassword] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+
+  const [resetTarget, setResetTarget] = useState<Profile | null>(null);
+  const [resetPassword, setResetPassword] = useState("");
+  const [resetting, setResetting] = useState(false);
+  const [resetError, setResetError] = useState<string | null>(null);
+
+  async function loadProfiles() {
+    setLoading(true);
+    const { data } = await supabase.from("profiles").select("*").order("created_at", { ascending: false });
+    setProfiles((data as Profile[]) ?? []);
+    setLoading(false);
+  }
+
+  useEffect(() => {
+    loadProfiles();
+  }, []);
+
+  async function submitCreate(e: React.FormEvent) {
+    e.preventDefault();
+    setCreateError(null);
+    setCreating(true);
+    try {
+      const res = await fetch("/api/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, display_name: displayName, role: newRole, temp_password: tempPassword }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Tạo tài khoản thất bại");
+      setUsername("");
+      setDisplayName("");
+      setTempPassword("");
+      setNewRole("sales");
+      await loadProfiles();
+    } catch (e: any) {
+      setCreateError(e.message);
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  async function submitReset(e: React.FormEvent) {
+    e.preventDefault();
+    if (!resetTarget) return;
+    setResetError(null);
+    setResetting(true);
+    try {
+      const res = await fetch(`/api/users/${resetTarget.id}/reset-password`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ temp_password: resetPassword }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Đặt lại mật khẩu thất bại");
+      setResetTarget(null);
+      setResetPassword("");
+      await loadProfiles();
+    } catch (e: any) {
+      setResetError(e.message);
+    } finally {
+      setResetting(false);
+    }
+  }
+
+  return (
+    <div className="app">
+      <div className="view-header">
+        <div>
+          <h1>Quản lý người dùng</h1>
+          <p>Tạo tài khoản đăng nhập bằng mật khẩu cho nhân sự không dùng Google.</p>
+        </div>
+      </div>
+
+      <div className="field-group">
+        <h3>Tạo tài khoản mới</h3>
+        <form className="field-grid" onSubmit={submitCreate}>
+          <Field label="Tên đăng nhập">
+            <input
+              placeholder="vd: hung"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+            />
+          </Field>
+          <Field label="Tên hiển thị">
+            <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
+          </Field>
+          <Field label="Vai trò">
+            <select value={newRole} onChange={(e) => setNewRole(e.target.value as Role)}>
+              {(["sales", "accountant", "admin"] as Role[]).map((r) => (
+                <option key={r} value={r}>
+                  {ROLE_LABEL[r]}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Mật khẩu tạm">
+            <div style={{ display: "flex", gap: 6 }}>
+              <input
+                style={{ flex: 1 }}
+                value={tempPassword}
+                onChange={(e) => setTempPassword(e.target.value)}
+              />
+              <button type="button" className="btn btn-quiet" onClick={() => setTempPassword(generateTempPassword())}>
+                Tạo ngẫu nhiên
+              </button>
+            </div>
+          </Field>
+          <div style={{ gridColumn: "1 / -1" }}>
+            <PasswordChecklist password={tempPassword} />
+          </div>
+          {createError && (
+            <p className="login-error" style={{ gridColumn: "1 / -1" }}>
+              {createError}
+            </p>
+          )}
+          <div style={{ gridColumn: "1 / -1" }}>
+            <button className="btn btn-primary" type="submit" disabled={creating}>
+              {creating ? "Đang tạo..." : "Tạo tài khoản"}
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <div className="table-card">
+        <div className="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Tài khoản</th>
+                <th>Tên hiển thị</th>
+                <th>Vai trò</th>
+                <th>Trạng thái</th>
+                <th style={{ width: 140 }}></th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading && (
+                <tr>
+                  <td colSpan={5} style={{ textAlign: "center", color: "var(--muted)" }}>
+                    Đang tải...
+                  </td>
+                </tr>
+              )}
+              {!loading &&
+                profiles.map((p) => (
+                  <tr key={p.id}>
+                    <td className="name-cell">
+                      {p.username ?? p.email}
+                      {!p.username && <span className="sub">Google</span>}
+                    </td>
+                    <td>{p.display_name ?? "—"}</td>
+                    <td>{p.role ? ROLE_LABEL[p.role] : "Chưa cấp quyền"}</td>
+                    <td>{p.must_change_password ? "Cần đổi mật khẩu" : "—"}</td>
+                    <td>
+                      {p.username && (
+                        <button className="btn btn-quiet" onClick={() => setResetTarget(p)}>
+                          Đặt lại mật khẩu
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {resetTarget && (
+        <div className="modal-backdrop" onClick={(e) => e.target === e.currentTarget && setResetTarget(null)}>
+          <div className="modal">
+            <h2>Đặt lại mật khẩu</h2>
+            <p className="modal-sub">{resetTarget.username}</p>
+            <form onSubmit={submitReset}>
+              <div className="field-group">
+                <Field label="Mật khẩu tạm mới">
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <input
+                      style={{ flex: 1 }}
+                      value={resetPassword}
+                      onChange={(e) => setResetPassword(e.target.value)}
+                    />
+                    <button type="button" className="btn btn-quiet" onClick={() => setResetPassword(generateTempPassword())}>
+                      Tạo ngẫu nhiên
+                    </button>
+                  </div>
+                </Field>
+                <PasswordChecklist password={resetPassword} />
+                {resetError && <p className="login-error">{resetError}</p>}
+              </div>
+              <div className="modal-actions">
+                <button className="btn" type="button" onClick={() => setResetTarget(null)}>
+                  Hủy
+                </button>
+                <button className="btn btn-primary" type="submit" disabled={resetting}>
+                  {resetting ? "Đang lưu..." : "Đặt lại"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1131,14 +1659,169 @@ function QuoteForm({
   );
 }
 
+function PriceProposalForm({
+  product,
+  submitting,
+  onCancel,
+  onSubmit,
+}: {
+  product: Product;
+  submitting: boolean;
+  onCancel: () => void;
+  onSubmit: (giaBan: string, giaThung: string) => void;
+}) {
+  const [giaBan, setGiaBan] = useState("");
+  const [giaThung, setGiaThung] = useState("");
+
+  return (
+    <div className="modal-backdrop" onClick={(e) => e.target === e.currentTarget && onCancel()}>
+      <div className="modal">
+        <h2>Đề xuất giá</h2>
+        <p className="modal-sub">{product.ten_hang_hoa}</p>
+
+        <div className="field-group">
+          <div className="field-grid">
+            <Field label={`Giá bán lẻ hiện tại: ${formatVnd(product.gia_ban)}`}>
+              <input
+                inputMode="numeric"
+                placeholder="Giá đề xuất"
+                value={giaBan}
+                onChange={(e) => setGiaBan(e.target.value)}
+              />
+            </Field>
+            <Field label={`Giá thùng hiện tại: ${formatVnd(product.gia_thung)}`}>
+              <input
+                inputMode="numeric"
+                placeholder="Giá đề xuất"
+                value={giaThung}
+                onChange={(e) => setGiaThung(e.target.value)}
+              />
+            </Field>
+          </div>
+        </div>
+
+        <div className="modal-actions">
+          <button className="btn" onClick={onCancel} disabled={submitting}>
+            Hủy
+          </button>
+          <button className="btn btn-primary" disabled={submitting} onClick={() => onSubmit(giaBan, giaThung)}>
+            {submitting ? "Đang gửi..." : "Gửi đề xuất"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CompleteDraftForm({
+  product,
+  brandNames,
+  onCancel,
+  onSubmit,
+}: {
+  product: Product;
+  brandNames: string[];
+  onCancel: () => void;
+  onSubmit: (fields: {
+    ma_noi_bo: string;
+    ten_hoa_don: string;
+    quy_cach: string;
+    dvt: string;
+    ty_le: string;
+    brand: string;
+  }) => Promise<void>;
+}) {
+  const [maNoiBo, setMaNoiBo] = useState("");
+  const [tenHoaDon, setTenHoaDon] = useState("");
+  const [quyCach, setQuyCach] = useState("");
+  const [dvt, setDvt] = useState("");
+  const [tyLe, setTyLe] = useState("");
+  const [brand, setBrand] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  function handleQuyCach(value: string) {
+    const autoTyLe = tyLe.trim() === "" ? extractQuantityFromQuyCach(value) : null;
+    setQuyCach(value);
+    if (autoTyLe !== null) setTyLe(String(autoTyLe));
+  }
+
+  async function submit() {
+    if (!maNoiBo.trim()) {
+      alert("Cần nhập Mã nội bộ.");
+      return;
+    }
+    setSaving(true);
+    await onSubmit({ ma_noi_bo: maNoiBo, ten_hoa_don: tenHoaDon, quy_cach: quyCach, dvt, ty_le: tyLe, brand });
+    setSaving(false);
+  }
+
+  return (
+    <div className="modal-backdrop" onClick={(e) => e.target === e.currentTarget && onCancel()}>
+      <div className="modal">
+        <h2>Hoàn thiện sản phẩm</h2>
+        <p className="modal-sub">{product.ten_hang_hoa}</p>
+
+        <div className="field-group">
+          <div className="field-grid">
+            <Field label="Mã nội bộ *">
+              <input autoFocus value={maNoiBo} onChange={(e) => setMaNoiBo(e.target.value)} />
+            </Field>
+            <Field label="Tên trên hóa đơn">
+              <input value={tenHoaDon} onChange={(e) => setTenHoaDon(e.target.value)} />
+            </Field>
+            <Field label="Đơn vị tính">
+              <input value={dvt} onChange={(e) => setDvt(e.target.value)} />
+            </Field>
+            <Field label="Quy cách thùng">
+              <select value={quyCach} onChange={(e) => handleQuyCach(e.target.value)}>
+                <option value="">— Chọn quy cách —</option>
+                {withCurrent(QUY_CACH_SUGGESTIONS, quyCach).map((q) => (
+                  <option key={q}>{q}</option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Tỷ lệ quy đổi">
+              <select value={tyLe} onChange={(e) => setTyLe(e.target.value)}>
+                <option value="">— Chọn tỷ lệ —</option>
+                {withCurrent(TY_LE_SUGGESTIONS, tyLe).map((t) => (
+                  <option key={t}>{t}</option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Thương hiệu / NCC">
+              <select value={brandNames.includes(brand) ? brand : ""} onChange={(e) => setBrand(e.target.value)}>
+                <option value="">— Chọn thương hiệu —</option>
+                {brandNames.map((b) => (
+                  <option key={b}>{b}</option>
+                ))}
+              </select>
+            </Field>
+          </div>
+        </div>
+
+        <div className="modal-actions">
+          <button className="btn" onClick={onCancel}>
+            Hủy
+          </button>
+          <button className="btn btn-primary" disabled={saving} onClick={submit}>
+            {saving ? "Đang lưu..." : "Hoàn thiện"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ProductForm({
   initial,
   brandNames,
+  role,
   onCancel,
   onSave,
 }: {
   initial: Product | null;
   brandNames: string[];
+  role: Role;
   onCancel: () => void;
   onSave: (input: ProductInput) => Promise<void>;
 }) {
@@ -1146,6 +1829,10 @@ function ProductForm({
   const [saving, setSaving] = useState(false);
 
   const [brandCustom, setBrandCustom] = useState(!!initial?.brand?.name && !brandNames.includes(initial.brand.name));
+
+  // Hưng (sales) chỉ tạo được sản phẩm nháp — Mã nội bộ tự sinh, Hồng (kế
+  // toán) mới điền phần còn lại qua luồng "Chưa hoàn chỉnh" / complete-draft.
+  const isSalesCreate = role === "sales" && !initial;
 
   function set<K extends keyof FormState>(key: K, value: string) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -1159,13 +1846,53 @@ function ProductForm({
   }
 
   async function submit() {
-    if (!form.ma_noi_bo.trim() || !form.ten_hang_hoa.trim()) {
+    if (isSalesCreate) {
+      if (!form.ten_hang_hoa.trim()) {
+        alert("Cần nhập Tên hàng hóa.");
+        return;
+      }
+    } else if (!form.ma_noi_bo.trim() || !form.ten_hang_hoa.trim()) {
       alert("Cần nhập Mã nội bộ và Tên hàng hóa.");
       return;
     }
     setSaving(true);
     await onSave(formStateToInput(form));
     setSaving(false);
+  }
+
+  if (isSalesCreate) {
+    return (
+      <div className="modal-backdrop" onClick={(e) => e.target === e.currentTarget && onCancel()}>
+        <div className="modal">
+          <h2>Thêm sản phẩm</h2>
+          <p className="modal-sub">Kế toán sẽ bổ sung Mã nội bộ, quy cách và giá sau khi duyệt.</p>
+
+          <div className="field-group">
+            <div className="field-grid">
+              <Field label="Tên hàng hóa *">
+                <input autoFocus value={form.ten_hang_hoa} onChange={(e) => set("ten_hang_hoa", e.target.value)} />
+              </Field>
+              <Field label="Nhóm hàng *">
+                <select value={form.category_sheet} onChange={(e) => set("category_sheet", e.target.value)}>
+                  {CATEGORY_ORDER.map((c) => (
+                    <option key={c}>{c}</option>
+                  ))}
+                </select>
+              </Field>
+            </div>
+          </div>
+
+          <div className="modal-actions">
+            <button className="btn" onClick={onCancel}>
+              Hủy
+            </button>
+            <button className="btn btn-primary" disabled={saving} onClick={submit}>
+              {saving ? "Đang lưu..." : "Lưu sản phẩm"}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -1313,6 +2040,10 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 // Sub-line under the product name in the table: mã vạch + mã thùng (the
 // scannable codes staff actually use day-to-day) instead of mã nội bộ, which
 // is still shown as a tooltip on hover.
+function formatVnd(v: number | null | undefined): string {
+  return v === null || v === undefined ? "—" : v.toLocaleString("vi-VN");
+}
+
 function productCodesLine(p: Product): string {
   const parts: string[] = [];
   if (p.ma_vach) parts.push(`MV ${p.ma_vach}`);
@@ -1355,6 +2086,16 @@ function TagIcon() {
       <path d="M20.59 13.41 13.42 20.6a2 2 0 0 1-2.83 0L3 13v-3a2 2 0 0 1 2-2h4l7.59 7.59a2 2 0 0 1 0 2.82Z" />
       <circle cx="7.5" cy="9.5" r="1" />
       <path d="M13 21 21.03 12.97" />
+    </svg>
+  );
+}
+function UsersIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
     </svg>
   );
 }

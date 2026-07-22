@@ -97,9 +97,24 @@ Test thử ngay (không cần đợi lịch giờ): vào tab **Actions** trên G
 
 ## Đăng nhập & phân quyền
 
-Web yêu cầu đăng nhập bằng Google trước khi vào được — 3 vai trò: `sales` (thêm sản phẩm), `accountant`
+Web yêu cầu đăng nhập trước khi vào được — 3 vai trò: `sales` (thêm sản phẩm), `accountant`
 (sửa giá trực tiếp), `admin` (toàn quyền). Ai đăng nhập lần đầu mà chưa được gán vai trò sẽ thấy màn
-"Tài khoản chưa được cấp quyền" thay vì vào được app.
+"Tài khoản chưa được cấp quyền" thay vì vào được app. Có 2 cách đăng nhập song song:
+
+- **Google** — như trước, tự bootstrap qua SQL Editor (xem bên dưới).
+- **Tài khoản/mật khẩu** — do Admin tạo trực tiếp trong web (mục "Quản lý người dùng" ở sidebar, chỉ Admin
+  thấy). Admin đặt Tên đăng nhập + Tên hiển thị + Vai trò + 1 mật khẩu tạm (nút "Tạo ngẫu nhiên" tự sinh
+  mật khẩu đạt quy tắc), rồi báo tên đăng nhập + mật khẩu tạm cho người đó qua kênh khác (chat/nói trực
+  tiếp — không có email thật để gửi). Lần đăng nhập đầu tiên bằng mật khẩu tạm sẽ tự chuyển sang màn
+  "Đặt mật khẩu mới", bắt buộc đặt mật khẩu mới trước khi vào app (mật khẩu cần: tối thiểu 8 ký tự, ký tự
+  đầu viết hoa, có cả chữ và số, có ít nhất 1 ký tự đặc biệt). Nếu người dùng quên mật khẩu tạm, Admin bấm
+  "Đặt lại mật khẩu" ngay ở dòng người đó.
+  Lưu ý: tên đăng nhập được map ngầm sang 1 email nội bộ dạng `<username>@tiembanh.local` để tương thích
+  với Supabase Auth (không phải email thật, không gửi mail đi) — thấy email này trong Supabase Dashboard
+  là bình thường.
+- **Phiên đăng nhập giữ vĩnh viễn** tới khi bấm "Đăng xuất" (hành vi mặc định của Supabase Auth, tự làm mới
+  token ở `middleware.ts`) — nếu muốn giới hạn thêm, kiểm tra Supabase Dashboard → Authentication →
+  Sessions.
 
 ### Việc cần tự làm (Google Cloud + Supabase Dashboard)
 
