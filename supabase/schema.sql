@@ -241,6 +241,19 @@ create table if not exists price_change_requests (
 create index if not exists idx_price_requests_status on price_change_requests(status);
 create index if not exists idx_price_requests_product on price_change_requests(product_id);
 
+-- Cho phép Admin xóa hẳn 1 tài khoản (app/api/users/[id]/route.ts DELETE) kể
+-- cả khi tài khoản đó từng đề xuất/duyệt giá — mặc định "references profiles(id)"
+-- không có "on delete" sẽ chặn xóa (foreign key violation) nếu còn dòng nào
+-- tham chiếu tới. Đổi sang set null để giữ lại lịch sử đề xuất, chỉ mất liên
+-- kết tới người đã bị xóa (giống cách activity_log.actor_id đã làm).
+alter table price_change_requests alter column proposed_by drop not null;
+alter table price_change_requests drop constraint if exists price_change_requests_proposed_by_fkey;
+alter table price_change_requests add constraint price_change_requests_proposed_by_fkey
+  foreign key (proposed_by) references profiles(id) on delete set null;
+alter table price_change_requests drop constraint if exists price_change_requests_reviewed_by_fkey;
+alter table price_change_requests add constraint price_change_requests_reviewed_by_fkey
+  foreign key (reviewed_by) references profiles(id) on delete set null;
+
 alter table price_change_requests enable row level security;
 
 drop policy if exists "Sales tạo đề xuất của mình" on price_change_requests;

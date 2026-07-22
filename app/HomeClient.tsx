@@ -19,6 +19,9 @@ import PasswordChecklist from "@/components/PasswordChecklist";
 type View = "hanghoa" | "tonkho" | "baocao" | "duyetgia" | "users" | "activitylog";
 export type Role = "sales" | "accountant" | "admin";
 
+// Tạm ẩn nav "Quản lý tồn kho" theo yêu cầu — đổi thành true để hiện lại.
+const SHOW_INVENTORY_NAV = false;
+
 const ROLE_LABEL: Record<Role, string> = {
   sales: "Sales",
   accountant: "Kế toán",
@@ -500,18 +503,19 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
     const pendingRequest = pendingRequestByProduct.get(p.id);
     return (
       <tr key={p.id} className={className}>
-        <td>
+        <td className="col-check">
           <input type="checkbox" checked={selected.has(p.id)} onChange={() => toggleSelect(p.id)} />
         </td>
-        <td className="name-cell">
+        <td className="col-name">
           {p.ten_hang_hoa}
           {p.is_draft && <span className="draft-badge">Nháp</span>}
-          <span className="sub code-cell" title={`Mã nội bộ: ${p.ma_noi_bo}`}>
-            {productCodesLine(p)}
-          </span>
         </td>
         {!compactView && <td>{p.category_sheet}</td>}
-        {!compactView && <td>{p.dvt}</td>}
+        {!compactView && (
+          <td className="code-cell">{p.ma_noi_bo}</td>
+        )}
+        {!compactView && <td>{p.ten_hoa_don ?? "—"}</td>}
+        {!compactView && <td>{p.dvt ?? "—"}</td>}
         <td className="num">
           <PriceInput
             value={p.gia_ban}
@@ -528,6 +532,11 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
             readOnly={role === "sales"}
           />
         </td>
+        {!compactView && <td>{p.quy_cach ?? "—"}</td>}
+        {!compactView && <td className="num">{p.ty_le ?? "—"}</td>}
+        {!compactView && <td>{p.brand?.name ?? "—"}</td>}
+        {!compactView && <td className="code-cell">{p.ma_vach ?? "—"}</td>}
+        {!compactView && <td className="code-cell">{p.ma_thung ?? "—"}</td>}
         <td>
           {pendingRequest ? (
             <div className="price-request-cell">
@@ -605,7 +614,7 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
       />
       <main className="main">
         {activeView === "hanghoa" && (
-    <div className="app">
+    <div className="app app-full">
       <header className="app-header">
         <h1>Quản lý giá sản phẩm — Tiệm Trà Bánh</h1>
         <div className="stat-chips">
@@ -827,31 +836,38 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
 
       <div className="table-card">
         <div className="table-scroll">
-          <table>
+          <table className="product-table">
             <thead>
               <tr>
-                <th style={{ width: 36 }}></th>
-                <th>Mã · Tên sản phẩm</th>
-                {!compactView && <th>Nhóm</th>}
+                <th className="col-check"></th>
+                <th className="col-name">Tên hàng hóa</th>
+                {!compactView && <th>Nhóm hàng</th>}
+                {!compactView && <th>Mã nội bộ</th>}
+                {!compactView && <th>Tên hóa đơn</th>}
                 {!compactView && <th>ĐVT</th>}
                 <th className="num">Giá bán lẻ</th>
                 <th className="num">Giá thùng</th>
+                {!compactView && <th>Quy cách thùng</th>}
+                {!compactView && <th className="num">Tỷ lệ quy đổi</th>}
+                {!compactView && <th>Thương hiệu</th>}
+                {!compactView && <th>Mã vạch</th>}
+                {!compactView && <th>Mã thùng</th>}
                 <th>Đề xuất giá</th>
                 {!compactView && <th>Trạng thái</th>}
-                {!compactView && <th style={{ width: 76 }}></th>}
+                {!compactView && <th style={{ width: 120 }}></th>}
               </tr>
             </thead>
             <tbody>
               {loading && (
                 <tr>
-                  <td colSpan={8} className="loading-state">
+                  <td colSpan={16} className="loading-state">
                     Đang tải...
                   </td>
                 </tr>
               )}
               {!loading && visible.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="empty-state">
+                  <td colSpan={16} className="empty-state">
                     Không có sản phẩm nào.
                   </td>
                 </tr>
@@ -859,7 +875,7 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
               {visible.map((p) => renderProductRow(p))}
               {selectedElsewhere.length > 0 && (
                 <tr className="section-divider-row">
-                  <td colSpan={8} className="section-divider">
+                  <td colSpan={16} className="section-divider">
                     Đã chọn ở bộ lọc khác ({selectedElsewhere.length})
                   </td>
                 </tr>
@@ -965,19 +981,19 @@ function Sidebar({
           <TagIcon />
           Quản lý hàng hóa
         </button>
-        <button className={`nav-item${activeView === "tonkho" ? " active" : ""}`} onClick={() => onChange("tonkho")}>
-          <ArchiveIcon />
-          Quản lý tồn kho
+        <button className={`nav-item${activeView === "duyetgia" ? " active" : ""}`} onClick={() => onChange("duyetgia")}>
+          <TagIcon />
+          Chờ duyệt giá
+          {priceRequestCount > 0 && <span className="badge">{priceRequestCount}</span>}
+        </button>
+        <button className={`nav-item${activeView === "activitylog" ? " active" : ""}`} onClick={() => onChange("activitylog")}>
+          <LogIcon />
+          Nhật ký hoạt động
         </button>
         <button className={`nav-item${activeView === "baocao" ? " active" : ""}`} onClick={() => onChange("baocao")}>
           <ChartIcon />
           Báo cáo
           {pendingCount > 0 && <span className="badge">{pendingCount}</span>}
-        </button>
-        <button className={`nav-item${activeView === "duyetgia" ? " active" : ""}`} onClick={() => onChange("duyetgia")}>
-          <TagIcon />
-          Chờ duyệt giá
-          {priceRequestCount > 0 && <span className="badge">{priceRequestCount}</span>}
         </button>
         {role === "admin" && (
           <button className={`nav-item${activeView === "users" ? " active" : ""}`} onClick={() => onChange("users")}>
@@ -985,10 +1001,13 @@ function Sidebar({
             Quản lý người dùng
           </button>
         )}
-        <button className={`nav-item${activeView === "activitylog" ? " active" : ""}`} onClick={() => onChange("activitylog")}>
-          <LogIcon />
-          Nhật ký hoạt động
-        </button>
+        {/* Tạm ẩn theo yêu cầu — bật lại bằng cách đổi SHOW_INVENTORY_NAV thành true */}
+        {SHOW_INVENTORY_NAV && (
+          <button className={`nav-item${activeView === "tonkho" ? " active" : ""}`} onClick={() => onChange("tonkho")}>
+            <ArchiveIcon />
+            Quản lý tồn kho
+          </button>
+        )}
       </div>
       <div className="sidebar-foot sidebar-account">
         <div className="sidebar-account-name">{displayName}</div>
@@ -1450,6 +1469,18 @@ function UserManagementView({ currentUserId }: { currentUserId: string }) {
     }
   }
 
+  async function deleteUser(p: Profile) {
+    if (!confirm(`Xóa tài khoản "${p.username ?? p.display_name}"? Không thể hoàn tác.`)) return;
+    try {
+      const res = await fetch(`/api/users/${p.id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Xóa tài khoản thất bại");
+      await loadProfiles();
+    } catch (e: any) {
+      alert(e.message);
+    }
+  }
+
   async function submitReset(e: React.FormEvent) {
     e.preventDefault();
     if (!resetTarget) return;
@@ -1541,7 +1572,7 @@ function UserManagementView({ currentUserId }: { currentUserId: string }) {
                 <th>Tên hiển thị</th>
                 <th>Vai trò</th>
                 <th>Trạng thái</th>
-                <th style={{ width: 140 }}></th>
+                <th style={{ width: 180 }}></th>
               </tr>
             </thead>
             <tbody>
@@ -1580,11 +1611,18 @@ function UserManagementView({ currentUserId }: { currentUserId: string }) {
                     </td>
                     <td>{p.must_change_password ? "Cần đổi mật khẩu" : "—"}</td>
                     <td>
-                      {p.username && (
-                        <button className="btn btn-quiet" onClick={() => setResetTarget(p)}>
-                          Đặt lại mật khẩu
-                        </button>
-                      )}
+                      <div className="row-actions">
+                        {p.username && (
+                          <button className="btn btn-quiet" onClick={() => setResetTarget(p)}>
+                            Đặt lại mật khẩu
+                          </button>
+                        )}
+                        {p.id !== currentUserId && (
+                          <button className="icon-btn danger" title="Xóa tài khoản" aria-label="Xóa tài khoản" onClick={() => deleteUser(p)}>
+                            <TrashIcon />
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -2319,12 +2357,6 @@ function formatVnd(v: number | null | undefined): string {
   return v === null || v === undefined ? "—" : v.toLocaleString("vi-VN");
 }
 
-function productCodesLine(p: Product): string {
-  const parts: string[] = [];
-  if (p.ma_vach) parts.push(`MV ${p.ma_vach}`);
-  if (p.ma_thung) parts.push(`MT ${p.ma_thung}`);
-  return parts.length > 0 ? parts.join(" · ") : "Chưa có mã vạch";
-}
 
 // A product "thiếu thông tin" if it has no thương hiệu, no mã vạch, or an
 // inconsistent quy cách thùng (only some of quy_cach/ty_le/gia_thung are set).

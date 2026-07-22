@@ -178,6 +178,9 @@ button, input, select { font: inherit; color: inherit; }
 }
 
 .app { max-width: 1200px; margin: 0 auto; padding: 24px 20px 80px; }
+/* Quản lý hàng hóa dùng hết chiều ngang màn hình thay vì bó vào 1200px —
+   bảng sản phẩm nhiều cột kiểu Excel cần không gian rộng. */
+.app-full { max-width: none; }
 
 /* ---- Header ---- */
 .app-header {
@@ -323,6 +326,20 @@ tbody tr.is-selected-elsewhere:hover { background: var(--primary-wash); }
   font-size: 11.5px; font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase;
   color: var(--primary-ink); background: var(--primary-wash);
 }
+
+/* Quản lý hàng hóa — bảng kiểu Excel (header xanh navy cố định + cột "Tên
+   hàng hóa" ghim bên trái khi cuộn ngang), khớp file gốc "Master (Tổng hợp)". */
+.product-table thead th {
+  background: #1f4e78; color: #fff; text-transform: none; letter-spacing: 0; font-size: 12.5px;
+  position: sticky; top: 0; z-index: 2;
+}
+.product-table .col-check, .product-table .col-name { position: sticky; z-index: 1; background: var(--surface); }
+.product-table .col-check { left: 0; width: 36px; }
+.product-table .col-name { left: 36px; font-weight: 550; border-right: 1px solid var(--border-strong); }
+.product-table thead th.col-check, .product-table thead th.col-name { z-index: 3; background: #1f4e78; }
+.product-table tbody tr:hover .col-check, .product-table tbody tr:hover .col-name { background: var(--surface-sunken); }
+.product-table tbody tr.is-pending .col-check, .product-table tbody tr.is-pending .col-name { background: var(--warm-wash); }
+.product-table tbody tr.is-selected-elsewhere .col-check, .product-table tbody tr.is-selected-elsewhere .col-name { background: var(--primary-wash); }
 
 .code-cell { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12.5px; color: var(--muted); }
 .name-cell { font-weight: 550; }
