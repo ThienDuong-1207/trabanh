@@ -38,42 +38,49 @@ export default function LoginPage() {
 
   return (
     <div className="login-shell">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img className="login-logo-badge" src="/templates/logo.png" alt="Trà & Bánh" />
+      <div className="login-banner">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/templates/banner.webp" alt="Trà & Bánh — Nguyên liệu pha chế và làm bánh" />
+      </div>
 
-      <div className="login-card">
-        <div className="login-card-accent" />
-        <div className="login-card-body">
-          <div>
-            <h1 className="login-title">Quản lý giá sản phẩm</h1>
-            <p className="login-subtitle">Đăng nhập để tiếp tục</p>
-          </div>
+      <div className="login-content">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img className="login-logo-badge" src="/templates/logo.png" alt="Trà & Bánh" />
 
-          <button className="btn btn-primary" disabled={loading} onClick={signInGoogle}>
-            {loading ? "Đang chuyển hướng..." : "Đăng nhập bằng Google"}
-          </button>
+        <div className="login-card">
+          <div className="login-card-accent" />
+          <div className="login-card-body">
+            <div>
+              <h1 className="login-title">Quản lý giá sản phẩm</h1>
+              <p className="login-subtitle">Đăng nhập để tiếp tục</p>
+            </div>
 
-          <div className="login-divider">hoặc</div>
+            <form className="login-password-form" onSubmit={signInPassword}>
+              <input
+                placeholder="Tên đăng nhập"
+                autoComplete="username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+              />
+              <input
+                type="password"
+                placeholder="Mật khẩu"
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+              {error && <p className="login-error">{error}</p>}
+              <button className="btn btn-primary" type="submit" disabled={signingIn}>
+                {signingIn ? "Đang đăng nhập..." : "Đăng nhập"}
+              </button>
+            </form>
 
-          <form className="login-password-form" onSubmit={signInPassword}>
-            <input
-              placeholder="Tên đăng nhập"
-              autoComplete="username"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-            />
-            <input
-              type="password"
-              placeholder="Mật khẩu"
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-            {error && <p className="login-error">{error}</p>}
-            <button className="btn btn-primary" type="submit" disabled={signingIn}>
-              {signingIn ? "Đang đăng nhập..." : "Đăng nhập"}
+            <div className="login-divider">hoặc</div>
+
+            <button className="btn btn-primary" disabled={loading} onClick={signInGoogle}>
+              {loading ? "Đang chuyển hướng..." : "Đăng nhập bằng Google"}
             </button>
-          </form>
+          </div>
         </div>
       </div>
     </div>
