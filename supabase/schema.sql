@@ -256,12 +256,16 @@ alter table price_change_requests add constraint price_change_requests_reviewed_
 
 alter table price_change_requests enable row level security;
 
+-- Mọi role (Sales/Kế toán/Admin) đều sửa giá qua đề xuất, không ai ghi thẳng
+-- products nữa — nên bất kỳ ai đã được cấp quyền đều tạo được đề xuất của
+-- chính mình (không riêng Sales như trước).
 drop policy if exists "Sales tạo đề xuất của mình" on price_change_requests;
-create policy "Sales tạo đề xuất của mình" on price_change_requests
+drop policy if exists "Người dùng tạo đề xuất của mình" on price_change_requests;
+create policy "Người dùng tạo đề xuất của mình" on price_change_requests
   for insert
   with check (
     proposed_by = auth.uid()
-    and exists (select 1 from profiles where id = auth.uid() and role = 'sales')
+    and exists (select 1 from profiles where id = auth.uid() and role is not null)
   );
 
 drop policy if exists "Xem đề xuất theo quyền" on price_change_requests;

@@ -5,7 +5,6 @@ import { supabase } from "@/lib/supabaseClient";
 import {
   Product,
   ProductInput,
-  PriceHistoryEntry,
   PriceChangeRequest,
   Profile,
   ActivityLogEntry,
@@ -86,7 +85,9 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
   async function loadPriceRequests() {
     const { data, error } = await supabase
       .from("price_change_requests")
-      .select("*, product:products(ten_hang_hoa, ma_noi_bo, gia_ban, gia_thung)")
+      .select(
+        "*, product:products(ten_hang_hoa, ma_noi_bo, gia_ban, gia_thung), proposer:profiles!price_change_requests_proposed_by_fkey(display_name, username)"
+      )
       .order("created_at", { ascending: false });
     if (!error) setPriceRequests((data ?? []) as PriceChangeRequest[]);
   }
@@ -172,26 +173,9 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
     return products.filter((p) => selected.has(p.id) && !visibleIds.has(p.id));
   }, [products, selected, visible]);
 
-  async function savePrice(p: Product, field: "gia_ban" | "gia_thung", value: string) {
-    const num = value.trim() === "" ? null : Number(value.replace(/[^\d]/g, ""));
-    if (value.trim() !== "" && (num === null || Number.isNaN(num))) {
-      alert("Giá không hợp lệ");
-      return;
-    }
-    setSavingId(p.id);
-    const { error } = await supabase.from("products").update({ [field]: num }).eq("id", p.id);
-    setSavingId(null);
-    if (error) {
-      alert("Lưu thất bại: " + error.message);
-      return;
-    }
-    setProducts((prev) =>
-      prev.map((x) => (x.id === p.id ? { ...x, [field]: num, updated_at: new Date().toISOString() } : x))
-    );
-  }
-
-  // Sales gõ thẳng vào ô giá (như Kế toán) — nhưng thay vì ghi thẳng vào
-  // products, tạo/cập nhật 1 đề xuất giá; giá thật chỉ đổi khi được duyệt.
+  // Mọi role gõ thẳng vào ô giá — nhưng không ai ghi thẳng vào products nữa,
+  // chỉ tạo/cập nhật 1 đề xuất giá; giá thật chỉ đổi khi Kế toán/Admin duyệt
+  // (kể cả tự duyệt đề xuất của chính mình).
   async function proposePrice(p: Product, field: "gia_ban" | "gia_thung", value: string) {
     const num = value.trim() === "" ? null : Number(value.replace(/[^\d]/g, ""));
     if (value.trim() !== "" && (num === null || Number.isNaN(num))) {
@@ -540,15 +524,15 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
         {!compactView && <td>{p.dvt ?? "—"}</td>}
         <td className="num">
           <PriceInput
-            value={role === "sales" && pendingRequest?.proposed_gia_ban != null ? pendingRequest.proposed_gia_ban : p.gia_ban}
-            onSave={(v) => (role === "sales" ? proposePrice(p, "gia_ban", v) : savePrice(p, "gia_ban", v))}
+            value={pendingRequest?.proposed_gia_ban != null ? pendingRequest.proposed_gia_ban : p.gia_ban}
+            onSave={(v) => proposePrice(p, "gia_ban", v)}
             saving={savingId === p.id}
           />
         </td>
         <td className="num">
           <PriceInput
-            value={role === "sales" && pendingRequest?.proposed_gia_thung != null ? pendingRequest.proposed_gia_thung : p.gia_thung}
-            onSave={(v) => (role === "sales" ? proposePrice(p, "gia_thung", v) : savePrice(p, "gia_thung", v))}
+            value={pendingRequest?.proposed_gia_thung != null ? pendingRequest.proposed_gia_thung : p.gia_thung}
+            onSave={(v) => proposePrice(p, "gia_thung", v)}
             saving={savingId === p.id}
           />
         </td>
@@ -626,13 +610,15 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
         priceRequestCount={priceRequests.filter((r) => r.status === "pending").length}
         displayName={displayName}
         role={role}
-        userId={userId}
       />
       <main className="main">
         {activeView === "hanghoa" && (
     <div className="app app-full">
       <header className="app-header">
-        <h1>Quản lý giá sản phẩm — Tiệm Trà Bánh</h1>
+        <div className="app-header-title">
+          <h1>Quản lý giá sản phẩm — Tiệm Trà Bánh</h1>
+          <NotificationBell userId={userId} onNavigate={setActiveView} />
+        </div>
         <div className="stat-chips">
           <div className="chip">
             Tổng <b>{products.length}</b>
@@ -964,7 +950,6 @@ function Sidebar({
   priceRequestCount,
   displayName,
   role,
-  userId,
 }: {
   activeView: View;
   onChange: (v: View) => void;
@@ -972,7 +957,6 @@ function Sidebar({
   priceRequestCount: number;
   displayName: string;
   role: Role;
-  userId: string;
 }) {
   async function signOut() {
     await supabase.auth.signOut();
@@ -986,7 +970,6 @@ function Sidebar({
         <img className="brand-logo" src="/templates/logo.png" alt="Trà & Bánh" />
         <div className="brand-text-under">Quản lý sản phẩm</div>
       </div>
-      <NotificationBell userId={userId} onNavigate={onChange} />
       <div className="nav">
         <button className={`nav-item${activeView === "hanghoa" ? " active" : ""}`} onClick={() => onChange("hanghoa")}>
           <TagIcon />
@@ -1119,109 +1102,6 @@ function NotificationBell({ userId, onNavigate }: { userId: string; onNavigate: 
   );
 }
 
-function currentMonthValue() {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-}
-
-function PriceHistoryPanel() {
-  const [month, setMonth] = useState(currentMonthValue());
-  const [entries, setEntries] = useState<PriceHistoryEntry[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [unavailable, setUnavailable] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      setLoading(true);
-      const [y, m] = month.split("-").map(Number);
-      const start = new Date(Date.UTC(y, m - 1, 1)).toISOString();
-      const end = new Date(Date.UTC(m === 12 ? y + 1 : y, m === 12 ? 0 : m, 1)).toISOString();
-      const { data, error } = await supabase
-        .from("price_history")
-        .select("*, product:products(ten_hang_hoa, ma_noi_bo)")
-        .gte("changed_at", start)
-        .lt("changed_at", end)
-        .order("changed_at", { ascending: false });
-      if (cancelled) return;
-      if (error) {
-        // Table doesn't exist yet (migration not run) — show a quiet
-        // explanation instead of a raw error.
-        setUnavailable(true);
-      } else {
-        setEntries((data as PriceHistoryEntry[]) ?? []);
-      }
-      setLoading(false);
-    }
-    load();
-    return () => {
-      cancelled = true;
-    };
-  }, [month]);
-
-  return (
-    <div className="panel" style={{ marginTop: 16 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-        <h3 style={{ margin: 0 }}>Lịch sử thay đổi giá</h3>
-        <input type="month" value={month} onChange={(e) => setMonth(e.target.value)} />
-      </div>
-      {unavailable ? (
-        <p style={{ color: "var(--muted)", fontSize: 12.5 }}>
-          Chưa có bảng lưu lịch sử giá trong database — cần chạy đoạn SQL tạo bảng <code>price_history</code> trong
-          Supabase trước khi mục này hiển thị được dữ liệu.
-        </p>
-      ) : loading ? (
-        <p style={{ color: "var(--muted)", fontSize: 12.5 }}>Đang tải...</p>
-      ) : entries.length === 0 ? (
-        <p style={{ color: "var(--muted)", fontSize: 12.5 }}>Không có thay đổi giá nào trong tháng này.</p>
-      ) : (
-        <div className="table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <th>Sản phẩm</th>
-                <th className="num">Giá bán lẻ</th>
-                <th className="num">Giá thùng</th>
-                <th>Thời điểm</th>
-              </tr>
-            </thead>
-            <tbody>
-              {entries.map((e) => (
-                <tr key={e.id}>
-                  <td className="name-cell">
-                    {e.product?.ten_hang_hoa ?? "(sản phẩm đã xóa)"}
-                    <span className="sub code-cell">{e.product?.ma_noi_bo}</span>
-                  </td>
-                  <td className="num">
-                    {e.gia_ban_old !== e.gia_ban_new ? (
-                      <>
-                        {e.gia_ban_old?.toLocaleString("vi-VN") ?? "—"} → <b>{e.gia_ban_new?.toLocaleString("vi-VN") ?? "—"}</b>
-                      </>
-                    ) : (
-                      "—"
-                    )}
-                  </td>
-                  <td className="num">
-                    {e.gia_thung_old !== e.gia_thung_new ? (
-                      <>
-                        {e.gia_thung_old?.toLocaleString("vi-VN") ?? "—"} →{" "}
-                        <b>{e.gia_thung_new?.toLocaleString("vi-VN") ?? "—"}</b>
-                      </>
-                    ) : (
-                      "—"
-                    )}
-                  </td>
-                  <td>{formatDate(e.changed_at)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
-  );
-}
-
 function DashboardView({ products, pendingCount }: { products: Product[]; pendingCount: number }) {
   const totalValue = products.reduce((sum, p) => sum + (p.gia_ban ?? 0), 0);
   const missingPrice = products.filter((p) => !p.gia_ban).length;
@@ -1295,8 +1175,6 @@ function DashboardView({ products, pendingCount }: { products: Product[]; pendin
           ))}
         </div>
       </div>
-
-      <PriceHistoryPanel />
     </div>
   );
 }
@@ -1322,14 +1200,14 @@ function PriceRequestsView({
     [requests]
   );
   const pendingCount = requests.filter((r) => r.status === "pending").length;
-  const colCount = canReview ? 9 : 8;
+  const colCount = canReview ? 10 : 9;
 
   return (
     <div className="app">
       <div className="view-header">
         <div>
           <h1>Chờ duyệt giá</h1>
-          <p>{canReview ? "Đề xuất giá từ Sales, chờ Kế toán/Admin duyệt." : "Đề xuất giá bạn đã gửi và trạng thái xử lý."}</p>
+          <p>{canReview ? "Đề xuất giá từ mọi người, chờ Kế toán/Admin duyệt." : "Đề xuất giá bạn đã gửi và trạng thái xử lý."}</p>
         </div>
         {canReview && pendingCount > 0 && (
           <button className="btn btn-primary" disabled={approvingAll} onClick={onApproveAll}>
@@ -1349,6 +1227,7 @@ function PriceRequestsView({
                 <th className="num">Giá lẻ mới</th>
                 <th className="num">Giá thùng cũ</th>
                 <th className="num">Giá thùng mới</th>
+                <th>Người đề xuất</th>
                 <th>Thời điểm</th>
                 <th>Trạng thái</th>
                 {canReview && <th style={{ width: 140 }}></th>}
@@ -1370,6 +1249,7 @@ function PriceRequestsView({
                   <td className="num">{r.proposed_gia_ban != null ? formatVnd(r.proposed_gia_ban) : "—"}</td>
                   <td className="num">{formatVnd(r.product?.gia_thung)}</td>
                   <td className="num">{r.proposed_gia_thung != null ? formatVnd(r.proposed_gia_thung) : "—"}</td>
+                  <td>{r.proposer?.display_name ?? r.proposer?.username ?? "—"}</td>
                   <td>{formatDate(r.created_at)}</td>
                   <td>
                     {r.status === "pending" && <span className="pill pill-warm">Chờ duyệt</span>}
@@ -1697,6 +1577,8 @@ function UserManagementView({ currentUserId }: { currentUserId: string }) {
 function ActivityLogView() {
   const [entries, setEntries] = useState<ActivityLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [view, setView] = useState<"all" | "price">("all");
+  const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -1713,6 +1595,14 @@ function ActivityLogView() {
     };
   }, []);
 
+  // "Lịch sử giá" chỉ lấy đúng các lần duyệt (price_request.approve) — đây là
+  // hành động duy nhất còn ghi giá thật vào products kể từ khi mọi role đều
+  // sửa giá qua đề xuất, không ai ghi thẳng DB nữa. Thay thế hẳn panel
+  // "Lịch sử thay đổi giá" trước đây ở Dashboard (nguồn price_history không
+  // có tên người thực hiện, còn ở đây thì có).
+  const priceEntries = useMemo(() => entries.filter((e) => e.action === "price_request.approve"), [entries]);
+  const priceColCount = expanded ? 8 : 6;
+
   return (
     <div className="app">
       <div className="view-header">
@@ -1722,44 +1612,114 @@ function ActivityLogView() {
         </div>
       </div>
 
-      <div className="table-card">
-        <div className="table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <th>Người thực hiện</th>
-                <th>Hành động</th>
-                <th>Đối tượng</th>
-                <th>Thời điểm</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading && (
-                <tr>
-                  <td colSpan={4} style={{ textAlign: "center", color: "var(--muted)" }}>
-                    Đang tải...
-                  </td>
-                </tr>
-              )}
-              {!loading && entries.length === 0 && (
-                <tr>
-                  <td colSpan={4} style={{ textAlign: "center", color: "var(--muted)" }}>
-                    Chưa có hoạt động nào.
-                  </td>
-                </tr>
-              )}
-              {entries.map((e) => (
-                <tr key={e.id}>
-                  <td>{e.actor_name ?? "—"}</td>
-                  <td>{ACTION_LABELS[e.action] ?? e.action}</td>
-                  <td>{e.target_label ?? "—"}</td>
-                  <td>{formatDate(e.created_at)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      <div className="segmented" style={{ marginBottom: 14 }}>
+        <button className={view === "all" ? "active" : ""} onClick={() => setView("all")}>
+          Tất cả hoạt động
+        </button>
+        <button className={view === "price" ? "active" : ""} onClick={() => setView("price")}>
+          Lịch sử giá ({priceEntries.length})
+        </button>
       </div>
+
+      {view === "all" && (
+        <div className="table-card">
+          <div className="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Người thực hiện</th>
+                  <th>Hành động</th>
+                  <th>Đối tượng</th>
+                  <th>Thời điểm</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading && (
+                  <tr>
+                    <td colSpan={4} style={{ textAlign: "center", color: "var(--muted)" }}>
+                      Đang tải...
+                    </td>
+                  </tr>
+                )}
+                {!loading && entries.length === 0 && (
+                  <tr>
+                    <td colSpan={4} style={{ textAlign: "center", color: "var(--muted)" }}>
+                      Chưa có hoạt động nào.
+                    </td>
+                  </tr>
+                )}
+                {entries.map((e) => (
+                  <tr key={e.id}>
+                    <td>{e.actor_name ?? "—"}</td>
+                    <td>{ACTION_LABELS[e.action] ?? e.action}</td>
+                    <td>{e.target_label ?? "—"}</td>
+                    <td>{formatDate(e.created_at)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {view === "price" && (
+        <>
+          <div className="view-row" style={{ marginTop: 0, justifyContent: "flex-end" }}>
+            <button className="btn btn-quiet" onClick={() => setExpanded((v) => !v)}>
+              {expanded ? "Thu gọn" : "Mở rộng"}
+            </button>
+          </div>
+          <div className="table-card">
+            <div className="table-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Sản phẩm</th>
+                    <th className="num">Giá lẻ cũ</th>
+                    <th className="num">Giá lẻ mới</th>
+                    <th className="num">Giá thùng cũ</th>
+                    <th className="num">Giá thùng mới</th>
+                    {expanded && <th>Người đề xuất</th>}
+                    {expanded && <th>Người duyệt</th>}
+                    <th>Thời điểm</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loading && (
+                    <tr>
+                      <td colSpan={priceColCount} style={{ textAlign: "center", color: "var(--muted)" }}>
+                        Đang tải...
+                      </td>
+                    </tr>
+                  )}
+                  {!loading && priceEntries.length === 0 && (
+                    <tr>
+                      <td colSpan={priceColCount} style={{ textAlign: "center", color: "var(--muted)" }}>
+                        Chưa có lịch sử giá nào.
+                      </td>
+                    </tr>
+                  )}
+                  {priceEntries.map((e) => {
+                    const d = (e.detail ?? {}) as Record<string, number | string | null>;
+                    return (
+                      <tr key={e.id}>
+                        <td className="col-name">{e.target_label ?? "—"}</td>
+                        <td className="num">{formatVnd(d.gia_ban_old as number | null)}</td>
+                        <td className="num">{formatVnd(d.gia_ban_new as number | null)}</td>
+                        <td className="num">{formatVnd(d.gia_thung_old as number | null)}</td>
+                        <td className="num">{formatVnd(d.gia_thung_new as number | null)}</td>
+                        {expanded && <td>{(d.proposed_by_name as string) ?? "—"}</td>}
+                        {expanded && <td>{e.actor_name ?? "—"}</td>}
+                        <td>{formatDate(e.created_at)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

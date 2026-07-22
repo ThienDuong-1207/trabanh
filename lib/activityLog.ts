@@ -6,6 +6,13 @@ export async function getRecipientIds(roles: Role[]): Promise<string[]> {
   return (data ?? []).map((p) => p.id as string);
 }
 
+// Mọi người dùng đã được cấp quyền (bất kể role) — dùng khi 1 hành động cần
+// thông báo cho toàn bộ team, không riêng vai trò nào (vd duyệt/từ chối giá).
+export async function getAllUserIds(): Promise<string[]> {
+  const { data } = await supabaseAdmin().from("profiles").select("id").not("role", "is", null);
+  return (data ?? []).map((p) => p.id as string);
+}
+
 type LogActivityEntry = {
   actorId: string;
   actorName: string | null;

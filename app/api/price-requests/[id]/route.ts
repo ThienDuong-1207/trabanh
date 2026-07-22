@@ -21,7 +21,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const supabase = supabaseAdmin();
     const { data: request, error: fetchError } = await supabase
       .from("price_change_requests")
-      .select("*, product:products(ten_hang_hoa)")
+      .select(
+        "*, product:products(ten_hang_hoa, gia_ban, gia_thung), proposer:profiles!price_change_requests_proposed_by_fkey(display_name, username)"
+      )
       .eq("id", params.id)
       .single();
     if (fetchError) throw fetchError;

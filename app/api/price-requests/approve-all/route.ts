@@ -19,7 +19,9 @@ export async function POST() {
     const supabase = supabaseAdmin();
     const { data: pending, error } = await supabase
       .from("price_change_requests")
-      .select("*, product:products(ten_hang_hoa)")
+      .select(
+        "*, product:products(ten_hang_hoa, gia_ban, gia_thung), proposer:profiles!price_change_requests_proposed_by_fkey(display_name, username)"
+      )
       .eq("status", "pending");
     if (error) throw error;
 

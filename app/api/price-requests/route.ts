@@ -5,16 +5,16 @@ import { logActivity, getRecipientIds } from "@/lib/activityLog";
 
 export const runtime = "nodejs";
 
-// Sales sửa thẳng vào ô "Giá bán lẻ"/"Giá thùng" (giống hệt thao tác của Kế
-// toán) — nhưng thay vì ghi thẳng vào products, mỗi lần gõ 1 ô sẽ tạo/cập
-// nhật 1 đề xuất giá (product_id + field). Nếu đã có đề xuất đang "pending"
-// của chính người này cho đúng sản phẩm này, cập nhật đè lên đúng trường vừa
-// sửa (giữ nguyên trường còn lại) thay vì tạo thêm 1 dòng mới — tránh Kế
-// toán thấy nhiều đề xuất trùng nhau cho cùng 1 sản phẩm.
+// Mọi role (Sales/Kế toán/Admin) sửa thẳng vào ô "Giá bán lẻ"/"Giá thùng"
+// trong bảng — không ai ghi thẳng vào products nữa, mỗi lần gõ 1 ô sẽ
+// tạo/cập nhật 1 đề xuất giá (product_id + field), cần Kế toán/Admin duyệt
+// (kể cả tự duyệt đề xuất của chính mình) mới thật sự có hiệu lực. Nếu đã có
+// đề xuất đang "pending" của chính người này cho đúng sản phẩm này, cập
+// nhật đè lên đúng trường vừa sửa (giữ nguyên trường còn lại) thay vì tạo
+// thêm 1 dòng mới — tránh thấy nhiều đề xuất trùng nhau cho cùng 1 sản phẩm.
 export async function POST(req: NextRequest) {
   const current = await getCurrentUserRole();
   if (!current) return NextResponse.json({ error: "Chưa đăng nhập hoặc chưa được cấp quyền" }, { status: 401 });
-  if (current.role !== "sales") return NextResponse.json({ error: "Chỉ Sales mới đề xuất giá" }, { status: 403 });
 
   try {
     const { product_id, field, value } = (await req.json()) as {
@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
         ? undefined
         : {
             recipientIds: await getRecipientIds(["accountant", "admin"]),
-            message: `${current.displayName ?? "Sales"} đã đề xuất giá cho "${productName}".`,
+            message: `${current.displayName ?? "Người dùng"} đã đề xuất giá cho "${productName}".`,
             linkView: "duyetgia",
           },
     });
