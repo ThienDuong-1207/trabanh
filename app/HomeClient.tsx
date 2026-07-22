@@ -558,7 +558,7 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
           {p.is_draft && <span className="pill pill-warm draft-badge">Nháp</span>}
         </td>
         {!compactView && (
-          <td>
+          <td className="col-group">
             {isAdmin ? (
               <select value={p.category_sheet} onChange={(e) => updateProductField(p, "category_sheet", e.target.value)} disabled={isSaving}>
                 {CATEGORY_ORDER.map((c) => (
@@ -571,7 +571,7 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
           </td>
         )}
         {!compactView && (
-          <td className="code-cell">
+          <td className="code-cell col-code">
             <InlineTextCell
               value={p.ma_noi_bo}
               onSave={(v) => updateProductField(p, "ma_noi_bo", v)}
@@ -581,7 +581,7 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
           </td>
         )}
         {!compactView && (
-          <td>
+          <td className="col-invoice">
             <InlineTextCell
               value={p.ten_hoa_don}
               onSave={(v) => updateProductField(p, "ten_hoa_don", v)}
@@ -591,7 +591,7 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
           </td>
         )}
         {!compactView && (
-          <td>
+          <td className="col-dvt">
             {isAdmin ? (
               <select value={p.dvt ?? ""} onChange={(e) => updateProductField(p, "dvt", e.target.value)} disabled={isSaving}>
                 <option value="">—</option>
@@ -619,7 +619,7 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
           />
         </td>
         {!compactView && (
-          <td>
+          <td className="col-spec">
             {isAdmin ? (
               <select value={p.quy_cach ?? ""} onChange={(e) => updateProductField(p, "quy_cach", e.target.value)} disabled={isSaving}>
                 <option value="">—</option>
@@ -647,7 +647,7 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
           </td>
         )}
         {!compactView && (
-          <td>
+          <td className="col-brand">
             {isAdmin ? (
               <select value={brandNames.includes(p.brand?.name ?? "") ? p.brand?.name : ""} onChange={(e) => selectBrand(e.target.value)} disabled={isSaving}>
                 <option value="">—</option>
@@ -662,17 +662,17 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
           </td>
         )}
         {!compactView && (
-          <td className="code-cell">
+          <td className="code-cell col-code">
             <InlineTextCell value={p.ma_vach} onSave={(v) => updateProductField(p, "ma_vach", v)} saving={isSaving} disabled={!isAdmin} />
           </td>
         )}
         {!compactView && (
-          <td className="code-cell">
+          <td className="code-cell col-code">
             <InlineTextCell value={p.ma_thung} onSave={(v) => updateProductField(p, "ma_thung", v)} saving={isSaving} disabled={!isAdmin} />
           </td>
         )}
         {!compactView && (
-          <td>
+          <td className="col-status">
             <StatusPill product={p} isPending={isPending} />
           </td>
         )}
@@ -719,12 +719,14 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
           <h1>Quản lý giá sản phẩm — Tiệm Trà Bánh</h1>
           <NotificationBell userId={userId} onNavigate={setActiveView} />
         </div>
-        <div className="stat-chips">
-          <div className="chip">
-            Tổng <b>{products.length}</b>
+        <div className="stat-kpis">
+          <div className="stat-kpi">
+            <div className="stat-kpi-label">Tổng sản phẩm</div>
+            <div className="stat-kpi-value">{products.length}</div>
           </div>
-          <div className="chip warm pill-warm">
-            Chờ xuất <b>{pendingIds.size}</b>
+          <div className="stat-kpi stat-kpi-warm">
+            <div className="stat-kpi-label">Chờ xuất</div>
+            <div className="stat-kpi-value">{pendingIds.size}</div>
           </div>
         </div>
       </header>
@@ -936,18 +938,18 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
               <tr>
                 <th className="col-check"></th>
                 <th className="col-name">Tên hàng hóa</th>
-                {!compactView && <th>Nhóm hàng</th>}
-                {!compactView && <th>Mã nội bộ</th>}
-                {!compactView && <th>Tên hóa đơn</th>}
-                {!compactView && <th>ĐVT</th>}
+                {!compactView && <th className="col-group">Nhóm hàng</th>}
+                {!compactView && <th className="col-code">Mã nội bộ</th>}
+                {!compactView && <th className="col-invoice">Tên hóa đơn</th>}
+                {!compactView && <th className="col-dvt">ĐVT</th>}
                 <th className="num">Giá bán lẻ</th>
                 <th className="num">Giá thùng</th>
-                {!compactView && <th>Quy cách thùng</th>}
+                {!compactView && <th className="col-spec">Quy cách thùng</th>}
                 {!compactView && <th className="num">Tỷ lệ quy đổi</th>}
-                {!compactView && <th>Thương hiệu</th>}
-                {!compactView && <th>Mã vạch</th>}
-                {!compactView && <th>Mã thùng</th>}
-                {!compactView && <th>Trạng thái</th>}
+                {!compactView && <th className="col-brand">Thương hiệu</th>}
+                {!compactView && <th className="col-code">Mã vạch</th>}
+                {!compactView && <th className="col-code">Mã thùng</th>}
+                {!compactView && <th className="col-status">Trạng thái</th>}
                 {!compactView && <th style={{ width: 120 }}></th>}
               </tr>
             </thead>

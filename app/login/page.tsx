@@ -37,49 +37,45 @@ export default function LoginPage() {
   }
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 24,
-        background: "var(--bg)",
-      }}
-    >
+    <div className="login-shell">
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/templates/logo.png" alt="Trà & Bánh" style={{ width: 208, borderRadius: "var(--radius-sm)", boxShadow: "var(--shadow-1)" }} />
-      <div style={{ textAlign: "center" }}>
-        <h1 style={{ margin: 0, fontSize: 20 }}>Quản lý giá sản phẩm</h1>
-        <p style={{ color: "var(--muted)", fontSize: 13.5, marginTop: 6 }}>Đăng nhập để tiếp tục.</p>
+      <img className="login-logo-badge" src="/templates/logo.png" alt="Trà & Bánh" />
+
+      <div className="login-card">
+        <div className="login-card-accent" />
+        <div className="login-card-body">
+          <div>
+            <h1 className="login-title">Quản lý giá sản phẩm</h1>
+            <p className="login-subtitle">Đăng nhập để tiếp tục</p>
+          </div>
+
+          <button className="btn btn-primary" disabled={loading} onClick={signInGoogle}>
+            {loading ? "Đang chuyển hướng..." : "Đăng nhập bằng Google"}
+          </button>
+
+          <div className="login-divider">hoặc</div>
+
+          <form className="login-password-form" onSubmit={signInPassword}>
+            <input
+              placeholder="Tên đăng nhập"
+              autoComplete="username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+            />
+            <input
+              type="password"
+              placeholder="Mật khẩu"
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+            {error && <p className="login-error">{error}</p>}
+            <button className="btn btn-primary" type="submit" disabled={signingIn}>
+              {signingIn ? "Đang đăng nhập..." : "Đăng nhập"}
+            </button>
+          </form>
+        </div>
       </div>
-
-      <button className="btn btn-primary" disabled={loading} onClick={signInGoogle}>
-        {loading ? "Đang chuyển hướng..." : "Đăng nhập bằng Google"}
-      </button>
-
-      <div className="login-divider">hoặc</div>
-
-      <form className="login-password-form" onSubmit={signInPassword}>
-        <input
-          placeholder="Tên đăng nhập"
-          autoComplete="username"
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-        />
-        <input
-          type="password"
-          placeholder="Mật khẩu"
-          autoComplete="current-password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
-        {error && <p className="login-error">{error}</p>}
-        <button className="btn btn-primary" type="submit" disabled={signingIn}>
-          {signingIn ? "Đang đăng nhập..." : "Đăng nhập"}
-        </button>
-      </form>
     </div>
   );
 }
