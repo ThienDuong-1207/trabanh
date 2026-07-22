@@ -508,7 +508,7 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
         </td>
         <td className="col-name">
           {p.ten_hang_hoa}
-          {p.is_draft && <span className="draft-badge">Nháp</span>}
+          {p.is_draft && <span className="pill pill-warm draft-badge">Nháp</span>}
         </td>
         {!compactView && <td>{p.category_sheet}</td>}
         {!compactView && (
@@ -621,7 +621,7 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
           <div className="chip">
             Tổng <b>{products.length}</b>
           </div>
-          <div className="chip warm">
+          <div className="chip warm pill-warm">
             Chờ xuất <b>{pendingIds.size}</b>
           </div>
         </div>
@@ -759,7 +759,7 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
             </span>
             <div className="menu-wrap" ref={exportMenuRef}>
               <button
-                className="btn btn-primary solid-primary"
+                className="btn btn-primary"
                 disabled={exporting !== null || exportingRollLabel}
                 onClick={() => setExportMenuOpen((v) => !v)}
               >
@@ -984,7 +984,7 @@ function Sidebar({
         <button className={`nav-item${activeView === "duyetgia" ? " active" : ""}`} onClick={() => onChange("duyetgia")}>
           <TagIcon />
           Chờ duyệt giá
-          {priceRequestCount > 0 && <span className="badge">{priceRequestCount}</span>}
+          {priceRequestCount > 0 && <span className="pill pill-warm badge">{priceRequestCount}</span>}
         </button>
         <button className={`nav-item${activeView === "activitylog" ? " active" : ""}`} onClick={() => onChange("activitylog")}>
           <LogIcon />
@@ -993,7 +993,7 @@ function Sidebar({
         <button className={`nav-item${activeView === "baocao" ? " active" : ""}`} onClick={() => onChange("baocao")}>
           <ChartIcon />
           Báo cáo
-          {pendingCount > 0 && <span className="badge">{pendingCount}</span>}
+          {pendingCount > 0 && <span className="pill pill-warm badge">{pendingCount}</span>}
         </button>
         {role === "admin" && (
           <button className={`nav-item${activeView === "users" ? " active" : ""}`} onClick={() => onChange("users")}>
@@ -1074,7 +1074,7 @@ function NotificationBell({ userId, onNavigate }: { userId: string; onNavigate: 
     <div className="notification-bell">
       <button className="notification-bell-trigger" onClick={() => setOpen((v) => !v)} aria-label="Thông báo">
         <BellIcon />
-        {unreadCount > 0 && <span className="badge notification-badge">{unreadCount}</span>}
+        {unreadCount > 0 && <span className="pill pill-danger badge notification-badge">{unreadCount}</span>}
       </button>
       {open && (
         <>
@@ -1813,14 +1813,14 @@ function StatusPill({ product, isPending }: { product: Product; isPending: boole
   }`;
   if (isPending) {
     return (
-      <span className="status-pill warm" title={title}>
+      <span className="pill pill-warm" title={title}>
         <span className="dot" />
         {product.last_exported_at ? "Vừa sửa giá" : "Mới thêm"}
       </span>
     );
   }
   return (
-    <span className="status-pill success" title={title}>
+    <span className="pill pill-success" title={title}>
       <span className="dot" />
       Đã xuất {relativeTimeVi(product.last_exported_at!)}
     </span>

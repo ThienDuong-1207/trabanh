@@ -55,7 +55,7 @@ export default function LoginPage() {
         <p style={{ color: "var(--muted)", fontSize: 13.5, marginTop: 6 }}>Đăng nhập để tiếp tục.</p>
       </div>
 
-      <button className="btn btn-primary solid-primary" disabled={loading} onClick={signInGoogle}>
+      <button className="btn btn-primary" disabled={loading} onClick={signInGoogle}>
         {loading ? "Đang chuyển hướng..." : "Đăng nhập bằng Google"}
       </button>
 

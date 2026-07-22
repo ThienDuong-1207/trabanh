@@ -74,7 +74,7 @@ export default function SetPasswordPage() {
         />
         <PasswordChecklist password={password} />
         {error && <p className="login-error">{error}</p>}
-        <button className="btn btn-primary solid-primary" type="submit" disabled={saving}>
+        <button className="btn btn-primary" type="submit" disabled={saving}>
           {saving ? "Đang lưu..." : "Đặt mật khẩu"}
         </button>
       </form>
