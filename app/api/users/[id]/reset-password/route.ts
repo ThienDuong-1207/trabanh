@@ -1,15 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseServer";
-import { requireRole } from "@/lib/authz";
+import { getCurrentUserRole } from "@/lib/authz";
 import { validatePassword } from "@/lib/passwordPolicy";
+import { logActivity } from "@/lib/activityLog";
 
 export const runtime = "nodejs";
 
 // Admin cấp lại mật khẩu tạm cho tài khoản username/password đã tồn tại (vd
 // người dùng quên mật khẩu tạm ban đầu) — bắt phải đổi mật khẩu lại từ đầu.
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
-  const authError = await requireRole(["admin"]);
-  if (authError) return authError;
+  const current = await getCurrentUserRole();
+  if (!current) return NextResponse.json({ error: "Chưa đăng nhập hoặc chưa được cấp quyền" }, { status: 401 });
+  if (current.role !== "admin") {
+    return NextResponse.json({ error: "Bạn không có quyền thực hiện thao tác này" }, { status: 403 });
+  }
 
   try {
     const { temp_password } = (await req.json()) as { temp_password: string };
@@ -29,6 +33,15 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       .select()
       .single();
     if (error) throw error;
+
+    await logActivity({
+      actorId: current.userId,
+      actorName: current.displayName,
+      action: "user.reset_password",
+      targetType: "profile",
+      targetId: params.id,
+      targetLabel: data.username,
+    });
 
     return NextResponse.json(data);
   } catch (e: any) {

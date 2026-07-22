@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseServer";
 import { getCurrentUserRole } from "@/lib/authz";
+import { logActivity, getRecipientIds } from "@/lib/activityLog";
 
 export const runtime = "nodejs";
 
@@ -27,9 +28,25 @@ export async function POST(req: NextRequest) {
     const { data, error } = await supabase
       .from("price_change_requests")
       .insert({ product_id, proposed_gia_ban, proposed_gia_thung, proposed_by: current.userId })
-      .select()
+      .select("*, product:products(ten_hang_hoa)")
       .single();
     if (error) throw error;
+
+    const recipientIds = await getRecipientIds(["accountant", "admin"]);
+    await logActivity({
+      actorId: current.userId,
+      actorName: current.displayName,
+      action: "price_request.create",
+      targetType: "price_change_request",
+      targetId: data.id,
+      targetLabel: data.product?.ten_hang_hoa ?? null,
+      detail: { proposed_gia_ban, proposed_gia_thung },
+      notify: {
+        recipientIds,
+        message: `${current.displayName ?? "Sales"} đã đề xuất giá cho "${data.product?.ten_hang_hoa ?? "sản phẩm"}".`,
+        linkView: "duyetgia",
+      },
+    });
 
     return NextResponse.json(data);
   } catch (e: any) {

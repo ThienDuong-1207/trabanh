@@ -116,6 +116,15 @@ Web yêu cầu đăng nhập trước khi vào được — 3 vai trò: `sales` 
   token ở `middleware.ts`) — nếu muốn giới hạn thêm, kiểm tra Supabase Dashboard → Authentication →
   Sessions.
 
+### Nhật ký hoạt động & thông báo
+
+Mọi thao tác quan trọng (thêm/sửa/xóa sản phẩm, hoàn thiện sản phẩm nháp, đề xuất/duyệt/từ chối giá, tạo
+tài khoản, đặt lại mật khẩu) được ghi lại vào "Nhật ký hoạt động" (sidebar, **ai đăng nhập cũng xem
+được**, không phân biệt vai trò) — kèm người thực hiện + thời điểm. Chuông thông báo ở đầu sidebar báo
+real-time cho đúng người liên quan: Kế toán/Admin được báo khi có sản phẩm nháp mới hoặc đề xuất giá mới
+chờ xử lý; Sales được báo ngay khi đề xuất giá của mình được duyệt/từ chối. Bấm vào 1 thông báo sẽ đánh
+dấu đã đọc và chuyển tới đúng màn liên quan.
+
 ### Việc cần tự làm (Google Cloud + Supabase Dashboard)
 
 1. Google Cloud Console (dùng lại project đã tạo cho Sheets API) → **APIs & Services → Credentials

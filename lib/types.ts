@@ -65,6 +65,28 @@ export type Profile = {
   created_at: string;
 };
 
+export type ActivityLogEntry = {
+  id: string;
+  actor_id: string | null;
+  actor_name: string | null;
+  action: string;
+  target_type: string | null;
+  target_id: string | null;
+  target_label: string | null;
+  detail: Record<string, unknown> | null;
+  created_at: string;
+};
+
+export type Notification = {
+  id: string;
+  recipient_id: string;
+  activity_id: string | null;
+  message: string;
+  link_view: string | null;
+  read_at: string | null;
+  created_at: string;
+};
+
 export const CATEGORY_ORDER = [
   "Trà", "Sữa tươi", "Sữa đặc", "Kem đông lạnh", "Syrup", "Bột",
   "Trân châu", "Mứt", "Đồ lon", "Mặt hàng khác", "Công cụ dụng cụ",

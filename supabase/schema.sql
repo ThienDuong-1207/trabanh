@@ -257,3 +257,66 @@ create policy "Xem đề xuất theo quyền" on price_change_requests
     proposed_by = auth.uid()
     or exists (select 1 from profiles where id = auth.uid() and role in ('accountant', 'admin'))
   );
+
+-- Giai đoạn 3: Nhật ký hoạt động + thông báo. Ghi log làm ở tầng API route
+-- (lib/activityLog.ts), không phải trigger DB — phần lớn write ở app này đi
+-- qua supabaseAdmin() (service-role), nơi auth.uid() luôn null nên trigger
+-- không thể biết ai là người thao tác.
+create table if not exists activity_log (
+  id uuid primary key default gen_random_uuid(),
+  actor_id uuid references profiles(id) on delete set null,
+  actor_name text,
+  action text not null,
+  target_type text,
+  target_id uuid,
+  target_label text,
+  detail jsonb,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_activity_log_created_at on activity_log (created_at desc);
+
+alter table activity_log enable row level security;
+
+-- "Ai cũng xem được logs" — mọi người đã đăng nhập (không phân biệt vai trò)
+-- đều đọc được toàn bộ nhật ký hoạt động.
+drop policy if exists "Người đã đăng nhập xem được nhật ký hoạt động" on activity_log;
+create policy "Người đã đăng nhập xem được nhật ký hoạt động" on activity_log
+  for select using (auth.role() = 'authenticated');
+-- Không có policy insert/update/delete — chỉ ghi qua supabaseAdmin().
+
+create table if not exists notifications (
+  id uuid primary key default gen_random_uuid(),
+  recipient_id uuid not null references profiles(id) on delete cascade,
+  activity_id uuid references activity_log(id) on delete cascade,
+  message text not null,
+  link_view text,
+  read_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_notifications_recipient on notifications (recipient_id, created_at desc);
+
+alter table notifications enable row level security;
+
+drop policy if exists "Nhận thông báo của chính mình" on notifications;
+create policy "Nhận thông báo của chính mình" on notifications
+  for select using (recipient_id = auth.uid());
+
+-- Cho phép tự đánh dấu đã đọc trực tiếp từ client (update read_at) — cùng
+-- kiểu "tự sửa trực tiếp qua Supabase client" đã dùng cho profiles/price_history.
+drop policy if exists "Tự đánh dấu đã đọc thông báo của mình" on notifications;
+create policy "Tự đánh dấu đã đọc thông báo của mình" on notifications
+  for update using (recipient_id = auth.uid()) with check (recipient_id = auth.uid());
+-- Insert chỉ qua supabaseAdmin() (lib/activityLog.ts).
+
+-- Bật Realtime (Postgres Changes) cho bảng notifications để chuông thông báo
+-- nhận được ngay lập tức. Không idempotent theo cú pháp chuẩn (ALTER
+-- PUBLICATION ... ADD TABLE báo lỗi nếu bảng đã là thành viên) — SQLSTATE
+-- chính xác cho lỗi đó không cố định giữa các phiên bản Postgres nên bọc
+-- "when others" thay vì chỉ bắt 1 mã lỗi cụ thể.
+do $$ begin
+  alter publication supabase_realtime add table notifications;
+exception
+  when others then null;
+end $$;

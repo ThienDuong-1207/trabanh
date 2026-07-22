@@ -8,18 +8,18 @@ export type Role = "sales" | "accountant" | "admin";
 // discriminated union) because this project's tsconfig has strict: false,
 // under which TS doesn't reliably narrow a union on a boolean literal
 // discriminant.
-export async function getCurrentUserRole(): Promise<{ userId: string; role: Role } | null> {
+export async function getCurrentUserRole(): Promise<{ userId: string; role: Role; displayName: string | null } | null> {
   const supabase = createServerSupabase();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return null;
 
-  const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
+  const { data: profile } = await supabase.from("profiles").select("role, display_name").eq("id", user.id).single();
   const role = profile?.role as Role | null | undefined;
   if (!role) return null;
 
-  return { userId: user.id, role };
+  return { userId: user.id, role, displayName: profile?.display_name ?? null };
 }
 
 // API routes here use supabaseAdmin() (service-role key) to actually perform

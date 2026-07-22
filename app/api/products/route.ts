@@ -4,6 +4,7 @@ import { resolveBrandId } from "@/lib/brands";
 import { friendlyDbError } from "@/lib/dbErrors";
 import { ProductInput } from "@/lib/types";
 import { getCurrentUserRole } from "@/lib/authz";
+import { logActivity, getRecipientIds } from "@/lib/activityLog";
 
 export const runtime = "nodejs";
 
@@ -40,6 +41,23 @@ export async function POST(req: NextRequest) {
         .select("*, brand:brands(name)")
         .single();
       if (error) throw new Error(friendlyDbError(error) ?? error.message);
+
+      const recipientIds = await getRecipientIds(["accountant", "admin"]);
+      await logActivity({
+        actorId: current.userId,
+        actorName: current.displayName,
+        action: "product.create",
+        targetType: "product",
+        targetId: data.id,
+        targetLabel: data.ten_hang_hoa,
+        detail: { is_draft: true },
+        notify: {
+          recipientIds,
+          message: `${current.displayName ?? "Sales"} đã thêm sản phẩm nháp "${data.ten_hang_hoa}" — cần hoàn thiện.`,
+          linkView: "hanghoa",
+        },
+      });
+
       return NextResponse.json(data);
     }
 
@@ -49,6 +67,16 @@ export async function POST(req: NextRequest) {
     const brand_id = await resolveBrandId(supabase, brand);
     const { data, error } = await supabase.from("products").insert({ ...fields, brand_id }).select("*, brand:brands(name)").single();
     if (error) throw new Error(friendlyDbError(error) ?? error.message);
+
+    await logActivity({
+      actorId: current.userId,
+      actorName: current.displayName,
+      action: "product.create",
+      targetType: "product",
+      targetId: data.id,
+      targetLabel: data.ten_hang_hoa,
+      detail: { is_draft: false },
+    });
 
     return NextResponse.json(data);
   } catch (e: any) {

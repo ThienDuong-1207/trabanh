@@ -39,5 +39,5 @@ export default async function Page() {
     );
   }
 
-  return <HomeClient displayName={profile.display_name || user.email || ""} role={profile.role as Role} />;
+  return <HomeClient displayName={profile.display_name || user.email || ""} role={profile.role as Role} userId={user.id} />;
 }

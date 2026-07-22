@@ -404,6 +404,39 @@ label.field input:disabled { opacity: 0.6; }
 .password-checklist li.ok { color: var(--success-ink); }
 .password-checklist .mark { width: 14px; text-align: center; font-weight: 650; }
 
+.notification-bell { position: relative; padding: 0 16px 10px; }
+.notification-bell-trigger {
+  display: flex; align-items: center; justify-content: center; position: relative;
+  width: 34px; height: 34px; border-radius: var(--radius-sm); border: 1px solid var(--border);
+  background: var(--surface); color: var(--muted); cursor: pointer;
+}
+.notification-bell-trigger:hover { background: var(--surface-sunken); color: var(--ink); }
+.notification-badge {
+  position: absolute; top: -6px; right: -6px; margin-left: 0;
+  background: var(--danger-wash); color: var(--danger-ink);
+}
+.notification-backdrop { position: fixed; inset: 0; z-index: 39; }
+.notification-panel {
+  position: absolute; top: 40px; left: 16px; width: 300px; max-height: 380px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md);
+  box-shadow: var(--shadow-2); z-index: 40; display: flex; flex-direction: column; overflow: hidden;
+}
+.notification-panel-head {
+  display: flex; align-items: center; justify-content: space-between; padding: 10px 12px;
+  border-bottom: 1px solid var(--border); font-size: 13px; font-weight: 650;
+}
+.notification-list { overflow-y: auto; }
+.notification-empty { padding: 20px 12px; text-align: center; color: var(--faint); font-size: 12.5px; }
+.notification-item {
+  display: block; width: 100%; text-align: left; padding: 10px 12px; border: none; border-bottom: 1px solid var(--border);
+  background: var(--surface); cursor: pointer;
+}
+.notification-item:last-child { border-bottom: none; }
+.notification-item:hover { background: var(--surface-sunken); }
+.notification-item.unread { background: var(--primary-wash); }
+.notification-message { font-size: 12.5px; color: var(--ink); line-height: 1.4; }
+.notification-time { font-size: 11px; color: var(--faint); margin-top: 3px; }
+
 @media (max-width: 720px) {
   .field-grid, .field-grid.cols-3 { grid-template-columns: 1fr; }
   .app-header { flex-direction: column; align-items: flex-start; gap: 8px; }

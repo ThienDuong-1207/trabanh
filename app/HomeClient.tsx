@@ -2,11 +2,21 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { Product, ProductInput, PriceHistoryEntry, PriceChangeRequest, Profile, CATEGORY_ORDER } from "@/lib/types";
+import {
+  Product,
+  ProductInput,
+  PriceHistoryEntry,
+  PriceChangeRequest,
+  Profile,
+  ActivityLogEntry,
+  Notification,
+  CATEGORY_ORDER,
+} from "@/lib/types";
 import { QUY_CACH_SUGGESTIONS, TY_LE_SUGGESTIONS, extractQuantityFromQuyCach } from "@/lib/suggestionLists";
+import { ACTION_LABELS } from "@/lib/activityLabels";
 import PasswordChecklist from "@/components/PasswordChecklist";
 
-type View = "hanghoa" | "tonkho" | "baocao" | "duyetgia" | "users";
+type View = "hanghoa" | "tonkho" | "baocao" | "duyetgia" | "users" | "activitylog";
 export type Role = "sales" | "accountant" | "admin";
 
 const ROLE_LABEL: Record<Role, string> = {
@@ -15,7 +25,7 @@ const ROLE_LABEL: Record<Role, string> = {
   admin: "Admin",
 };
 
-export default function HomeClient({ displayName, role }: { displayName: string; role: Role }) {
+export default function HomeClient({ displayName, role, userId }: { displayName: string; role: Role; userId: string }) {
   const [activeView, setActiveView] = useState<View>("hanghoa");
   const [products, setProducts] = useState<Product[]>([]);
   const [brandNames, setBrandNames] = useState<string[]>([]);
@@ -43,8 +53,10 @@ export default function HomeClient({ displayName, role }: { displayName: string;
   const [importOnlyNew, setImportOnlyNew] = useState(false);
   const [formTarget, setFormTarget] = useState<"new" | Product | null>(null);
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const moreMenuRef = useRef<HTMLDivElement>(null);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
 
   async function loadProducts() {
     setLoading(true);
@@ -86,6 +98,7 @@ export default function HomeClient({ displayName, role }: { displayName: string;
   useEffect(() => {
     function onClickOutside(e: MouseEvent) {
       if (moreMenuRef.current && !moreMenuRef.current.contains(e.target as Node)) setMoreMenuOpen(false);
+      if (exportMenuRef.current && !exportMenuRef.current.contains(e.target as Node)) setExportMenuOpen(false);
     }
     document.addEventListener("click", onClickOutside);
     return () => document.removeEventListener("click", onClickOutside);
@@ -588,6 +601,7 @@ export default function HomeClient({ displayName, role }: { displayName: string;
         priceRequestCount={priceRequests.filter((r) => r.status === "pending").length}
         displayName={displayName}
         role={role}
+        userId={userId}
       />
       <main className="main">
         {activeView === "hanghoa" && (
@@ -734,25 +748,74 @@ export default function HomeClient({ displayName, role }: { displayName: string;
             <span>
               Đã chọn <b>{selected.size}</b> sản phẩm
             </span>
-            <button className="btn btn-primary solid-primary" disabled={exporting !== null} onClick={() => doExport("misa")}>
-              {exporting === "misa" ? "Đang xuất..." : "Xuất MISA (.xlsx)"}
-            </button>
-            <button className="btn" disabled={exporting !== null} onClick={() => doExport("misa-update")}>
-              {exporting === "misa-update" ? "Đang xuất..." : "Xuất cập nhật MISA"}
-            </button>
-            <button className="btn" disabled={exporting !== null} onClick={() => doExport("word")}>
-              {exporting === "word" ? "Đang xuất..." : "Block giá 7.7x4cm"}
-            </button>
-            <button className="btn" disabled={exporting !== null} onClick={() => doExport("vertical")}>
-              {exporting === "vertical" ? "Đang xuất..." : "Bảng giá đứng"}
-            </button>
-            <button className="btn" onClick={() => setQuoteModalOpen(true)}>
-              <QuoteIcon />
-              Xuất báo giá (PDF)
-            </button>
-            <button className="btn" disabled={exportingRollLabel} onClick={doExportRollLabel}>
-              {exportingRollLabel ? "Đang xuất..." : "Xuất tem cuộn 5x3cm"}
-            </button>
+            <div className="menu-wrap" ref={exportMenuRef}>
+              <button
+                className="btn btn-primary solid-primary"
+                disabled={exporting !== null || exportingRollLabel}
+                onClick={() => setExportMenuOpen((v) => !v)}
+              >
+                {exporting !== null || exportingRollLabel ? "Đang xuất..." : "Xuất file"}
+                <ChevronDownIcon />
+              </button>
+              {exportMenuOpen && (
+                <div className="menu">
+                  <button
+                    onClick={() => {
+                      setExportMenuOpen(false);
+                      doExport("misa");
+                    }}
+                  >
+                    <SheetIcon />
+                    Xuất MISA (.xlsx)
+                  </button>
+                  <button
+                    onClick={() => {
+                      setExportMenuOpen(false);
+                      doExport("misa-update");
+                    }}
+                  >
+                    <SheetIcon />
+                    Xuất cập nhật MISA
+                  </button>
+                  <button
+                    onClick={() => {
+                      setExportMenuOpen(false);
+                      doExport("word");
+                    }}
+                  >
+                    <DocIcon />
+                    Block giá 7.7x4cm
+                  </button>
+                  <button
+                    onClick={() => {
+                      setExportMenuOpen(false);
+                      doExport("vertical");
+                    }}
+                  >
+                    <DocIcon />
+                    Bảng giá đứng
+                  </button>
+                  <button
+                    onClick={() => {
+                      setExportMenuOpen(false);
+                      setQuoteModalOpen(true);
+                    }}
+                  >
+                    <QuoteIcon />
+                    Xuất báo giá (PDF)
+                  </button>
+                  <button
+                    onClick={() => {
+                      setExportMenuOpen(false);
+                      doExportRollLabel();
+                    }}
+                  >
+                    <SheetIcon />
+                    Xuất tem cuộn 5x3cm
+                  </button>
+                </div>
+              )}
+            </div>
             {tab === "pending" && (
               <button className="btn btn-danger" disabled={dismissing} onClick={dismissPending}>
                 {dismissing ? "Đang xử lý..." : "Bỏ chờ xuất file"}
@@ -860,7 +923,8 @@ export default function HomeClient({ displayName, role }: { displayName: string;
             onReview={reviewPriceRequest}
           />
         )}
-        {activeView === "users" && role === "admin" && <UserManagementView />}
+        {activeView === "users" && role === "admin" && <UserManagementView currentUserId={userId} />}
+        {activeView === "activitylog" && <ActivityLogView />}
       </main>
     </div>
   );
@@ -873,6 +937,7 @@ function Sidebar({
   priceRequestCount,
   displayName,
   role,
+  userId,
 }: {
   activeView: View;
   onChange: (v: View) => void;
@@ -880,6 +945,7 @@ function Sidebar({
   priceRequestCount: number;
   displayName: string;
   role: Role;
+  userId: string;
 }) {
   async function signOut() {
     await supabase.auth.signOut();
@@ -893,6 +959,7 @@ function Sidebar({
         <img className="brand-logo" src="/templates/logo.png" alt="Trà & Bánh" />
         <div className="brand-text-under">Quản lý sản phẩm</div>
       </div>
+      <NotificationBell userId={userId} onNavigate={onChange} />
       <div className="nav">
         <button className={`nav-item${activeView === "hanghoa" ? " active" : ""}`} onClick={() => onChange("hanghoa")}>
           <TagIcon />
@@ -918,6 +985,10 @@ function Sidebar({
             Quản lý người dùng
           </button>
         )}
+        <button className={`nav-item${activeView === "activitylog" ? " active" : ""}`} onClick={() => onChange("activitylog")}>
+          <LogIcon />
+          Nhật ký hoạt động
+        </button>
       </div>
       <div className="sidebar-foot sidebar-account">
         <div className="sidebar-account-name">{displayName}</div>
@@ -927,6 +998,94 @@ function Sidebar({
         </button>
       </div>
     </nav>
+  );
+}
+
+function NotificationBell({ userId, onNavigate }: { userId: string; onNavigate: (v: View) => void }) {
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [open, setOpen] = useState(false);
+  const unreadCount = notifications.filter((n) => !n.read_at).length;
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      const { data } = await supabase
+        .from("notifications")
+        .select("*")
+        .eq("recipient_id", userId)
+        .order("created_at", { ascending: false })
+        .limit(30);
+      if (!cancelled) setNotifications((data as Notification[]) ?? []);
+    }
+    load();
+
+    const channel = supabase
+      .channel(`notifications:${userId}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "notifications", filter: `recipient_id=eq.${userId}` },
+        (payload) => {
+          setNotifications((prev) => [payload.new as Notification, ...prev]);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      cancelled = true;
+      supabase.removeChannel(channel);
+    };
+  }, [userId]);
+
+  async function markRead(n: Notification) {
+    if (!n.read_at) {
+      setNotifications((prev) => prev.map((x) => (x.id === n.id ? { ...x, read_at: new Date().toISOString() } : x)));
+      await supabase.from("notifications").update({ read_at: new Date().toISOString() }).eq("id", n.id);
+    }
+    setOpen(false);
+    if (n.link_view) onNavigate(n.link_view as View);
+  }
+
+  async function markAllRead() {
+    const now = new Date().toISOString();
+    setNotifications((prev) => prev.map((n) => (n.read_at ? n : { ...n, read_at: now })));
+    await supabase.from("notifications").update({ read_at: now }).eq("recipient_id", userId).is("read_at", null);
+  }
+
+  return (
+    <div className="notification-bell">
+      <button className="notification-bell-trigger" onClick={() => setOpen((v) => !v)} aria-label="Thông báo">
+        <BellIcon />
+        {unreadCount > 0 && <span className="badge notification-badge">{unreadCount}</span>}
+      </button>
+      {open && (
+        <>
+          <div className="notification-backdrop" onClick={() => setOpen(false)} />
+          <div className="notification-panel">
+            <div className="notification-panel-head">
+              <span>Thông báo</span>
+              {unreadCount > 0 && (
+                <button className="btn btn-quiet" onClick={markAllRead}>
+                  Đánh dấu tất cả đã đọc
+                </button>
+              )}
+            </div>
+            <div className="notification-list">
+              {notifications.length === 0 && <div className="notification-empty">Chưa có thông báo nào.</div>}
+              {notifications.map((n) => (
+                <button
+                  key={n.id}
+                  className={`notification-item${n.read_at ? "" : " unread"}`}
+                  onClick={() => markRead(n)}
+                >
+                  <div className="notification-message">{n.message}</div>
+                  <div className="notification-time">{relativeTimeVi(n.created_at)}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
   );
 }
 
@@ -1219,7 +1378,7 @@ function generateTempPassword(): string {
   );
 }
 
-function UserManagementView() {
+function UserManagementView({ currentUserId }: { currentUserId: string }) {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -1234,6 +1393,8 @@ function UserManagementView() {
   const [resetPassword, setResetPassword] = useState("");
   const [resetting, setResetting] = useState(false);
   const [resetError, setResetError] = useState<string | null>(null);
+
+  const [changingRoleId, setChangingRoleId] = useState<string | null>(null);
 
   async function loadProfiles() {
     setLoading(true);
@@ -1267,6 +1428,25 @@ function UserManagementView() {
       setCreateError(e.message);
     } finally {
       setCreating(false);
+    }
+  }
+
+  async function changeRole(p: Profile, role: Role) {
+    if (role === p.role) return;
+    setChangingRoleId(p.id);
+    try {
+      const res = await fetch(`/api/users/${p.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Đổi vai trò thất bại");
+      await loadProfiles();
+    } catch (e: any) {
+      alert(e.message);
+    } finally {
+      setChangingRoleId(null);
     }
   }
 
@@ -1380,7 +1560,24 @@ function UserManagementView() {
                       {!p.username && <span className="sub">Google</span>}
                     </td>
                     <td>{p.display_name ?? "—"}</td>
-                    <td>{p.role ? ROLE_LABEL[p.role] : "Chưa cấp quyền"}</td>
+                    <td>
+                      {p.id === currentUserId ? (
+                        ROLE_LABEL[p.role ?? "admin"]
+                      ) : (
+                        <select
+                          value={p.role ?? ""}
+                          disabled={changingRoleId === p.id}
+                          onChange={(e) => changeRole(p, e.target.value as Role)}
+                        >
+                          {!p.role && <option value="">Chưa cấp quyền</option>}
+                          {(["sales", "accountant", "admin"] as Role[]).map((r) => (
+                            <option key={r} value={r}>
+                              {ROLE_LABEL[r]}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                    </td>
                     <td>{p.must_change_password ? "Cần đổi mật khẩu" : "—"}</td>
                     <td>
                       {p.username && (
@@ -1430,6 +1627,76 @@ function UserManagementView() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function ActivityLogView() {
+  const [entries, setEntries] = useState<ActivityLogEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      const { data } = await supabase.from("activity_log").select("*").order("created_at", { ascending: false }).limit(200);
+      if (!cancelled) {
+        setEntries((data as ActivityLogEntry[]) ?? []);
+        setLoading(false);
+      }
+    }
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return (
+    <div className="app">
+      <div className="view-header">
+        <div>
+          <h1>Nhật ký hoạt động</h1>
+          <p>Toàn bộ thao tác quan trọng — ai làm gì, lúc nào. Mọi người đã đăng nhập đều xem được.</p>
+        </div>
+      </div>
+
+      <div className="table-card">
+        <div className="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Người thực hiện</th>
+                <th>Hành động</th>
+                <th>Đối tượng</th>
+                <th>Thời điểm</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading && (
+                <tr>
+                  <td colSpan={4} style={{ textAlign: "center", color: "var(--muted)" }}>
+                    Đang tải...
+                  </td>
+                </tr>
+              )}
+              {!loading && entries.length === 0 && (
+                <tr>
+                  <td colSpan={4} style={{ textAlign: "center", color: "var(--muted)" }}>
+                    Chưa có hoạt động nào.
+                  </td>
+                </tr>
+              )}
+              {entries.map((e) => (
+                <tr key={e.id}>
+                  <td>{e.actor_name ?? "—"}</td>
+                  <td>{ACTION_LABELS[e.action] ?? e.action}</td>
+                  <td>{e.target_label ?? "—"}</td>
+                  <td>{formatDate(e.created_at)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1833,6 +2100,9 @@ function ProductForm({
   // Hưng (sales) chỉ tạo được sản phẩm nháp — Mã nội bộ tự sinh, Hồng (kế
   // toán) mới điền phần còn lại qua luồng "Chưa hoàn chỉnh" / complete-draft.
   const isSalesCreate = role === "sales" && !initial;
+  // Chỉ Admin mới đổi được tên hàng hóa của 1 sản phẩm đã tồn tại — Kế toán
+  // vẫn sửa được các trường khác, chỉ riêng tên bị khóa (app/api/products/[id]/route.ts chặn ở API).
+  const nameLocked = !!initial && role !== "admin";
 
   function set<K extends keyof FormState>(key: K, value: string) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -1914,8 +2184,13 @@ function ProductForm({
                 ))}
               </select>
             </Field>
-            <Field label="Tên hàng hóa (gốc) *">
-              <input value={form.ten_hang_hoa} onChange={(e) => set("ten_hang_hoa", e.target.value)} />
+            <Field label={nameLocked ? "Tên hàng hóa (gốc) — chỉ Admin đổi được" : "Tên hàng hóa (gốc) *"}>
+              <input
+                value={form.ten_hang_hoa}
+                onChange={(e) => set("ten_hang_hoa", e.target.value)}
+                disabled={nameLocked}
+                title={nameLocked ? "Chỉ Admin mới đổi được tên hàng hóa" : undefined}
+              />
             </Field>
             <Field label="Tên trên hóa đơn">
               <input value={form.ten_hoa_don} onChange={(e) => set("ten_hoa_don", e.target.value)} />
@@ -2096,6 +2371,24 @@ function UsersIcon() {
       <circle cx="9" cy="7" r="4" />
       <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
       <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+    </svg>
+  );
+}
+function LogIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14 3v4a1 1 0 0 0 1 1h4" />
+      <path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2Z" />
+      <path d="M9 13h6" />
+      <path d="M9 17h6" />
+    </svg>
+  );
+}
+function BellIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+      <path d="M13.73 21a2 2 0 0 1-3.46 0" />
     </svg>
   );
 }

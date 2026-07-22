@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseServer";
 import { friendlyDbError } from "@/lib/dbErrors";
-import { requireRole, Role } from "@/lib/authz";
+import { getCurrentUserRole, Role } from "@/lib/authz";
 import { usernameToEmail, isValidUsername } from "@/lib/username";
 import { validatePassword } from "@/lib/passwordPolicy";
+import { logActivity } from "@/lib/activityLog";
 
 export const runtime = "nodejs";
 
@@ -13,8 +14,11 @@ const VALID_ROLES: Role[] = ["sales", "accountant", "admin"];
 // mật khẩu này chỉ là mật khẩu tạm, must_change_password=true bắt buộc người
 // dùng tự đặt lại ngay sau khi đăng nhập lần đầu (xem app/page.tsx).
 export async function POST(req: NextRequest) {
-  const authError = await requireRole(["admin"]);
-  if (authError) return authError;
+  const current = await getCurrentUserRole();
+  if (!current) return NextResponse.json({ error: "Chưa đăng nhập hoặc chưa được cấp quyền" }, { status: 401 });
+  if (current.role !== "admin") {
+    return NextResponse.json({ error: "Bạn không có quyền thực hiện thao tác này" }, { status: 403 });
+  }
 
   try {
     const { username, display_name, role, temp_password } = (await req.json()) as {
@@ -64,6 +68,16 @@ export async function POST(req: NextRequest) {
       .select()
       .single();
     if (updateError) throw new Error(friendlyDbError(updateError) ?? updateError.message);
+
+    await logActivity({
+      actorId: current.userId,
+      actorName: current.displayName,
+      action: "user.create",
+      targetType: "profile",
+      targetId: profile.id,
+      targetLabel: profile.username,
+      detail: { role },
+    });
 
     return NextResponse.json(profile);
   } catch (e: any) {

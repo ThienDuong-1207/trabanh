@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseServer";
 import { getCurrentUserRole } from "@/lib/authz";
+import { logActivity } from "@/lib/activityLog";
 
 export const runtime = "nodejs";
 
@@ -17,7 +18,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
     const { data: request, error: fetchError } = await supabase
       .from("price_change_requests")
-      .select("*")
+      .select("*, product:products(ten_hang_hoa)")
       .eq("id", params.id)
       .single();
     if (fetchError) throw fetchError;
@@ -47,6 +48,22 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       .select()
       .single();
     if (error) throw error;
+
+    const productName = request.product?.ten_hang_hoa ?? "sản phẩm";
+    await logActivity({
+      actorId: current.userId,
+      actorName: current.displayName,
+      action: action === "approve" ? "price_request.approve" : "price_request.reject",
+      targetType: "price_change_request",
+      targetId: params.id,
+      targetLabel: productName,
+      detail: { note },
+      notify: {
+        recipientIds: [request.proposed_by],
+        message: `Đề xuất giá cho "${productName}" đã được ${action === "approve" ? "duyệt" : "từ chối"}.`,
+        linkView: "duyetgia",
+      },
+    });
 
     return NextResponse.json(data);
   } catch (e: any) {
