@@ -343,7 +343,8 @@ tbody tr.is-selected-elsewhere:hover { background: var(--primary-wash); }
 .product-table tbody tr:hover .col-check, .product-table tbody tr:hover .col-name { background: var(--surface-sunken); }
 .product-table tbody tr.is-pending .col-check, .product-table tbody tr.is-pending .col-name { background: var(--warm-wash); }
 .product-table tbody tr.is-selected-elsewhere .col-check, .product-table tbody tr.is-selected-elsewhere .col-name { background: var(--primary-wash); }
-.product-table tbody tr.new-product-row .col-check, .product-table tbody tr.new-product-row .col-name { background: var(--surface-sunken); }
+.product-table tbody tr.new-product-row .col-check, .product-table tbody tr.new-product-row .col-name { background: var(--primary-wash); }
+.product-table tbody tr.new-product-row.just-saved .col-check, .product-table tbody tr.new-product-row.just-saved .col-name { background: var(--success-wash); }
 
 .code-cell { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: var(--text-meta); color: var(--muted); }
 .name-cell { font-weight: 550; }
@@ -366,8 +367,6 @@ tbody tr.is-selected-elsewhere:hover { background: var(--primary-wash); }
 .pill-danger { background: var(--danger-wash); color: var(--danger-ink); }
 
 .draft-badge { margin-left: 6px; vertical-align: middle; padding: 1px 7px; }
-.price-request-cell { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
-.price-request-values { font-size: var(--text-meta); font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
 
 .price-input {
   width: 96px; padding: 5px 8px; text-align: right; border: 1px solid transparent; border-radius: var(--radius-sm);
@@ -377,11 +376,25 @@ tbody tr.is-selected-elsewhere:hover { background: var(--primary-wash); }
 .price-input:focus-visible { outline: 2px solid var(--focus); outline-offset: 0; background: var(--surface); border-color: transparent; }
 .price-input:disabled { opacity: 0.6; }
 
+/* Sửa nhanh các cột khác (Mã nội bộ, Tên hóa đơn, ĐVT, Quy cách...) ngay
+   trong bảng — cùng kiểu trong suốt-tới-khi-hover với ô giá, chỉ khác căn
+   trái vì là chữ chứ không phải số. */
+.inline-cell-input, .product-table td select {
+  width: 100%; padding: 5px 8px; border: 1px solid transparent; border-radius: var(--radius-sm);
+  background: transparent; color: var(--ink); font-size: var(--text-body-sm);
+}
+.inline-cell-input:hover, .product-table td select:hover { border-color: var(--border-strong); background: var(--surface); }
+.inline-cell-input:focus-visible, .product-table td select:focus-visible {
+  outline: 2px solid var(--focus); outline-offset: 0; background: var(--surface); border-color: transparent;
+}
+.inline-cell-input:disabled { opacity: 0.6; }
+
 /* Dòng trống cuối bảng "Quản lý hàng hóa" để thêm sản phẩm mới kiểu Excel —
-   viền trên nét đứt + nền hơi khác để phân biệt rõ với các dòng sản phẩm
-   thật, input/select bên trong trong suốt cho tới khi hover/focus. */
-.new-product-row { background: var(--surface-sunken); }
-.new-product-row td { border-bottom: 1px dashed var(--border-strong); }
+   nền teal nhạt (màu CTA của app, nổi bật kể cả khi các dòng dưới đang cam
+   "chờ xuất") + viền xanh lá, input/select bên trong trong suốt cho tới khi
+   hover/focus. */
+.new-product-row { background: var(--primary-wash); }
+.new-product-row td { border-bottom: 1px dashed var(--success); }
 .new-product-row .col-check svg { color: var(--faint); }
 .new-product-row input,
 .new-product-row select {
@@ -394,6 +407,13 @@ tbody tr.is-selected-elsewhere:hover { background: var(--primary-wash); }
   outline: 2px solid var(--focus); outline-offset: 0; background: var(--surface); border-color: transparent;
 }
 .new-product-row input:disabled, .new-product-row select:disabled { opacity: 0.6; }
+
+/* Nháy nhẹ sau khi thêm sản phẩm thành công, trước khi dòng trống lại. */
+.new-product-row.just-saved { background: var(--success-wash); }
+
+.new-product-row-name { display: flex; align-items: center; gap: 6px; }
+.new-product-row-name input { flex: 1 1 auto; min-width: 0; }
+.btn-sm { padding: 4px 10px; font-size: var(--text-meta); }
 
 .row-actions { display: flex; gap: 2px; justify-content: flex-end; }
 .icon-btn {

@@ -199,6 +199,29 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
     }
   }
 
+  // Sửa nhanh các cột khác ngoài giá (Tên hàng hóa, Nhóm hàng, Mã nội bộ,
+  // ĐVT, Quy cách, Tỷ lệ, Thương hiệu, Mã vạch, Mã thùng, Tên hóa đơn) — ghi
+  // thẳng DB ngay, không qua đề xuất/duyệt; quyền theo từng trường được
+  // chặn ở API (app/api/products/[id]/field/route.ts).
+  async function updateProductField(p: Product, field: string, value: string | number | null) {
+    setSavingId(p.id);
+    try {
+      const res = await fetch(`/api/products/${p.id}/field`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ field, value }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Lưu thất bại");
+      setProducts((prev) => prev.map((x) => (x.id === p.id ? data : x)));
+      if (field === "brand") await loadBrandNames();
+    } catch (e: any) {
+      alert("Lưu thất bại: " + e.message);
+    } finally {
+      setSavingId(null);
+    }
+  }
+
   async function reviewPriceRequest(id: string, action: "approve" | "reject") {
     if (action === "reject" && !confirm("Từ chối đề xuất giá này?")) return;
     setReviewingRequestId(id);
@@ -507,70 +530,147 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
     const isPending = pendingIds.has(p.id);
     const className = [isPending ? "is-pending" : "", extraClassName ?? ""].filter(Boolean).join(" ");
     const pendingRequest = pendingRequestByProduct.get(p.id);
+    const isAdmin = role === "admin";
+    const isSaving = savingId === p.id;
+
+    function selectBrand(newValue: string) {
+      if (newValue === "__new__") {
+        const name = window.prompt("Tên thương hiệu mới:");
+        if (name && name.trim()) updateProductField(p, "brand", name.trim());
+        return;
+      }
+      updateProductField(p, "brand", newValue);
+    }
+
     return (
       <tr key={p.id} className={className}>
         <td className="col-check">
           <input type="checkbox" checked={selected.has(p.id)} onChange={() => toggleSelect(p.id)} />
         </td>
         <td className="col-name">
-          {p.ten_hang_hoa}
+          <InlineTextCell
+            value={p.ten_hang_hoa}
+            onSave={(v) => updateProductField(p, "ten_hang_hoa", v)}
+            saving={isSaving}
+            disabled={!isAdmin}
+            title={!isAdmin ? "Chỉ Admin mới đổi được tên hàng hóa" : undefined}
+          />
           {p.is_draft && <span className="pill pill-warm draft-badge">Nháp</span>}
         </td>
-        {!compactView && <td>{p.category_sheet}</td>}
         {!compactView && (
-          <td className="code-cell">{p.ma_noi_bo}</td>
+          <td>
+            {isAdmin ? (
+              <select value={p.category_sheet} onChange={(e) => updateProductField(p, "category_sheet", e.target.value)} disabled={isSaving}>
+                {CATEGORY_ORDER.map((c) => (
+                  <option key={c}>{c}</option>
+                ))}
+              </select>
+            ) : (
+              p.category_sheet
+            )}
+          </td>
         )}
-        {!compactView && <td>{p.ten_hoa_don ?? "—"}</td>}
-        {!compactView && <td>{p.dvt ?? "—"}</td>}
+        {!compactView && (
+          <td className="code-cell">
+            <InlineTextCell
+              value={p.ma_noi_bo}
+              onSave={(v) => updateProductField(p, "ma_noi_bo", v)}
+              saving={isSaving}
+              disabled={!isAdmin}
+            />
+          </td>
+        )}
+        {!compactView && (
+          <td>
+            <InlineTextCell
+              value={p.ten_hoa_don}
+              onSave={(v) => updateProductField(p, "ten_hoa_don", v)}
+              saving={isSaving}
+              disabled={role === "sales"}
+            />
+          </td>
+        )}
+        {!compactView && (
+          <td>
+            {isAdmin ? (
+              <select value={p.dvt ?? ""} onChange={(e) => updateProductField(p, "dvt", e.target.value)} disabled={isSaving}>
+                <option value="">—</option>
+                {withCurrent(DVT_SUGGESTIONS, p.dvt ?? "").map((d) => (
+                  <option key={d}>{d}</option>
+                ))}
+              </select>
+            ) : (
+              p.dvt ?? "—"
+            )}
+          </td>
+        )}
         <td className="num">
           <PriceInput
             value={pendingRequest?.proposed_gia_ban != null ? pendingRequest.proposed_gia_ban : p.gia_ban}
             onSave={(v) => proposePrice(p, "gia_ban", v)}
-            saving={savingId === p.id}
+            saving={isSaving}
           />
         </td>
         <td className="num">
           <PriceInput
             value={pendingRequest?.proposed_gia_thung != null ? pendingRequest.proposed_gia_thung : p.gia_thung}
             onSave={(v) => proposePrice(p, "gia_thung", v)}
-            saving={savingId === p.id}
+            saving={isSaving}
           />
         </td>
-        {!compactView && <td>{p.quy_cach ?? "—"}</td>}
-        {!compactView && <td className="num">{p.ty_le ?? "—"}</td>}
-        {!compactView && <td>{p.brand?.name ?? "—"}</td>}
-        {!compactView && <td className="code-cell">{p.ma_vach ?? "—"}</td>}
-        {!compactView && <td className="code-cell">{p.ma_thung ?? "—"}</td>}
-        <td>
-          {pendingRequest && (
-            <div className="price-request-cell">
-              {(role === "accountant" || role === "admin") && (
-                <>
-                  <span className="price-request-values">
-                    {formatVnd(pendingRequest.proposed_gia_ban)} / {formatVnd(pendingRequest.proposed_gia_thung)}
-                  </span>
-                  <div className="row-actions">
-                    <button
-                      className="btn btn-quiet"
-                      disabled={reviewingRequestId === pendingRequest.id}
-                      onClick={() => reviewPriceRequest(pendingRequest.id, "approve")}
-                    >
-                      Duyệt
-                    </button>
-                    <button
-                      className="btn btn-quiet"
-                      disabled={reviewingRequestId === pendingRequest.id}
-                      onClick={() => reviewPriceRequest(pendingRequest.id, "reject")}
-                    >
-                      Từ chối
-                    </button>
-                  </div>
-                </>
-              )}
-              {role === "sales" && <span className="pill pill-warm">Đang chờ duyệt</span>}
-            </div>
-          )}
-        </td>
+        {!compactView && (
+          <td>
+            {isAdmin ? (
+              <select value={p.quy_cach ?? ""} onChange={(e) => updateProductField(p, "quy_cach", e.target.value)} disabled={isSaving}>
+                <option value="">—</option>
+                {withCurrent(QUY_CACH_SUGGESTIONS, p.quy_cach ?? "").map((q) => (
+                  <option key={q}>{q}</option>
+                ))}
+              </select>
+            ) : (
+              p.quy_cach ?? "—"
+            )}
+          </td>
+        )}
+        {!compactView && (
+          <td className="num">
+            {isAdmin ? (
+              <select value={p.ty_le?.toString() ?? ""} onChange={(e) => updateProductField(p, "ty_le", e.target.value)} disabled={isSaving}>
+                <option value="">—</option>
+                {withCurrent(TY_LE_SUGGESTIONS, p.ty_le?.toString() ?? "").map((t) => (
+                  <option key={t}>{t}</option>
+                ))}
+              </select>
+            ) : (
+              p.ty_le ?? "—"
+            )}
+          </td>
+        )}
+        {!compactView && (
+          <td>
+            {isAdmin ? (
+              <select value={brandNames.includes(p.brand?.name ?? "") ? p.brand?.name : ""} onChange={(e) => selectBrand(e.target.value)} disabled={isSaving}>
+                <option value="">—</option>
+                {brandNames.map((b) => (
+                  <option key={b}>{b}</option>
+                ))}
+                <option value="__new__">+ Thương hiệu mới…</option>
+              </select>
+            ) : (
+              p.brand?.name ?? "—"
+            )}
+          </td>
+        )}
+        {!compactView && (
+          <td className="code-cell">
+            <InlineTextCell value={p.ma_vach} onSave={(v) => updateProductField(p, "ma_vach", v)} saving={isSaving} disabled={!isAdmin} />
+          </td>
+        )}
+        {!compactView && (
+          <td className="code-cell">
+            <InlineTextCell value={p.ma_thung} onSave={(v) => updateProductField(p, "ma_thung", v)} saving={isSaving} disabled={!isAdmin} />
+          </td>
+        )}
         {!compactView && (
           <td>
             <StatusPill product={p} isPending={isPending} />
@@ -584,8 +684,8 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
                   Hoàn thiện
                 </button>
               )}
-              {!p.is_draft && (role === "accountant" || role === "admin") && (
-                <button className="icon-btn" title="Sửa" aria-label="Sửa sản phẩm" onClick={() => setFormTarget(p)}>
+              {role === "admin" && (
+                <button className="icon-btn" title="Sửa (Mã nhóm thay thế, Trạng thái, Xuất xứ)" aria-label="Sửa sản phẩm" onClick={() => setFormTarget(p)}>
                   <EditIcon />
                 </button>
               )}
@@ -847,7 +947,6 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
                 {!compactView && <th>Thương hiệu</th>}
                 {!compactView && <th>Mã vạch</th>}
                 {!compactView && <th>Mã thùng</th>}
-                <th>Đề xuất giá</th>
                 {!compactView && <th>Trạng thái</th>}
                 {!compactView && <th style={{ width: 120 }}></th>}
               </tr>
@@ -864,14 +963,14 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
               )}
               {loading && (
                 <tr>
-                  <td colSpan={16} className="loading-state">
+                  <td colSpan={15} className="loading-state">
                     Đang tải...
                   </td>
                 </tr>
               )}
               {!loading && visible.length === 0 && (
                 <tr>
-                  <td colSpan={16} className="empty-state">
+                  <td colSpan={15} className="empty-state">
                     Không có sản phẩm nào.
                   </td>
                 </tr>
@@ -879,7 +978,7 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
               {visible.map((p) => renderProductRow(p))}
               {selectedElsewhere.length > 0 && (
                 <tr className="section-divider-row">
-                  <td colSpan={16} className="section-divider">
+                  <td colSpan={15} className="section-divider">
                     Đã chọn ở bộ lọc khác ({selectedElsewhere.length})
                   </td>
                 </tr>
@@ -1789,6 +1888,55 @@ function PriceInput({
   );
 }
 
+// Ô chữ sửa nhanh trực tiếp trong bảng (Tên hàng hóa, Mã nội bộ, Tên hóa
+// đơn, Mã vạch, Mã thùng) — cùng cơ chế với PriceInput (bộ đệm gõ riêng +
+// lưu khi rời ô), nhưng ghi thẳng DB ngay, không qua đề xuất/duyệt.
+function InlineTextCell({
+  value,
+  onSave,
+  saving,
+  placeholder,
+  disabled,
+  title,
+}: {
+  value: string | null;
+  onSave: (v: string) => void;
+  saving: boolean;
+  placeholder?: string;
+  disabled?: boolean;
+  title?: string;
+}) {
+  const [local, setLocal] = useState(value ?? "");
+  const [focused, setFocused] = useState(false);
+  useEffect(() => {
+    if (!focused) setLocal(value ?? "");
+  }, [value, focused]);
+
+  if (disabled) return <span title={title}>{value ?? "—"}</span>;
+
+  return (
+    <input
+      className="inline-cell-input"
+      value={focused ? local : value ?? ""}
+      placeholder={placeholder}
+      disabled={saving}
+      title={title}
+      onFocus={() => {
+        setFocused(true);
+        setLocal(value ?? "");
+      }}
+      onChange={(e) => setLocal(e.target.value)}
+      onBlur={() => {
+        setFocused(false);
+        if (local !== (value ?? "")) onSave(local);
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+      }}
+    />
+  );
+}
+
 function StatusPill({ product, isPending }: { product: Product; isPending: boolean }) {
   const title = `Cập nhật: ${formatDate(product.updated_at)}${
     product.last_exported_at ? " · Đã xuất: " + formatDate(product.last_exported_at) : ""
@@ -2068,7 +2216,9 @@ function NewProductRow({
   const [form, setForm] = useState<FormState>(blank);
   const [brandCustom, setBrandCustom] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [justSaved, setJustSaved] = useState(false);
   const isSales = role === "sales";
+  const canSubmit = isSales ? form.ten_hang_hoa.trim() !== "" : form.ma_noi_bo.trim() !== "" && form.ten_hang_hoa.trim() !== "";
 
   function set<K extends keyof FormState>(key: K, value: string) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -2082,21 +2232,22 @@ function NewProductRow({
   }
 
   async function commit() {
-    if (isSales) {
-      if (!form.ten_hang_hoa.trim()) {
-        alert("Cần nhập Tên hàng hóa trước khi Enter để lưu.");
-        return;
-      }
-    } else if (!form.ma_noi_bo.trim() || !form.ten_hang_hoa.trim()) {
-      alert("Cần nhập Mã nội bộ và Tên hàng hóa trước khi Enter để lưu.");
+    if (!canSubmit) {
+      alert(isSales ? "Cần nhập Tên hàng hóa trước khi lưu." : "Cần nhập Mã nội bộ và Tên hàng hóa trước khi lưu.");
       return;
     }
     setSaving(true);
     const ok = await onCreate(formStateToInput(form));
     setSaving(false);
     if (ok) {
-      setForm(blank());
-      setBrandCustom(false);
+      // Nháy nhẹ "✓ Đã thêm" 1.2s trước khi trống lại, để chắc chắn người
+      // dùng thấy đã lưu thành công thay vì dòng lặng lẽ biến mất.
+      setJustSaved(true);
+      setTimeout(() => {
+        setForm(blank());
+        setBrandCustom(false);
+        setJustSaved(false);
+      }, 1200);
     }
   }
 
@@ -2108,21 +2259,31 @@ function NewProductRow({
   }
 
   return (
-    <tr className="new-product-row" onKeyDown={handleKeyDown}>
+    <tr className={`new-product-row${justSaved ? " just-saved" : ""}`} onKeyDown={handleKeyDown}>
       <td className="col-check">
         <PlusIcon />
       </td>
       <td className="col-name">
-        <input
-          placeholder="+ Tên hàng hóa mới..."
-          value={form.ten_hang_hoa}
-          onChange={(e) => set("ten_hang_hoa", e.target.value)}
-          disabled={saving}
-        />
+        <div className="new-product-row-name">
+          <input
+            placeholder="+ Tên hàng hóa mới..."
+            value={form.ten_hang_hoa}
+            onChange={(e) => set("ten_hang_hoa", e.target.value)}
+            disabled={saving || justSaved}
+          />
+          <button
+            type="button"
+            className={`btn btn-sm ${justSaved ? "btn-success" : "btn-primary"}`}
+            disabled={saving || justSaved || !canSubmit}
+            onClick={commit}
+          >
+            {justSaved ? "✓ Đã thêm" : saving ? "Đang lưu..." : "Thêm"}
+          </button>
+        </div>
       </td>
       {!compactView && (
         <td>
-          <select value={form.category_sheet} onChange={(e) => set("category_sheet", e.target.value)} disabled={saving}>
+          <select value={form.category_sheet} onChange={(e) => set("category_sheet", e.target.value)} disabled={saving || justSaved}>
             {CATEGORY_ORDER.map((c) => (
               <option key={c}>{c}</option>
             ))}
@@ -2132,19 +2293,19 @@ function NewProductRow({
       {!compactView && (
         <td>
           {!isSales && (
-            <input placeholder="Mã nội bộ" value={form.ma_noi_bo} onChange={(e) => set("ma_noi_bo", e.target.value)} disabled={saving} />
+            <input placeholder="Mã nội bộ" value={form.ma_noi_bo} onChange={(e) => set("ma_noi_bo", e.target.value)} disabled={saving || justSaved} />
           )}
         </td>
       )}
       {!compactView && (
         <td>
-          {!isSales && <input value={form.ten_hoa_don} onChange={(e) => set("ten_hoa_don", e.target.value)} disabled={saving} />}
+          {!isSales && <input value={form.ten_hoa_don} onChange={(e) => set("ten_hoa_don", e.target.value)} disabled={saving || justSaved} />}
         </td>
       )}
       {!compactView && (
         <td>
           {!isSales && (
-            <select value={form.dvt} onChange={(e) => set("dvt", e.target.value)} disabled={saving}>
+            <select value={form.dvt} onChange={(e) => set("dvt", e.target.value)} disabled={saving || justSaved}>
               <option value="">—</option>
               {withCurrent(DVT_SUGGESTIONS, form.dvt).map((d) => (
                 <option key={d}>{d}</option>
@@ -2160,7 +2321,7 @@ function NewProductRow({
             inputMode="numeric"
             value={form.gia_ban}
             onChange={(e) => set("gia_ban", e.target.value)}
-            disabled={saving}
+            disabled={saving || justSaved}
           />
         )}
       </td>
@@ -2171,14 +2332,14 @@ function NewProductRow({
             inputMode="numeric"
             value={form.gia_thung}
             onChange={(e) => set("gia_thung", e.target.value)}
-            disabled={saving}
+            disabled={saving || justSaved}
           />
         )}
       </td>
       {!compactView && (
         <td>
           {!isSales && (
-            <select value={form.quy_cach} onChange={(e) => setQuyCach(e.target.value)} disabled={saving}>
+            <select value={form.quy_cach} onChange={(e) => setQuyCach(e.target.value)} disabled={saving || justSaved}>
               <option value="">—</option>
               {withCurrent(QUY_CACH_SUGGESTIONS, form.quy_cach).map((q) => (
                 <option key={q}>{q}</option>
@@ -2190,7 +2351,7 @@ function NewProductRow({
       {!compactView && (
         <td className="num">
           {!isSales && (
-            <select value={form.ty_le} onChange={(e) => set("ty_le", e.target.value)} disabled={saving}>
+            <select value={form.ty_le} onChange={(e) => set("ty_le", e.target.value)} disabled={saving || justSaved}>
               <option value="">—</option>
               {withCurrent(TY_LE_SUGGESTIONS, form.ty_le).map((t) => (
                 <option key={t}>{t}</option>
@@ -2207,7 +2368,7 @@ function NewProductRow({
                 placeholder="Thương hiệu mới"
                 value={form.brand}
                 onChange={(e) => set("brand", e.target.value)}
-                disabled={saving}
+                disabled={saving || justSaved}
               />
             ) : (
               <select
@@ -2220,7 +2381,7 @@ function NewProductRow({
                     set("brand", e.target.value);
                   }
                 }}
-                disabled={saving}
+                disabled={saving || justSaved}
               >
                 <option value="">—</option>
                 {brandNames.map((b) => (
@@ -2232,12 +2393,11 @@ function NewProductRow({
         </td>
       )}
       {!compactView && (
-        <td>{!isSales && <input value={form.ma_vach} onChange={(e) => set("ma_vach", e.target.value)} disabled={saving} />}</td>
+        <td>{!isSales && <input value={form.ma_vach} onChange={(e) => set("ma_vach", e.target.value)} disabled={saving || justSaved} />}</td>
       )}
       {!compactView && (
-        <td>{!isSales && <input value={form.ma_thung} onChange={(e) => set("ma_thung", e.target.value)} disabled={saving} />}</td>
+        <td>{!isSales && <input value={form.ma_thung} onChange={(e) => set("ma_thung", e.target.value)} disabled={saving || justSaved} />}</td>
       )}
-      <td />
       {!compactView && <td />}
       {!compactView && <td />}
     </tr>

@@ -8,10 +8,13 @@ import { logActivity } from "@/lib/activityLog";
 
 export const runtime = "nodejs";
 
+// Form "Sửa sản phẩm" đầy đủ — giờ chỉ Admin dùng (Kế toán chỉ còn sửa được
+// đúng "Tên trên hóa đơn", làm qua PATCH /api/products/[id]/field inline
+// ngay trong bảng, không cần mở form này nữa).
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const current = await getCurrentUserRole();
   if (!current) return NextResponse.json({ error: "Chưa đăng nhập hoặc chưa được cấp quyền" }, { status: 401 });
-  if (current.role !== "accountant" && current.role !== "admin") {
+  if (current.role !== "admin") {
     return NextResponse.json({ error: "Bạn không có quyền thực hiện thao tác này" }, { status: 403 });
   }
 
@@ -19,14 +22,6 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const { brand, ...fields } = (await req.json()) as ProductInput;
 
     const supabase = supabaseAdmin();
-
-    if (current.role !== "admin") {
-      const { data: existing } = await supabase.from("products").select("ten_hang_hoa").eq("id", params.id).single();
-      if (existing && fields.ten_hang_hoa !== existing.ten_hang_hoa) {
-        return NextResponse.json({ error: "Chỉ Admin mới đổi được tên hàng hóa" }, { status: 403 });
-      }
-    }
-
     const brand_id = await resolveBrandId(supabase, brand);
 
     const { data, error } = await supabase
