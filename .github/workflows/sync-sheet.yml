@@ -1,8 +1,10 @@
 name: Sync products from Google Sheet
 
 on:
-  schedule:
-    - cron: "0 * * * *" # every hour, on the hour
+  # Tạm dừng đồng bộ tự động — bỏ dấu # ở dòng "schedule"/"cron" bên dưới để
+  # bật lại lịch chạy mỗi giờ.
+  # schedule:
+  #   - cron: "0 * * * *" # every hour, on the hour
   workflow_dispatch: {} # lets you trigger a run manually from the Actions tab, to test
 
 jobs:

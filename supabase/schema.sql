@@ -75,20 +75,79 @@ create trigger trg_products_updated_at
   for each row
   execute function set_updated_at();
 
--- Row Level Security: allow read to everyone with the anon key,
--- but require the service-role key (server-side only) for writes.
+-- Google-login users + role (Giai đoạn 1: đăng nhập + phân quyền).
+-- role = null means "đã đăng nhập nhưng chưa được cấp quyền" — chặn ở
+-- app/page.tsx (Server Component) và ở các policy dưới đây.
+do $$ begin
+  create type user_role as enum ('sales', 'accountant', 'admin');
+exception
+  when duplicate_object then null;
+end $$;
+
+create table if not exists profiles (
+  id uuid primary key references auth.users(id) on delete cascade,
+  email text,
+  display_name text,
+  role user_role,
+  created_at timestamptz not null default now()
+);
+
+-- Tự tạo 1 profile (role = null) ngay khi ai đó đăng nhập Google lần đầu —
+-- security definer vì thao tác insert này chạy trong ngữ cảnh chưa có role
+-- gì cả, không thể tự thêm chính mình nếu bị RLS chặn.
+create or replace function handle_new_user()
+returns trigger as $$
+begin
+  insert into public.profiles (id, email, display_name)
+  values (new.id, new.email, new.raw_user_meta_data->>'full_name')
+  on conflict (id) do nothing;
+  return new;
+end;
+$$ language plpgsql security definer set search_path = public;
+
+drop trigger if exists trg_on_auth_user_created on auth.users;
+create trigger trg_on_auth_user_created
+  after insert on auth.users
+  for each row execute function handle_new_user();
+
+alter table profiles enable row level security;
+
+drop policy if exists "Người đã đăng nhập đọc được danh sách profiles" on profiles;
+create policy "Người đã đăng nhập đọc được danh sách profiles" on profiles
+  for select using (auth.role() = 'authenticated');
+-- Chưa có policy insert/update/delete từ client — gán quyền ban đầu làm thủ
+-- công qua SQL Editor (xem README "Đăng nhập & phân quyền"); màn "Quản lý
+-- người dùng" cho Admin tự gán quyền sẽ làm ở giai đoạn sau.
+
+-- Row Level Security: chỉ người đã được cấp quyền (role khác null) mới đọc
+-- được sản phẩm; sửa/thêm theo đúng vai trò.
 alter table products enable row level security;
 
-create policy "Public read access" on products
-  for select using (true);
+-- Xóa 2 policy cũ cho phép ai cũng đọc/sửa (nếu chạy lại script này trên
+-- database đã có sẵn dữ liệu) — bắt buộc phải xóa, nếu không policy cũ
+-- "using (true)" vẫn còn tồn tại song song và vô hiệu hóa hoàn toàn phân
+-- quyền mới bên dưới (Postgres OR các permissive policy lại với nhau).
+drop policy if exists "Public read access" on products;
+drop policy if exists "Anon can update price fields" on products;
+drop policy if exists "Người đã được cấp quyền đọc được sản phẩm" on products;
+drop policy if exists "Kế toán/Admin sửa được sản phẩm" on products;
+drop policy if exists "Sales/Admin thêm được sản phẩm mới" on products;
 
-create policy "Anon can update price fields" on products
-  for update using (true) with check (true);
--- NOTE: for a real production app, tighten this policy (e.g. require auth).
--- It is left permissive here so the demo works immediately after seeding.
+create policy "Người đã được cấp quyền đọc được sản phẩm" on products
+  for select using (exists (select 1 from profiles where id = auth.uid() and role is not null));
+
+create policy "Kế toán/Admin sửa được sản phẩm" on products
+  for update
+  using (exists (select 1 from profiles where id = auth.uid() and role in ('accountant', 'admin')))
+  with check (exists (select 1 from profiles where id = auth.uid() and role in ('accountant', 'admin')));
+
+create policy "Sales/Admin thêm được sản phẩm mới" on products
+  for insert
+  with check (exists (select 1 from profiles where id = auth.uid() and role in ('sales', 'admin')));
 
 alter table brands enable row level security;
 
+drop policy if exists "Public read access" on brands;
 create policy "Public read access" on brands
   for select using (true);
 -- No write policy: brands are only inserted via the service-role seed script.
@@ -138,6 +197,7 @@ create trigger trg_log_price_change
 
 alter table price_history enable row level security;
 
+drop policy if exists "Public read access" on price_history;
 create policy "Public read access" on price_history
   for select using (true);
 -- No write policy: rows are only ever inserted by the trigger above (which

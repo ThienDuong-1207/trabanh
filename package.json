@@ -8,6 +8,7 @@
     "start": "next start"
   },
   "dependencies": {
+    "@supabase/ssr": "^0.12.3",
     "@supabase/supabase-js": "^2.45.0",
     "bwip-js": "^4.11.2",
     "docx": "^9.0.2",

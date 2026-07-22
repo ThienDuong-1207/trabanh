@@ -3,10 +3,14 @@ import { supabaseAdmin } from "@/lib/supabaseServer";
 import { resolveBrandId } from "@/lib/brands";
 import { friendlyDbError } from "@/lib/dbErrors";
 import { ProductInput } from "@/lib/types";
+import { requireRole } from "@/lib/authz";
 
 export const runtime = "nodejs";
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+  const authError = await requireRole(["accountant", "admin"]);
+  if (authError) return authError;
+
   try {
     const { brand, ...fields } = (await req.json()) as ProductInput;
 
@@ -28,6 +32,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
+  const authError = await requireRole(["admin"]);
+  if (authError) return authError;
+
   try {
     const supabase = supabaseAdmin();
     const { error } = await supabase.from("products").delete().eq("id", params.id);

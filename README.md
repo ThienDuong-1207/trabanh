@@ -95,6 +95,30 @@ Test thử ngay (không cần đợi lịch giờ): vào tab **Actions** trên G
 > Lưu ý: GitHub tự tắt lịch chạy tự động nếu repo không có commit nào suốt 60 ngày — thấy đồng bộ
 > ngừng thì vào tab Actions bật lại là được.
 
+## Đăng nhập & phân quyền
+
+Web yêu cầu đăng nhập bằng Google trước khi vào được — 3 vai trò: `sales` (thêm sản phẩm), `accountant`
+(sửa giá trực tiếp), `admin` (toàn quyền). Ai đăng nhập lần đầu mà chưa được gán vai trò sẽ thấy màn
+"Tài khoản chưa được cấp quyền" thay vì vào được app.
+
+### Việc cần tự làm (Google Cloud + Supabase Dashboard)
+
+1. Google Cloud Console (dùng lại project đã tạo cho Sheets API) → **APIs & Services → Credentials
+   → Create Credentials → OAuth client ID** → Application type: **Web application**.
+2. Supabase Dashboard → **Authentication → Providers → Google** → bật lên, copy đúng **Callback URL**
+   hiện ở đó (dạng `https://<project-ref>.supabase.co/auth/v1/callback`).
+3. Quay lại Google Cloud, dán URL đó vào **Authorized redirect URIs** của OAuth client → Save → copy
+   **Client ID** + **Client Secret** → dán ngược lại vào Supabase (bước 2) → Save.
+4. Chạy lại `supabase/schema.sql` trong SQL Editor (đã thêm bảng `profiles` + chính sách phân quyền —
+   an toàn chạy lại trên database đã có dữ liệu, không mất dữ liệu cũ).
+5. **Bootstrap tài khoản Admin đầu tiên**: mở web, đăng nhập Google 1 lần (sẽ vào màn "chưa được cấp
+   quyền") → vào Supabase SQL Editor chạy:
+   ```sql
+   update profiles set role = 'admin' where email = 'email-cua-ban@gmail.com';
+   ```
+   → tải lại trang là vào được với quyền admin. Gán quyền cho người khác tương tự, đổi
+   `'admin'` thành `'sales'` hoặc `'accountant'`.
+
 ## Cách dùng hằng ngày
 
 **Sửa giá sản phẩm đã có:**

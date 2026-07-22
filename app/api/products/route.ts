@@ -3,10 +3,14 @@ import { supabaseAdmin } from "@/lib/supabaseServer";
 import { resolveBrandId } from "@/lib/brands";
 import { friendlyDbError } from "@/lib/dbErrors";
 import { ProductInput } from "@/lib/types";
+import { requireRole } from "@/lib/authz";
 
 export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
+  const authError = await requireRole(["sales", "admin"]);
+  if (authError) return authError;
+
   try {
     const { brand, ...fields } = (await req.json()) as ProductInput;
     if (!fields.ma_noi_bo || !fields.ten_hang_hoa || !fields.category_sheet) {
