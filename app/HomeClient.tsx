@@ -2083,8 +2083,12 @@ function NewProductRow({
 
   async function commit() {
     if (isSales) {
-      if (!form.ten_hang_hoa.trim()) return;
+      if (!form.ten_hang_hoa.trim()) {
+        alert("Cần nhập Tên hàng hóa trước khi Enter để lưu.");
+        return;
+      }
     } else if (!form.ma_noi_bo.trim() || !form.ten_hang_hoa.trim()) {
+      alert("Cần nhập Mã nội bộ và Tên hàng hóa trước khi Enter để lưu.");
       return;
     }
     setSaving(true);
