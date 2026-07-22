@@ -381,7 +381,7 @@ tbody tr.is-selected-elsewhere:hover { background: var(--primary-wash); }
    viền trên nét đứt + nền hơi khác để phân biệt rõ với các dòng sản phẩm
    thật, input/select bên trong trong suốt cho tới khi hover/focus. */
 .new-product-row { background: var(--surface-sunken); }
-.new-product-row td { border-top: 1px dashed var(--border-strong); }
+.new-product-row td { border-bottom: 1px dashed var(--border-strong); }
 .new-product-row .col-check svg { color: var(--faint); }
 .new-product-row input,
 .new-product-row select {

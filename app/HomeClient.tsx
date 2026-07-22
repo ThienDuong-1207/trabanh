@@ -853,6 +853,15 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
               </tr>
             </thead>
             <tbody>
+              {tab === "all" && (role === "sales" || role === "admin") && (
+                <NewProductRow
+                  role={role}
+                  compactView={compactView}
+                  brandNames={brandNames}
+                  categoryFilter={category}
+                  onCreate={handleCreateProductInline}
+                />
+              )}
               {loading && (
                 <tr>
                   <td colSpan={16} className="loading-state">
@@ -876,15 +885,6 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
                 </tr>
               )}
               {selectedElsewhere.map((p) => renderProductRow(p, "is-selected-elsewhere"))}
-              {tab === "all" && (role === "sales" || role === "admin") && (
-                <NewProductRow
-                  role={role}
-                  compactView={compactView}
-                  brandNames={brandNames}
-                  categoryFilter={category}
-                  onCreate={handleCreateProductInline}
-                />
-              )}
             </tbody>
           </table>
         </div>
