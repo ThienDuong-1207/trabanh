@@ -12,7 +12,7 @@ import {
   Notification,
   CATEGORY_ORDER,
 } from "@/lib/types";
-import { QUY_CACH_SUGGESTIONS, TY_LE_SUGGESTIONS, extractQuantityFromQuyCach } from "@/lib/suggestionLists";
+import { QUY_CACH_SUGGESTIONS, TY_LE_SUGGESTIONS, DVT_SUGGESTIONS, extractQuantityFromQuyCach } from "@/lib/suggestionLists";
 import { ACTION_LABELS } from "@/lib/activityLabels";
 import PasswordChecklist from "@/components/PasswordChecklist";
 
@@ -53,7 +53,7 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
   const [dismissing, setDismissing] = useState(false);
   const [importing, setImporting] = useState(false);
   const [importOnlyNew, setImportOnlyNew] = useState(false);
-  const [formTarget, setFormTarget] = useState<"new" | Product | null>(null);
+  const [formTarget, setFormTarget] = useState<Product | null>(null);
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -464,11 +464,10 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
   }
 
   async function handleSaveProduct(input: ProductInput) {
-    const isCreate = formTarget === "new";
-    const id = formTarget && formTarget !== "new" ? formTarget.id : undefined;
+    if (!formTarget) return;
     try {
-      const res = await fetch(id ? `/api/products/${id}` : "/api/products", {
-        method: id ? "PATCH" : "POST",
+      const res = await fetch(`/api/products/${formTarget.id}`, {
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(input),
       });
@@ -477,18 +476,29 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
       setFormTarget(null);
       await loadProducts();
       await loadBrandNames();
-      if (isCreate) {
-        // Jump straight to the pending-export view with the new product ready
-        // to export, skipping the search-and-tick step.
-        setTab("pending");
-        setCategory("Tất cả");
-        setBrandFilter("Tất cả");
-        setMissingOnly(false);
-        setSearch("");
-        setSelected(new Set([data.id]));
-      }
     } catch (e: any) {
       alert("Lưu sản phẩm thất bại: " + e.message);
+    }
+  }
+
+  // Thêm sản phẩm bằng dòng trống ở cuối bảng (kiểu Excel) — khác
+  // handleSaveProduct ở chỗ không rời tab/không chọn sẵn sản phẩm, để có thể
+  // gõ liên tiếp nhiều dòng mà không bị nhảy màn hình sau mỗi lần lưu.
+  async function handleCreateProductInline(input: ProductInput): Promise<boolean> {
+    try {
+      const res = await fetch("/api/products", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Thêm sản phẩm thất bại");
+      await loadProducts();
+      await loadBrandNames();
+      return true;
+    } catch (e: any) {
+      alert("Thêm sản phẩm thất bại: " + e.message);
+      return false;
     }
   }
 
@@ -661,13 +671,6 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
         </label>
 
         <div className="toolbar-spacer" />
-
-        {(role === "sales" || role === "admin") && (
-          <button className="btn btn-primary" onClick={() => setFormTarget("new")}>
-            <PlusIcon />
-            Thêm sản phẩm
-          </button>
-        )}
 
         <div className="menu-wrap" ref={moreMenuRef}>
           <button className="btn" onClick={() => setMoreMenuOpen((v) => !v)} disabled={importing || exportingAll !== null}>
@@ -887,6 +890,15 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
                 </tr>
               )}
               {selectedElsewhere.map((p) => renderProductRow(p, "is-selected-elsewhere"))}
+              {tab === "all" && (role === "sales" || role === "admin") && (
+                <NewProductRow
+                  role={role}
+                  compactView={compactView}
+                  brandNames={brandNames}
+                  categoryFilter={category}
+                  onCreate={handleCreateProductInline}
+                />
+              )}
             </tbody>
           </table>
         </div>
@@ -899,7 +911,7 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
 
       {formTarget !== null && (
         <ProductForm
-          initial={formTarget === "new" ? null : formTarget}
+          initial={formTarget}
           brandNames={brandNames}
           role={role}
           onCancel={() => setFormTarget(null)}
@@ -2073,6 +2085,201 @@ function CompleteDraftForm({
   );
 }
 
+// Dòng trống ở cuối bảng "Quản lý hàng hóa" để thêm sản phẩm mới kiểu Excel —
+// gõ thẳng vào các ô cùng cấu trúc cột với bảng, Enter để lưu (không lưu khi
+// blur từng ô, tránh gửi dữ liệu dở dang lúc mới Tab qua ô kế tiếp). Sau khi
+// lưu thành công, dòng tự trống lại để gõ tiếp dòng kế tiếp.
+function NewProductRow({
+  role,
+  compactView,
+  brandNames,
+  categoryFilter,
+  onCreate,
+}: {
+  role: Role;
+  compactView: boolean;
+  brandNames: string[];
+  categoryFilter: string;
+  onCreate: (input: ProductInput) => Promise<boolean>;
+}) {
+  const defaultCategory = categoryFilter !== "Tất cả" ? categoryFilter : CATEGORY_ORDER[0];
+  const blank = (): FormState => ({ ...productToFormState(null), category_sheet: defaultCategory });
+
+  const [form, setForm] = useState<FormState>(blank);
+  const [brandCustom, setBrandCustom] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const isSales = role === "sales";
+
+  function set<K extends keyof FormState>(key: K, value: string) {
+    setForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function setQuyCach(value: string) {
+    setForm((prev) => {
+      const autoTyLe = prev.ty_le.trim() === "" ? extractQuantityFromQuyCach(value) : null;
+      return { ...prev, quy_cach: value, ty_le: autoTyLe !== null ? String(autoTyLe) : prev.ty_le };
+    });
+  }
+
+  async function commit() {
+    if (isSales) {
+      if (!form.ten_hang_hoa.trim()) return;
+    } else if (!form.ma_noi_bo.trim() || !form.ten_hang_hoa.trim()) {
+      return;
+    }
+    setSaving(true);
+    const ok = await onCreate(formStateToInput(form));
+    setSaving(false);
+    if (ok) {
+      setForm(blank());
+      setBrandCustom(false);
+    }
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLTableRowElement>) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      commit();
+    }
+  }
+
+  return (
+    <tr className="new-product-row" onKeyDown={handleKeyDown}>
+      <td className="col-check">
+        <PlusIcon />
+      </td>
+      <td className="col-name">
+        <input
+          placeholder="+ Tên hàng hóa mới..."
+          value={form.ten_hang_hoa}
+          onChange={(e) => set("ten_hang_hoa", e.target.value)}
+          disabled={saving}
+        />
+      </td>
+      {!compactView && (
+        <td>
+          <select value={form.category_sheet} onChange={(e) => set("category_sheet", e.target.value)} disabled={saving}>
+            {CATEGORY_ORDER.map((c) => (
+              <option key={c}>{c}</option>
+            ))}
+          </select>
+        </td>
+      )}
+      {!compactView && (
+        <td>
+          {!isSales && (
+            <input placeholder="Mã nội bộ" value={form.ma_noi_bo} onChange={(e) => set("ma_noi_bo", e.target.value)} disabled={saving} />
+          )}
+        </td>
+      )}
+      {!compactView && (
+        <td>
+          {!isSales && <input value={form.ten_hoa_don} onChange={(e) => set("ten_hoa_don", e.target.value)} disabled={saving} />}
+        </td>
+      )}
+      {!compactView && (
+        <td>
+          {!isSales && (
+            <select value={form.dvt} onChange={(e) => set("dvt", e.target.value)} disabled={saving}>
+              <option value="">—</option>
+              {withCurrent(DVT_SUGGESTIONS, form.dvt).map((d) => (
+                <option key={d}>{d}</option>
+              ))}
+            </select>
+          )}
+        </td>
+      )}
+      <td className="num">
+        {!isSales && (
+          <input
+            className="price-input"
+            inputMode="numeric"
+            value={form.gia_ban}
+            onChange={(e) => set("gia_ban", e.target.value)}
+            disabled={saving}
+          />
+        )}
+      </td>
+      <td className="num">
+        {!isSales && (
+          <input
+            className="price-input"
+            inputMode="numeric"
+            value={form.gia_thung}
+            onChange={(e) => set("gia_thung", e.target.value)}
+            disabled={saving}
+          />
+        )}
+      </td>
+      {!compactView && (
+        <td>
+          {!isSales && (
+            <select value={form.quy_cach} onChange={(e) => setQuyCach(e.target.value)} disabled={saving}>
+              <option value="">—</option>
+              {withCurrent(QUY_CACH_SUGGESTIONS, form.quy_cach).map((q) => (
+                <option key={q}>{q}</option>
+              ))}
+            </select>
+          )}
+        </td>
+      )}
+      {!compactView && (
+        <td className="num">
+          {!isSales && (
+            <select value={form.ty_le} onChange={(e) => set("ty_le", e.target.value)} disabled={saving}>
+              <option value="">—</option>
+              {withCurrent(TY_LE_SUGGESTIONS, form.ty_le).map((t) => (
+                <option key={t}>{t}</option>
+              ))}
+            </select>
+          )}
+        </td>
+      )}
+      {!compactView && (
+        <td>
+          {!isSales &&
+            (brandCustom ? (
+              <input
+                placeholder="Thương hiệu mới"
+                value={form.brand}
+                onChange={(e) => set("brand", e.target.value)}
+                disabled={saving}
+              />
+            ) : (
+              <select
+                value={brandNames.includes(form.brand) ? form.brand : ""}
+                onChange={(e) => {
+                  if (e.target.value === "__new__") {
+                    setBrandCustom(true);
+                    set("brand", "");
+                  } else {
+                    set("brand", e.target.value);
+                  }
+                }}
+                disabled={saving}
+              >
+                <option value="">—</option>
+                {brandNames.map((b) => (
+                  <option key={b}>{b}</option>
+                ))}
+                <option value="__new__">+ Thương hiệu mới…</option>
+              </select>
+            ))}
+        </td>
+      )}
+      {!compactView && (
+        <td>{!isSales && <input value={form.ma_vach} onChange={(e) => set("ma_vach", e.target.value)} disabled={saving} />}</td>
+      )}
+      {!compactView && (
+        <td>{!isSales && <input value={form.ma_thung} onChange={(e) => set("ma_thung", e.target.value)} disabled={saving} />}</td>
+      )}
+      <td />
+      {!compactView && <td />}
+      {!compactView && <td />}
+    </tr>
+  );
+}
+
 function ProductForm({
   initial,
   brandNames,
@@ -2080,7 +2287,7 @@ function ProductForm({
   onCancel,
   onSave,
 }: {
-  initial: Product | null;
+  initial: Product;
   brandNames: string[];
   role: Role;
   onCancel: () => void;
@@ -2089,14 +2296,11 @@ function ProductForm({
   const [form, setForm] = useState<FormState>(() => productToFormState(initial));
   const [saving, setSaving] = useState(false);
 
-  const [brandCustom, setBrandCustom] = useState(!!initial?.brand?.name && !brandNames.includes(initial.brand.name));
+  const [brandCustom, setBrandCustom] = useState(!!initial.brand?.name && !brandNames.includes(initial.brand.name));
 
-  // Hưng (sales) chỉ tạo được sản phẩm nháp — Mã nội bộ tự sinh, Hồng (kế
-  // toán) mới điền phần còn lại qua luồng "Chưa hoàn chỉnh" / complete-draft.
-  const isSalesCreate = role === "sales" && !initial;
-  // Chỉ Admin mới đổi được tên hàng hóa của 1 sản phẩm đã tồn tại — Kế toán
-  // vẫn sửa được các trường khác, chỉ riêng tên bị khóa (app/api/products/[id]/route.ts chặn ở API).
-  const nameLocked = !!initial && role !== "admin";
+  // Chỉ Admin mới đổi được tên hàng hóa — Kế toán vẫn sửa được các trường
+  // khác, chỉ riêng tên bị khóa (app/api/products/[id]/route.ts chặn ở API).
+  const nameLocked = role !== "admin";
 
   function set<K extends keyof FormState>(key: K, value: string) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -2110,12 +2314,7 @@ function ProductForm({
   }
 
   async function submit() {
-    if (isSalesCreate) {
-      if (!form.ten_hang_hoa.trim()) {
-        alert("Cần nhập Tên hàng hóa.");
-        return;
-      }
-    } else if (!form.ma_noi_bo.trim() || !form.ten_hang_hoa.trim()) {
+    if (!form.ma_noi_bo.trim() || !form.ten_hang_hoa.trim()) {
       alert("Cần nhập Mã nội bộ và Tên hàng hóa.");
       return;
     }
@@ -2124,45 +2323,10 @@ function ProductForm({
     setSaving(false);
   }
 
-  if (isSalesCreate) {
-    return (
-      <div className="modal-backdrop" onClick={(e) => e.target === e.currentTarget && onCancel()}>
-        <div className="modal">
-          <h2>Thêm sản phẩm</h2>
-          <p className="modal-sub">Kế toán sẽ bổ sung Mã nội bộ, quy cách và giá sau khi duyệt.</p>
-
-          <div className="field-group">
-            <div className="field-grid">
-              <Field label="Tên hàng hóa *">
-                <input autoFocus value={form.ten_hang_hoa} onChange={(e) => set("ten_hang_hoa", e.target.value)} />
-              </Field>
-              <Field label="Nhóm hàng *">
-                <select value={form.category_sheet} onChange={(e) => set("category_sheet", e.target.value)}>
-                  {CATEGORY_ORDER.map((c) => (
-                    <option key={c}>{c}</option>
-                  ))}
-                </select>
-              </Field>
-            </div>
-          </div>
-
-          <div className="modal-actions">
-            <button className="btn" onClick={onCancel}>
-              Hủy
-            </button>
-            <button className="btn btn-primary" disabled={saving} onClick={submit}>
-              {saving ? "Đang lưu..." : "Lưu sản phẩm"}
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="modal-backdrop" onClick={(e) => e.target === e.currentTarget && onCancel()}>
       <div className="modal">
-        <h2>{initial ? "Sửa sản phẩm" : "Thêm sản phẩm"}</h2>
+        <h2>Sửa sản phẩm</h2>
         <p className="modal-sub">Điền thông tin cơ bản trước — các mục còn lại có thể bổ sung sau.</p>
 
         <div className="field-group">
@@ -2190,7 +2354,12 @@ function ProductForm({
               <input value={form.ten_hoa_don} onChange={(e) => set("ten_hoa_don", e.target.value)} />
             </Field>
             <Field label="Đơn vị tính">
-              <input value={form.dvt} onChange={(e) => set("dvt", e.target.value)} />
+              <select value={form.dvt} onChange={(e) => set("dvt", e.target.value)}>
+                <option value="">— Chọn ĐVT —</option>
+                {withCurrent(DVT_SUGGESTIONS, form.dvt).map((d) => (
+                  <option key={d}>{d}</option>
+                ))}
+              </select>
             </Field>
           </div>
         </div>

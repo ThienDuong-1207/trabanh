@@ -13,6 +13,9 @@ export const QUY_CACH_SUGGESTIONS = [
 
 export const TY_LE_SUGGESTIONS = [2, 6, 8, 10, 12, 15, 16, 20, 24, 28, 30, 36, 50, 100];
 
+// Same "HUONG DAN" sheet, cột "Đơn vị tính" (A21:A31).
+export const DVT_SUGGESTIONS = ["Hộp", "Túi", "Chai", "Lon", "Gói", "Cái", "Thùng", "Bao", "Can", "Kg", "Cây"];
+
 // Pulls the first number out of a "Thùng (12 hộp)"-style label, for
 // auto-filling Tỷ lệ quy đổi when the user picks a Quy cách thùng.
 export function extractQuantityFromQuyCach(quyCach: string): number | null {

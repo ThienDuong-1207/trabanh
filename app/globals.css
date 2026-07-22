@@ -342,6 +342,7 @@ tbody tr.is-selected-elsewhere:hover { background: var(--primary-wash); }
 .product-table tbody tr:hover .col-check, .product-table tbody tr:hover .col-name { background: var(--surface-sunken); }
 .product-table tbody tr.is-pending .col-check, .product-table tbody tr.is-pending .col-name { background: var(--warm-wash); }
 .product-table tbody tr.is-selected-elsewhere .col-check, .product-table tbody tr.is-selected-elsewhere .col-name { background: var(--primary-wash); }
+.product-table tbody tr.new-product-row .col-check, .product-table tbody tr.new-product-row .col-name { background: var(--surface-sunken); }
 
 .code-cell { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: var(--text-meta); color: var(--muted); }
 .name-cell { font-weight: 550; }
@@ -374,6 +375,24 @@ tbody tr.is-selected-elsewhere:hover { background: var(--primary-wash); }
 .price-input:hover { border-color: var(--border-strong); background: var(--surface); }
 .price-input:focus-visible { outline: 2px solid var(--focus); outline-offset: 0; background: var(--surface); border-color: transparent; }
 .price-input:disabled { opacity: 0.6; }
+
+/* Dòng trống cuối bảng "Quản lý hàng hóa" để thêm sản phẩm mới kiểu Excel —
+   viền trên nét đứt + nền hơi khác để phân biệt rõ với các dòng sản phẩm
+   thật, input/select bên trong trong suốt cho tới khi hover/focus. */
+.new-product-row { background: var(--surface-sunken); }
+.new-product-row td { border-top: 1px dashed var(--border-strong); }
+.new-product-row .col-check svg { color: var(--faint); }
+.new-product-row input,
+.new-product-row select {
+  width: 100%; padding: 5px 8px; border: 1px solid transparent; border-radius: var(--radius-sm);
+  background: transparent; color: var(--ink); font-size: var(--text-body-sm);
+}
+.new-product-row input::placeholder { color: var(--faint); }
+.new-product-row input:hover, .new-product-row select:hover { border-color: var(--border-strong); background: var(--surface); }
+.new-product-row input:focus-visible, .new-product-row select:focus-visible {
+  outline: 2px solid var(--focus); outline-offset: 0; background: var(--surface); border-color: transparent;
+}
+.new-product-row input:disabled, .new-product-row select:disabled { opacity: 0.6; }
 
 .row-actions { display: flex; gap: 2px; justify-content: flex-end; }
 .icon-btn {
