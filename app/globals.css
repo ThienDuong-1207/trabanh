@@ -498,6 +498,8 @@ label.field input:disabled { opacity: 0.6; }
 
 .helper-text { color: var(--faint); font-size: var(--text-meta); margin-top: 16px; }
 
+.pagination-bar { display: flex; align-items: center; justify-content: center; gap: 16px; margin-top: 14px; font-size: var(--text-meta); color: var(--muted); }
+
 /* ---- Đăng nhập ---- */
 .login-shell {
   min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;

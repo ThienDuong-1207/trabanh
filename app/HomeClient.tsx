@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import {
   Product,
@@ -32,6 +32,7 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
   const [products, setProducts] = useState<Product[]>([]);
   const [brandNames, setBrandNames] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState<string>("Tất cả");
   const [brandFilter, setBrandFilter] = useState<string>("Tất cả");
@@ -39,6 +40,7 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
   const [compactView, setCompactView] = useState(false);
   const [tab, setTab] = useState<"all" | "pending" | "draft">("all");
   const [priceRequests, setPriceRequests] = useState<PriceChangeRequest[]>([]);
+  const [priceHistoryRefreshToken, setPriceHistoryRefreshToken] = useState(0);
   const [reviewingRequestId, setReviewingRequestId] = useState<string | null>(null);
   const [approvingAll, setApprovingAll] = useState(false);
   const [completeDraftTarget, setCompleteDraftTarget] = useState<Product | null>(null);
@@ -60,7 +62,7 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
   const moreMenuRef = useRef<HTMLDivElement>(null);
   const exportMenuRef = useRef<HTMLDivElement>(null);
 
-  async function loadProducts() {
+  const loadProducts = useCallback(async () => {
     setLoading(true);
     const { data, error } = await supabase
       .from("products")
@@ -73,31 +75,43 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
       setProducts(data as Product[]);
     }
     setLoading(false);
-  }
+  }, []);
 
-  async function loadBrandNames() {
+  const loadBrandNames = useCallback(async () => {
     const { data, error } = await supabase.from("brands").select("name").order("name");
     if (!error) setBrandNames((data ?? []).map((b) => b.name as string));
-  }
+  }, []);
 
   // RLS already scopes this per role (Giai đoạn 2): sales only sees their own
   // requests, kế toán/admin sees everyone's — so no client-side filtering by
   // "who can see what" is needed here.
-  async function loadPriceRequests() {
+  // Chỉ tải các đề xuất đang "pending" — đây là hàng chờ xử lý thực sự nên
+  // luôn nhỏ (được duyệt/từ chối là biến mất khỏi tập này ngay). Lịch sử
+  // approved/rejected (tăng dần không giới hạn theo thời gian) được tách
+  // riêng, tự tải + phân trang bên trong PriceRequestsView.
+  const loadPriceRequests = useCallback(async () => {
     const { data, error } = await supabase
       .from("price_change_requests")
       .select(
         "*, product:products(ten_hang_hoa, ma_noi_bo, gia_ban, gia_thung), proposer:profiles!price_change_requests_proposed_by_fkey(display_name, username)"
       )
+      .eq("status", "pending")
       .order("created_at", { ascending: false });
     if (!error) setPriceRequests((data ?? []) as PriceChangeRequest[]);
-  }
+  }, []);
 
   useEffect(() => {
     loadProducts();
     loadBrandNames();
     loadPriceRequests();
   }, []);
+
+  // Gõ được mượt ngay lập tức trong ô tìm kiếm, nhưng chỉ lọc lại danh sách
+  // (và re-render toàn bộ bảng) sau khi người dùng ngừng gõ ~280ms.
+  useEffect(() => {
+    const t = setTimeout(() => setSearch(searchInput), 280);
+    return () => clearTimeout(t);
+  }, [searchInput]);
 
   useEffect(() => {
     function onClickOutside(e: MouseEvent) {
@@ -147,6 +161,20 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
     return filteredByCriteria;
   }, [filteredByCriteria, tab, pendingIds]);
 
+  // Phân trang bảng sản phẩm — catalog có thể lên tới hàng trăm/nghìn dòng,
+  // render hết 1 lần vừa chậm vừa không cần thiết khi chỉ xem/sửa 1 khu vực.
+  const PAGE_SIZE = 100;
+  const [page, setPage] = useState(1);
+  useEffect(() => {
+    setPage(1);
+  }, [tab, category, brandFilter, missingOnly, search]);
+  const pageCount = Math.max(1, Math.ceil(visible.length / PAGE_SIZE));
+  const currentPage = Math.min(page, pageCount);
+  const pagedVisible = useMemo(
+    () => visible.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE),
+    [visible, currentPage]
+  );
+
   const draftInFilter = useMemo(() => filteredByCriteria.filter((p) => p.is_draft).length, [filteredByCriteria]);
 
   // Only ever one meaningful "pending" request per product in practice — if
@@ -170,58 +198,64 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
   // of disappearing, so a multi-category selection stays reviewable while
   // browsing to add more.
   const selectedElsewhere = useMemo(() => {
-    const visibleIds = new Set(visible.map((p) => p.id));
+    const visibleIds = new Set(pagedVisible.map((p) => p.id));
     return products.filter((p) => selected.has(p.id) && !visibleIds.has(p.id));
-  }, [products, selected, visible]);
+  }, [products, selected, pagedVisible]);
 
   // Mọi role gõ thẳng vào ô giá — nhưng không ai ghi thẳng vào products nữa,
   // chỉ tạo/cập nhật 1 đề xuất giá; giá thật chỉ đổi khi Kế toán/Admin duyệt
   // (kể cả tự duyệt đề xuất của chính mình).
-  async function proposePrice(p: Product, field: "gia_ban" | "gia_thung", value: string) {
-    const num = value.trim() === "" ? null : Number(value.replace(/[^\d]/g, ""));
-    if (value.trim() !== "" && (num === null || Number.isNaN(num))) {
-      alert("Giá không hợp lệ");
-      return;
-    }
-    setSavingId(p.id);
-    try {
-      const res = await fetch("/api/price-requests", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ product_id: p.id, field, value: num }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Gửi đề xuất thất bại");
-      await loadPriceRequests();
-    } catch (e: any) {
-      alert("Gửi đề xuất thất bại: " + e.message);
-    } finally {
-      setSavingId(null);
-    }
-  }
+  const proposePrice = useCallback(
+    async (p: Product, field: "gia_ban" | "gia_thung", value: string) => {
+      const num = value.trim() === "" ? null : Number(value.replace(/[^\d]/g, ""));
+      if (value.trim() !== "" && (num === null || Number.isNaN(num))) {
+        alert("Giá không hợp lệ");
+        return;
+      }
+      setSavingId(p.id);
+      try {
+        const res = await fetch("/api/price-requests", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ product_id: p.id, field, value: num }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Gửi đề xuất thất bại");
+        await loadPriceRequests();
+      } catch (e: any) {
+        alert("Gửi đề xuất thất bại: " + e.message);
+      } finally {
+        setSavingId(null);
+      }
+    },
+    [loadPriceRequests]
+  );
 
   // Sửa nhanh các cột khác ngoài giá (Tên hàng hóa, Nhóm hàng, Mã nội bộ,
   // ĐVT, Quy cách, Tỷ lệ, Thương hiệu, Mã vạch, Mã thùng, Tên hóa đơn) — ghi
   // thẳng DB ngay, không qua đề xuất/duyệt; quyền theo từng trường được
   // chặn ở API (app/api/products/[id]/field/route.ts).
-  async function updateProductField(p: Product, field: string, value: string | number | null) {
-    setSavingId(p.id);
-    try {
-      const res = await fetch(`/api/products/${p.id}/field`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ field, value }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Lưu thất bại");
-      setProducts((prev) => prev.map((x) => (x.id === p.id ? data : x)));
-      if (field === "brand") await loadBrandNames();
-    } catch (e: any) {
-      alert("Lưu thất bại: " + e.message);
-    } finally {
-      setSavingId(null);
-    }
-  }
+  const updateProductField = useCallback(
+    async (p: Product, field: string, value: string | number | null) => {
+      setSavingId(p.id);
+      try {
+        const res = await fetch(`/api/products/${p.id}/field`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ field, value }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Lưu thất bại");
+        setProducts((prev) => prev.map((x) => (x.id === p.id ? data : x)));
+        if (field === "brand") await loadBrandNames();
+      } catch (e: any) {
+        alert("Lưu thất bại: " + e.message);
+      } finally {
+        setSavingId(null);
+      }
+    },
+    [loadBrandNames]
+  );
 
   async function reviewPriceRequest(id: string, action: "approve" | "reject") {
     if (action === "reject" && !confirm("Từ chối đề xuất giá này?")) return;
@@ -235,6 +269,7 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Xử lý thất bại");
       await Promise.all([loadPriceRequests(), action === "approve" ? loadProducts() : Promise.resolve()]);
+      setPriceHistoryRefreshToken((v) => v + 1);
     } catch (e: any) {
       alert("Xử lý đề xuất thất bại: " + e.message);
     } finally {
@@ -250,6 +285,7 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Duyệt tất cả thất bại");
       await Promise.all([loadPriceRequests(), loadProducts()]);
+      setPriceHistoryRefreshToken((v) => v + 1);
     } catch (e: any) {
       alert("Duyệt tất cả thất bại: " + e.message);
     } finally {
@@ -288,13 +324,13 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
     }
   }
 
-  function toggleSelect(id: string) {
+  const toggleSelect = useCallback((id: string) => {
     setSelected((prev) => {
       const next = new Set(prev);
       next.has(id) ? next.delete(id) : next.add(id);
       return next;
     });
-  }
+  }, []);
 
   // Additive on purpose: lets a user pick all of one category's products,
   // switch the category filter, then "chọn tất cả đang hiện" again to add the
@@ -535,196 +571,46 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
     }
   }
 
-  async function handleDeleteProduct(p: Product) {
-    if (!confirm(`Xóa sản phẩm "${p.ten_hang_hoa}"? Không thể hoàn tác.`)) return;
-    try {
-      const res = await fetch(`/api/products/${p.id}`, { method: "DELETE" });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Xóa thất bại");
-      setSelected((prev) => {
-        const next = new Set(prev);
-        next.delete(p.id);
-        return next;
-      });
-      await loadProducts();
-    } catch (e: any) {
-      alert("Xóa sản phẩm thất bại: " + e.message);
-    }
-  }
-
-  function renderProductRow(p: Product, extraClassName?: string) {
-    const isPending = pendingIds.has(p.id);
-    const className = [isPending ? "is-pending" : "", extraClassName ?? ""].filter(Boolean).join(" ");
-    const pendingRequest = pendingRequestByProduct.get(p.id);
-    const isAdmin = role === "admin";
-    const isSaving = savingId === p.id;
-
-    function selectBrand(newValue: string) {
-      if (newValue === "__new__") {
-        const name = window.prompt("Tên thương hiệu mới:");
-        if (name && name.trim()) updateProductField(p, "brand", name.trim());
-        return;
+  const handleDeleteProduct = useCallback(
+    async (p: Product) => {
+      if (!confirm(`Xóa sản phẩm "${p.ten_hang_hoa}"? Không thể hoàn tác.`)) return;
+      try {
+        const res = await fetch(`/api/products/${p.id}`, { method: "DELETE" });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Xóa thất bại");
+        setSelected((prev) => {
+          const next = new Set(prev);
+          next.delete(p.id);
+          return next;
+        });
+        await loadProducts();
+      } catch (e: any) {
+        alert("Xóa sản phẩm thất bại: " + e.message);
       }
-      updateProductField(p, "brand", newValue);
-    }
+    },
+    [loadProducts]
+  );
 
+  function renderRow(p: Product, extraClassName?: string) {
     return (
-      <tr key={p.id} className={className}>
-        <td className="col-check">
-          <input type="checkbox" checked={selected.has(p.id)} onChange={() => toggleSelect(p.id)} />
-        </td>
-        <td className="col-name">
-          <InlineTextCell
-            value={p.ten_hang_hoa}
-            onSave={(v) => updateProductField(p, "ten_hang_hoa", v)}
-            saving={isSaving}
-            disabled={!isAdmin}
-            title={!isAdmin ? "Chỉ Admin mới đổi được tên hàng hóa" : undefined}
-            clickToEdit
-          />
-          {p.is_draft && <span className="pill pill-warm draft-badge">Nháp</span>}
-        </td>
-        {!compactView && (
-          <td className="col-group">
-            {isAdmin ? (
-              <select value={p.category_sheet} onChange={(e) => updateProductField(p, "category_sheet", e.target.value)} disabled={isSaving}>
-                {CATEGORY_ORDER.map((c) => (
-                  <option key={c}>{c}</option>
-                ))}
-              </select>
-            ) : (
-              p.category_sheet
-            )}
-          </td>
-        )}
-        {!compactView && (
-          <td className="code-cell col-code">
-            <InlineTextCell
-              value={p.ma_noi_bo}
-              onSave={(v) => updateProductField(p, "ma_noi_bo", v)}
-              saving={isSaving}
-              disabled={!isAdmin}
-            />
-          </td>
-        )}
-        {!compactView && (
-          <td className="col-invoice">
-            <InlineTextCell
-              value={p.ten_hoa_don}
-              onSave={(v) => updateProductField(p, "ten_hoa_don", v)}
-              saving={isSaving}
-              disabled={role === "sales"}
-            />
-          </td>
-        )}
-        {!compactView && (
-          <td className="col-dvt">
-            {isAdmin ? (
-              <select value={p.dvt ?? ""} onChange={(e) => updateProductField(p, "dvt", e.target.value)} disabled={isSaving}>
-                <option value="">—</option>
-                {withCurrent(DVT_SUGGESTIONS, p.dvt ?? "").map((d) => (
-                  <option key={d}>{d}</option>
-                ))}
-              </select>
-            ) : (
-              p.dvt ?? "—"
-            )}
-          </td>
-        )}
-        <td className="num">
-          <PriceInput
-            value={pendingRequest?.proposed_gia_ban != null ? pendingRequest.proposed_gia_ban : p.gia_ban}
-            onSave={(v) => proposePrice(p, "gia_ban", v)}
-            saving={isSaving}
-          />
-        </td>
-        <td className="num">
-          <PriceInput
-            value={pendingRequest?.proposed_gia_thung != null ? pendingRequest.proposed_gia_thung : p.gia_thung}
-            onSave={(v) => proposePrice(p, "gia_thung", v)}
-            saving={isSaving}
-          />
-        </td>
-        {!compactView && (
-          <td className="col-spec">
-            {isAdmin ? (
-              <select value={p.quy_cach ?? ""} onChange={(e) => updateProductField(p, "quy_cach", e.target.value)} disabled={isSaving}>
-                <option value="">—</option>
-                {withCurrent(QUY_CACH_SUGGESTIONS, p.quy_cach ?? "").map((q) => (
-                  <option key={q}>{q}</option>
-                ))}
-              </select>
-            ) : (
-              p.quy_cach ?? "—"
-            )}
-          </td>
-        )}
-        {!compactView && (
-          <td className="num">
-            {isAdmin ? (
-              <select value={p.ty_le?.toString() ?? ""} onChange={(e) => updateProductField(p, "ty_le", e.target.value)} disabled={isSaving}>
-                <option value="">—</option>
-                {withCurrent(TY_LE_SUGGESTIONS, p.ty_le?.toString() ?? "").map((t) => (
-                  <option key={t}>{t}</option>
-                ))}
-              </select>
-            ) : (
-              p.ty_le ?? "—"
-            )}
-          </td>
-        )}
-        {!compactView && (
-          <td className="col-brand">
-            {isAdmin ? (
-              <select value={brandNames.includes(p.brand?.name ?? "") ? p.brand?.name : ""} onChange={(e) => selectBrand(e.target.value)} disabled={isSaving}>
-                <option value="">—</option>
-                {brandNames.map((b) => (
-                  <option key={b}>{b}</option>
-                ))}
-                <option value="__new__">+ Thương hiệu mới…</option>
-              </select>
-            ) : (
-              p.brand?.name ?? "—"
-            )}
-          </td>
-        )}
-        {!compactView && (
-          <td className="code-cell col-code">
-            <InlineTextCell value={p.ma_vach} onSave={(v) => updateProductField(p, "ma_vach", v)} saving={isSaving} disabled={!isAdmin} />
-          </td>
-        )}
-        {!compactView && (
-          <td className="code-cell col-code">
-            <InlineTextCell value={p.ma_thung} onSave={(v) => updateProductField(p, "ma_thung", v)} saving={isSaving} disabled={!isAdmin} />
-          </td>
-        )}
-        {!compactView && (
-          <td className="col-status">
-            <StatusPill product={p} isPending={isPending} />
-          </td>
-        )}
-        {!compactView && (
-          <td>
-            <div className="row-actions">
-              {p.is_draft && (role === "accountant" || role === "admin") && (
-                <button className="btn btn-quiet" onClick={() => setCompleteDraftTarget(p)}>
-                  Hoàn thiện
-                </button>
-              )}
-              {role === "admin" && (
-                <button className="icon-btn" title="Sửa (Mã nhóm thay thế, Trạng thái, Xuất xứ)" aria-label="Sửa sản phẩm" onClick={() => setFormTarget(p)}>
-                  <EditIcon />
-                </button>
-              )}
-              {role === "admin" && (
-                <button className="icon-btn danger" title="Xóa" aria-label="Xóa sản phẩm" onClick={() => handleDeleteProduct(p)}>
-                  <TrashIcon />
-                </button>
-              )}
-            </div>
-          </td>
-        )}
-      </tr>
+      <ProductRow
+        key={p.id}
+        product={p}
+        extraClassName={extraClassName}
+        role={role}
+        compactView={compactView}
+        brandNames={brandNames}
+        isSelected={selected.has(p.id)}
+        isPending={pendingIds.has(p.id)}
+        pendingRequest={pendingRequestByProduct.get(p.id)}
+        isSaving={savingId === p.id}
+        onToggleSelect={toggleSelect}
+        onUpdateField={updateProductField}
+        onProposePrice={proposePrice}
+        onEdit={setFormTarget}
+        onDelete={handleDeleteProduct}
+        onCompleteDraft={setCompleteDraftTarget}
+      />
     );
   }
 
@@ -761,7 +647,7 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
       <div className="toolbar">
         <div className="search-field">
           <SearchIcon />
-          <input placeholder="Tìm theo tên / mã / mã vạch..." value={search} onChange={(e) => setSearch(e.target.value)} />
+          <input placeholder="Tìm theo tên / mã / mã vạch..." value={searchInput} onChange={(e) => setSearchInput(e.target.value)} />
         </div>
         <select value={category} onChange={(e) => setCategory(e.target.value)}>
           <option>Tất cả</option>
@@ -1009,7 +895,7 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
                   </td>
                 </tr>
               )}
-              {visible.map((p) => renderProductRow(p))}
+              {pagedVisible.map((p) => renderRow(p))}
               {selectedElsewhere.length > 0 && (
                 <tr className="section-divider-row">
                   <td colSpan={15} className="section-divider">
@@ -1017,11 +903,25 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
                   </td>
                 </tr>
               )}
-              {selectedElsewhere.map((p) => renderProductRow(p, "is-selected-elsewhere"))}
+              {selectedElsewhere.map((p) => renderRow(p, "is-selected-elsewhere"))}
             </tbody>
           </table>
         </div>
       </div>
+
+      {pageCount > 1 && (
+        <div className="pagination-bar">
+          <button className="btn btn-quiet" disabled={currentPage <= 1} onClick={() => setPage(currentPage - 1)}>
+            ← Trước
+          </button>
+          <span>
+            Trang {currentPage}/{pageCount} ({visible.length} sản phẩm)
+          </span>
+          <button className="btn btn-quiet" disabled={currentPage >= pageCount} onClick={() => setPage(currentPage + 1)}>
+            Sau →
+          </button>
+        </div>
+      )}
 
       <p className="helper-text">
         Sửa giá xong tự lưu ngay (không cần bấm nút riêng). Sản phẩm nào vừa đổi giá sẽ tự hiện ở tab &quot;Chờ xuất
@@ -1067,6 +967,7 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
             onReview={reviewPriceRequest}
             approvingAll={approvingAll}
             onApproveAll={approveAllPriceRequests}
+            historyRefreshToken={priceHistoryRefreshToken}
           />
         )}
         {activeView === "users" && role === "admin" && <UserManagementView currentUserId={userId} />}
@@ -1075,6 +976,216 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
     </div>
   );
 }
+
+type ProductRowProps = {
+  product: Product;
+  extraClassName?: string;
+  role: Role;
+  compactView: boolean;
+  brandNames: string[];
+  isSelected: boolean;
+  isPending: boolean;
+  pendingRequest: PriceChangeRequest | undefined;
+  isSaving: boolean;
+  onToggleSelect: (id: string) => void;
+  onUpdateField: (p: Product, field: string, value: string | number | null) => void;
+  onProposePrice: (p: Product, field: "gia_ban" | "gia_thung", value: string) => void;
+  onEdit: (p: Product) => void;
+  onDelete: (p: Product) => void;
+  onCompleteDraft: (p: Product) => void;
+};
+
+// Bọc React.memo để 1 dòng không re-render khi state không liên quan của
+// component cha (search, page, savingId của dòng khác...) thay đổi — mọi
+// prop callback truyền vào đây đều ổn định (useCallback / setState) ở nơi gọi.
+const ProductRow = memo(function ProductRow({
+  product: p,
+  extraClassName,
+  role,
+  compactView,
+  brandNames,
+  isSelected,
+  isPending,
+  pendingRequest,
+  isSaving,
+  onToggleSelect,
+  onUpdateField,
+  onProposePrice,
+  onEdit,
+  onDelete,
+  onCompleteDraft,
+}: ProductRowProps) {
+  const className = [isPending ? "is-pending" : "", extraClassName ?? ""].filter(Boolean).join(" ");
+  const isAdmin = role === "admin";
+
+  function selectBrand(newValue: string) {
+    if (newValue === "__new__") {
+      const name = window.prompt("Tên thương hiệu mới:");
+      if (name && name.trim()) onUpdateField(p, "brand", name.trim());
+      return;
+    }
+    onUpdateField(p, "brand", newValue);
+  }
+
+  return (
+    <tr className={className}>
+      <td className="col-check">
+        <input type="checkbox" checked={isSelected} onChange={() => onToggleSelect(p.id)} />
+      </td>
+      <td className="col-name">
+        <InlineTextCell
+          value={p.ten_hang_hoa}
+          onSave={(v) => onUpdateField(p, "ten_hang_hoa", v)}
+          saving={isSaving}
+          disabled={!isAdmin}
+          title={!isAdmin ? "Chỉ Admin mới đổi được tên hàng hóa" : undefined}
+          clickToEdit
+        />
+        {p.is_draft && <span className="pill pill-warm draft-badge">Nháp</span>}
+      </td>
+      {!compactView && (
+        <td className="col-group">
+          {isAdmin ? (
+            <select value={p.category_sheet} onChange={(e) => onUpdateField(p, "category_sheet", e.target.value)} disabled={isSaving}>
+              {CATEGORY_ORDER.map((c) => (
+                <option key={c}>{c}</option>
+              ))}
+            </select>
+          ) : (
+            p.category_sheet
+          )}
+        </td>
+      )}
+      {!compactView && (
+        <td className="code-cell col-code">
+          <InlineTextCell
+            value={p.ma_noi_bo}
+            onSave={(v) => onUpdateField(p, "ma_noi_bo", v)}
+            saving={isSaving}
+            disabled={!isAdmin}
+          />
+        </td>
+      )}
+      {!compactView && (
+        <td className="col-invoice">
+          <InlineTextCell
+            value={p.ten_hoa_don}
+            onSave={(v) => onUpdateField(p, "ten_hoa_don", v)}
+            saving={isSaving}
+            disabled={role === "sales"}
+          />
+        </td>
+      )}
+      {!compactView && (
+        <td className="col-dvt">
+          {isAdmin ? (
+            <select value={p.dvt ?? ""} onChange={(e) => onUpdateField(p, "dvt", e.target.value)} disabled={isSaving}>
+              <option value="">—</option>
+              {withCurrent(DVT_SUGGESTIONS, p.dvt ?? "").map((d) => (
+                <option key={d}>{d}</option>
+              ))}
+            </select>
+          ) : (
+            p.dvt ?? "—"
+          )}
+        </td>
+      )}
+      <td className="num">
+        <PriceInput
+          value={pendingRequest?.proposed_gia_ban != null ? pendingRequest.proposed_gia_ban : p.gia_ban}
+          onSave={(v) => onProposePrice(p, "gia_ban", v)}
+          saving={isSaving}
+        />
+      </td>
+      <td className="num">
+        <PriceInput
+          value={pendingRequest?.proposed_gia_thung != null ? pendingRequest.proposed_gia_thung : p.gia_thung}
+          onSave={(v) => onProposePrice(p, "gia_thung", v)}
+          saving={isSaving}
+        />
+      </td>
+      {!compactView && (
+        <td className="col-spec">
+          {isAdmin ? (
+            <select value={p.quy_cach ?? ""} onChange={(e) => onUpdateField(p, "quy_cach", e.target.value)} disabled={isSaving}>
+              <option value="">—</option>
+              {withCurrent(QUY_CACH_SUGGESTIONS, p.quy_cach ?? "").map((q) => (
+                <option key={q}>{q}</option>
+              ))}
+            </select>
+          ) : (
+            p.quy_cach ?? "—"
+          )}
+        </td>
+      )}
+      {!compactView && (
+        <td className="num">
+          {isAdmin ? (
+            <select value={p.ty_le?.toString() ?? ""} onChange={(e) => onUpdateField(p, "ty_le", e.target.value)} disabled={isSaving}>
+              <option value="">—</option>
+              {withCurrent(TY_LE_SUGGESTIONS, p.ty_le?.toString() ?? "").map((t) => (
+                <option key={t}>{t}</option>
+              ))}
+            </select>
+          ) : (
+            p.ty_le ?? "—"
+          )}
+        </td>
+      )}
+      {!compactView && (
+        <td className="col-brand">
+          {isAdmin ? (
+            <select value={brandNames.includes(p.brand?.name ?? "") ? p.brand?.name : ""} onChange={(e) => selectBrand(e.target.value)} disabled={isSaving}>
+              <option value="">—</option>
+              {brandNames.map((b) => (
+                <option key={b}>{b}</option>
+              ))}
+              <option value="__new__">+ Thương hiệu mới…</option>
+            </select>
+          ) : (
+            p.brand?.name ?? "—"
+          )}
+        </td>
+      )}
+      {!compactView && (
+        <td className="code-cell col-code">
+          <InlineTextCell value={p.ma_vach} onSave={(v) => onUpdateField(p, "ma_vach", v)} saving={isSaving} disabled={!isAdmin} />
+        </td>
+      )}
+      {!compactView && (
+        <td className="code-cell col-code">
+          <InlineTextCell value={p.ma_thung} onSave={(v) => onUpdateField(p, "ma_thung", v)} saving={isSaving} disabled={!isAdmin} />
+        </td>
+      )}
+      {!compactView && (
+        <td className="col-status">
+          <StatusPill product={p} isPending={isPending} />
+        </td>
+      )}
+      {!compactView && (
+        <td>
+          <div className="row-actions">
+            {p.is_draft && (role === "accountant" || role === "admin") && (
+              <button className="btn btn-quiet" onClick={() => onCompleteDraft(p)}>
+                Hoàn thiện
+              </button>
+            )}
+            {role === "admin" && (
+              <button className="icon-btn" title="Sửa (Mã nhóm thay thế, Trạng thái, Xuất xứ)" aria-label="Sửa sản phẩm" onClick={() => onEdit(p)}>
+                <EditIcon />
+              </button>
+            )}
+            {role === "admin" && (
+              <button className="icon-btn danger" title="Xóa" aria-label="Xóa sản phẩm" onClick={() => onDelete(p)}>
+                <TrashIcon />
+              </button>
+            )}
+          </div>
+        </td>
+      )}
+    </tr>
+  );
+});
 
 function Sidebar({
   activeView,
@@ -1312,6 +1423,8 @@ function DashboardView({ products, pendingCount }: { products: Product[]; pendin
   );
 }
 
+const PRICE_HISTORY_PAGE_SIZE = 100;
+
 function PriceRequestsView({
   requests,
   role,
@@ -1319,6 +1432,7 @@ function PriceRequestsView({
   onReview,
   approvingAll,
   onApproveAll,
+  historyRefreshToken,
 }: {
   requests: PriceChangeRequest[];
   role: Role;
@@ -1326,14 +1440,47 @@ function PriceRequestsView({
   onReview: (id: string, action: "approve" | "reject") => void;
   approvingAll: boolean;
   onApproveAll: () => void;
+  historyRefreshToken: number;
 }) {
   const canReview = role === "accountant" || role === "admin";
-  const sorted = useMemo(
+  const pending = useMemo(
     () => [...requests].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
     [requests]
   );
-  const pendingCount = requests.filter((r) => r.status === "pending").length;
-  const colCount = canReview ? 10 : 9;
+  const pendingCount = pending.length;
+  const pendingColCount = canReview ? 9 : 8;
+
+  // "Chờ duyệt" (requests prop) luôn nhỏ nên không cần phân trang — chỉ
+  // approved/rejected mới tự phình theo thời gian, nên phần lịch sử tự tải
+  // riêng, theo trang, có "Xem thêm".
+  const [history, setHistory] = useState<PriceChangeRequest[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(true);
+  const [historyLoadingMore, setHistoryLoadingMore] = useState(false);
+  const [historyHasMore, setHistoryHasMore] = useState(true);
+
+  const loadHistoryPage = useCallback(async (offset: number, replace: boolean) => {
+    if (replace) setHistoryLoading(true);
+    else setHistoryLoadingMore(true);
+    const { data, error } = await supabase
+      .from("price_change_requests")
+      .select(
+        "*, product:products(ten_hang_hoa, ma_noi_bo, gia_ban, gia_thung), proposer:profiles!price_change_requests_proposed_by_fkey(display_name, username)"
+      )
+      .neq("status", "pending")
+      .order("created_at", { ascending: false })
+      .range(offset, offset + PRICE_HISTORY_PAGE_SIZE - 1);
+    if (!error) {
+      const rows = (data ?? []) as PriceChangeRequest[];
+      setHistory((prev) => (replace ? rows : [...prev, ...rows]));
+      setHistoryHasMore(rows.length === PRICE_HISTORY_PAGE_SIZE);
+    }
+    if (replace) setHistoryLoading(false);
+    else setHistoryLoadingMore(false);
+  }, []);
+
+  useEffect(() => {
+    loadHistoryPage(0, true);
+  }, [historyRefreshToken, loadHistoryPage]);
 
   return (
     <div className="app">
@@ -1362,19 +1509,93 @@ function PriceRequestsView({
                 <th className="num">Giá thùng mới</th>
                 <th>Người đề xuất</th>
                 <th>Thời điểm</th>
-                <th>Trạng thái</th>
                 {canReview && <th style={{ width: 140 }}></th>}
               </tr>
             </thead>
             <tbody>
-              {sorted.length === 0 && (
+              {pending.length === 0 && (
                 <tr>
-                  <td colSpan={colCount} style={{ textAlign: "center", color: "var(--muted)" }}>
-                    Chưa có đề xuất nào.
+                  <td colSpan={pendingColCount} style={{ textAlign: "center", color: "var(--muted)" }}>
+                    Không có đề xuất nào đang chờ.
                   </td>
                 </tr>
               )}
-              {sorted.map((r) => (
+              {pending.map((r) => (
+                <tr key={r.id}>
+                  <td className="col-name">{r.product?.ten_hang_hoa ?? "(sản phẩm đã xóa)"}</td>
+                  <td className="code-cell">{r.product?.ma_noi_bo}</td>
+                  <td className="num">{formatVnd(r.product?.gia_ban)}</td>
+                  <td className="num">{r.proposed_gia_ban != null ? formatVnd(r.proposed_gia_ban) : "—"}</td>
+                  <td className="num">{formatVnd(r.product?.gia_thung)}</td>
+                  <td className="num">{r.proposed_gia_thung != null ? formatVnd(r.proposed_gia_thung) : "—"}</td>
+                  <td>{r.proposer?.display_name ?? r.proposer?.username ?? "—"}</td>
+                  <td>{formatDate(r.created_at)}</td>
+                  {canReview && (
+                    <td>
+                      <div className="row-actions">
+                        <button
+                          className="btn btn-quiet"
+                          disabled={reviewingRequestId === r.id}
+                          onClick={() => onReview(r.id, "approve")}
+                        >
+                          Duyệt
+                        </button>
+                        <button
+                          className="btn btn-quiet"
+                          disabled={reviewingRequestId === r.id}
+                          onClick={() => onReview(r.id, "reject")}
+                        >
+                          Từ chối
+                        </button>
+                      </div>
+                    </td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="view-header" style={{ marginTop: 28 }}>
+        <div>
+          <h1>Lịch sử duyệt giá</h1>
+          <p>Các đề xuất đã được duyệt hoặc từ chối trước đây.</p>
+        </div>
+      </div>
+
+      <div className="table-card">
+        <div className="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Tên sản phẩm</th>
+                <th>Mã sản phẩm</th>
+                <th className="num">Giá lẻ cũ</th>
+                <th className="num">Giá lẻ mới</th>
+                <th className="num">Giá thùng cũ</th>
+                <th className="num">Giá thùng mới</th>
+                <th>Người đề xuất</th>
+                <th>Thời điểm</th>
+                <th>Trạng thái</th>
+              </tr>
+            </thead>
+            <tbody>
+              {historyLoading && (
+                <tr>
+                  <td colSpan={9} style={{ textAlign: "center", color: "var(--muted)" }}>
+                    Đang tải...
+                  </td>
+                </tr>
+              )}
+              {!historyLoading && history.length === 0 && (
+                <tr>
+                  <td colSpan={9} style={{ textAlign: "center", color: "var(--muted)" }}>
+                    Chưa có lịch sử duyệt giá nào.
+                  </td>
+                </tr>
+              )}
+              {history.map((r) => (
                 <tr key={r.id}>
                   <td className="col-name">{r.product?.ten_hang_hoa ?? "(sản phẩm đã xóa)"}</td>
                   <td className="code-cell">{r.product?.ma_noi_bo}</td>
@@ -1385,38 +1606,23 @@ function PriceRequestsView({
                   <td>{r.proposer?.display_name ?? r.proposer?.username ?? "—"}</td>
                   <td>{formatDate(r.created_at)}</td>
                   <td>
-                    {r.status === "pending" && <span className="pill pill-warm">Chờ duyệt</span>}
                     {r.status === "approved" && <span className="pill pill-success">Đã duyệt</span>}
                     {r.status === "rejected" && <span className="pill pill-danger">Đã từ chối</span>}
                   </td>
-                  {canReview && (
-                    <td>
-                      {r.status === "pending" && (
-                        <div className="row-actions">
-                          <button
-                            className="btn btn-quiet"
-                            disabled={reviewingRequestId === r.id}
-                            onClick={() => onReview(r.id, "approve")}
-                          >
-                            Duyệt
-                          </button>
-                          <button
-                            className="btn btn-quiet"
-                            disabled={reviewingRequestId === r.id}
-                            onClick={() => onReview(r.id, "reject")}
-                          >
-                            Từ chối
-                          </button>
-                        </div>
-                      )}
-                    </td>
-                  )}
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       </div>
+
+      {historyHasMore && !historyLoading && (
+        <div className="pagination-bar">
+          <button className="btn btn-quiet" disabled={historyLoadingMore} onClick={() => loadHistoryPage(history.length, false)}>
+            {historyLoadingMore ? "Đang tải..." : "Xem thêm"}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -1707,25 +1913,41 @@ function UserManagementView({ currentUserId }: { currentUserId: string }) {
   );
 }
 
+const ACTIVITY_PAGE_SIZE = 100;
+
 function ActivityLogView() {
-  const [entries, setEntries] = useState<ActivityLogEntry[]>([]);
-  const [loading, setLoading] = useState(true);
   const [view, setView] = useState<"all" | "price">("all");
   const [expanded, setExpanded] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      const { data } = await supabase.from("activity_log").select("*").order("created_at", { ascending: false }).limit(200);
-      if (!cancelled) {
-        setEntries((data as ActivityLogEntry[]) ?? []);
-        setLoading(false);
-      }
+  // Mỗi tab tự tải + phân trang riêng, thay vì lọc "Lịch sử giá" ra từ 1 danh
+  // sách "Tất cả hoạt động" giới hạn cứng 200 dòng như trước — cách cũ khiến
+  // các lần duyệt giá cũ hơn dễ bị "đẩy văng" khỏi cửa sổ 200 dòng nếu gần đây
+  // có nhiều hoạt động khác (sửa sản phẩm...) chen vào.
+  const [allEntries, setAllEntries] = useState<ActivityLogEntry[]>([]);
+  const [allLoading, setAllLoading] = useState(true);
+  const [allLoadingMore, setAllLoadingMore] = useState(false);
+  const [allHasMore, setAllHasMore] = useState(true);
+
+  const [priceEntries, setPriceEntries] = useState<ActivityLogEntry[]>([]);
+  const [priceLoading, setPriceLoading] = useState(true);
+  const [priceLoadingMore, setPriceLoadingMore] = useState(false);
+  const [priceHasMore, setPriceHasMore] = useState(true);
+
+  const loadAllPage = useCallback(async (offset: number, replace: boolean) => {
+    if (replace) setAllLoading(true);
+    else setAllLoadingMore(true);
+    const { data, error } = await supabase
+      .from("activity_log")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .range(offset, offset + ACTIVITY_PAGE_SIZE - 1);
+    if (!error) {
+      const rows = (data as ActivityLogEntry[]) ?? [];
+      setAllEntries((prev) => (replace ? rows : [...prev, ...rows]));
+      setAllHasMore(rows.length === ACTIVITY_PAGE_SIZE);
     }
-    load();
-    return () => {
-      cancelled = true;
-    };
+    if (replace) setAllLoading(false);
+    else setAllLoadingMore(false);
   }, []);
 
   // "Lịch sử giá" chỉ lấy đúng các lần duyệt (price_request.approve) — đây là
@@ -1733,7 +1955,29 @@ function ActivityLogView() {
   // sửa giá qua đề xuất, không ai ghi thẳng DB nữa. Thay thế hẳn panel
   // "Lịch sử thay đổi giá" trước đây ở Dashboard (nguồn price_history không
   // có tên người thực hiện, còn ở đây thì có).
-  const priceEntries = useMemo(() => entries.filter((e) => e.action === "price_request.approve"), [entries]);
+  const loadPricePage = useCallback(async (offset: number, replace: boolean) => {
+    if (replace) setPriceLoading(true);
+    else setPriceLoadingMore(true);
+    const { data, error } = await supabase
+      .from("activity_log")
+      .select("*")
+      .eq("action", "price_request.approve")
+      .order("created_at", { ascending: false })
+      .range(offset, offset + ACTIVITY_PAGE_SIZE - 1);
+    if (!error) {
+      const rows = (data as ActivityLogEntry[]) ?? [];
+      setPriceEntries((prev) => (replace ? rows : [...prev, ...rows]));
+      setPriceHasMore(rows.length === ACTIVITY_PAGE_SIZE);
+    }
+    if (replace) setPriceLoading(false);
+    else setPriceLoadingMore(false);
+  }, []);
+
+  useEffect(() => {
+    loadAllPage(0, true);
+    loadPricePage(0, true);
+  }, [loadAllPage, loadPricePage]);
+
   const priceColCount = expanded ? 8 : 6;
 
   return (
@@ -1750,49 +1994,59 @@ function ActivityLogView() {
           Tất cả hoạt động
         </button>
         <button className={view === "price" ? "active" : ""} onClick={() => setView("price")}>
-          Lịch sử giá ({priceEntries.length})
+          Lịch sử giá ({priceEntries.length}
+          {priceHasMore ? "+" : ""})
         </button>
       </div>
 
       {view === "all" && (
-        <div className="table-card">
-          <div className="table-scroll">
-            <table>
-              <thead>
-                <tr>
-                  <th>Người thực hiện</th>
-                  <th>Hành động</th>
-                  <th>Đối tượng</th>
-                  <th>Thời điểm</th>
-                </tr>
-              </thead>
-              <tbody>
-                {loading && (
+        <>
+          <div className="table-card">
+            <div className="table-scroll">
+              <table>
+                <thead>
                   <tr>
-                    <td colSpan={4} style={{ textAlign: "center", color: "var(--muted)" }}>
-                      Đang tải...
-                    </td>
+                    <th>Người thực hiện</th>
+                    <th>Hành động</th>
+                    <th>Đối tượng</th>
+                    <th>Thời điểm</th>
                   </tr>
-                )}
-                {!loading && entries.length === 0 && (
-                  <tr>
-                    <td colSpan={4} style={{ textAlign: "center", color: "var(--muted)" }}>
-                      Chưa có hoạt động nào.
-                    </td>
-                  </tr>
-                )}
-                {entries.map((e) => (
-                  <tr key={e.id}>
-                    <td>{e.actor_name ?? "—"}</td>
-                    <td>{ACTION_LABELS[e.action] ?? e.action}</td>
-                    <td>{e.target_label ?? "—"}</td>
-                    <td>{formatDate(e.created_at)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {allLoading && (
+                    <tr>
+                      <td colSpan={4} style={{ textAlign: "center", color: "var(--muted)" }}>
+                        Đang tải...
+                      </td>
+                    </tr>
+                  )}
+                  {!allLoading && allEntries.length === 0 && (
+                    <tr>
+                      <td colSpan={4} style={{ textAlign: "center", color: "var(--muted)" }}>
+                        Chưa có hoạt động nào.
+                      </td>
+                    </tr>
+                  )}
+                  {allEntries.map((e) => (
+                    <tr key={e.id}>
+                      <td>{e.actor_name ?? "—"}</td>
+                      <td>{ACTION_LABELS[e.action] ?? e.action}</td>
+                      <td>{e.target_label ?? "—"}</td>
+                      <td>{formatDate(e.created_at)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
+          {allHasMore && !allLoading && (
+            <div className="pagination-bar">
+              <button className="btn btn-quiet" disabled={allLoadingMore} onClick={() => loadAllPage(allEntries.length, false)}>
+                {allLoadingMore ? "Đang tải..." : "Xem thêm"}
+              </button>
+            </div>
+          )}
+        </>
       )}
 
       {view === "price" && (
@@ -1818,14 +2072,14 @@ function ActivityLogView() {
                   </tr>
                 </thead>
                 <tbody>
-                  {loading && (
+                  {priceLoading && (
                     <tr>
                       <td colSpan={priceColCount} style={{ textAlign: "center", color: "var(--muted)" }}>
                         Đang tải...
                       </td>
                     </tr>
                   )}
-                  {!loading && priceEntries.length === 0 && (
+                  {!priceLoading && priceEntries.length === 0 && (
                     <tr>
                       <td colSpan={priceColCount} style={{ textAlign: "center", color: "var(--muted)" }}>
                         Chưa có lịch sử giá nào.
@@ -1851,6 +2105,13 @@ function ActivityLogView() {
               </table>
             </div>
           </div>
+          {priceHasMore && !priceLoading && (
+            <div className="pagination-bar">
+              <button className="btn btn-quiet" disabled={priceLoadingMore} onClick={() => loadPricePage(priceEntries.length, false)}>
+                {priceLoadingMore ? "Đang tải..." : "Xem thêm"}
+              </button>
+            </div>
+          )}
         </>
       )}
     </div>
