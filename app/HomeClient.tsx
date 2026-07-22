@@ -554,6 +554,7 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
             saving={isSaving}
             disabled={!isAdmin}
             title={!isAdmin ? "Chỉ Admin mới đổi được tên hàng hóa" : undefined}
+            clickToEdit
           />
           {p.is_draft && <span className="pill pill-warm draft-badge">Nháp</span>}
         </td>
@@ -1893,6 +1894,10 @@ function PriceInput({
 // Ô chữ sửa nhanh trực tiếp trong bảng (Tên hàng hóa, Mã nội bộ, Tên hóa
 // đơn, Mã vạch, Mã thùng) — cùng cơ chế với PriceInput (bộ đệm gõ riêng +
 // lưu khi rời ô), nhưng ghi thẳng DB ngay, không qua đề xuất/duyệt.
+//
+// `clickToEdit`: dành cho Tên hàng hóa — input 1 dòng không tự xuống dòng
+// được dù cột rộng bao nhiêu, nên mặc định hiện dạng chữ thường (xuống dòng
+// tự nhiên khi dài), chỉ chuyển thành ô nhập khi bấm vào.
 function InlineTextCell({
   value,
   onSave,
@@ -1900,6 +1905,7 @@ function InlineTextCell({
   placeholder,
   disabled,
   title,
+  clickToEdit,
 }: {
   value: string | null;
   onSave: (v: string) => void;
@@ -1907,18 +1913,36 @@ function InlineTextCell({
   placeholder?: string;
   disabled?: boolean;
   title?: string;
+  clickToEdit?: boolean;
 }) {
   const [local, setLocal] = useState(value ?? "");
   const [focused, setFocused] = useState(false);
+  const [editing, setEditing] = useState(false);
   useEffect(() => {
     if (!focused) setLocal(value ?? "");
   }, [value, focused]);
 
   if (disabled) return <span title={title}>{value ?? "—"}</span>;
 
+  if (clickToEdit && !editing) {
+    return (
+      <span
+        className="inline-cell-text"
+        title={title ?? "Bấm để sửa"}
+        onClick={() => {
+          setLocal(value ?? "");
+          setEditing(true);
+        }}
+      >
+        {value || <span className="inline-cell-placeholder">{placeholder ?? "—"}</span>}
+      </span>
+    );
+  }
+
   return (
     <input
       className="inline-cell-input"
+      autoFocus={clickToEdit}
       value={focused ? local : value ?? ""}
       placeholder={placeholder}
       disabled={saving}
@@ -1931,9 +1955,14 @@ function InlineTextCell({
       onBlur={() => {
         setFocused(false);
         if (local !== (value ?? "")) onSave(local);
+        if (clickToEdit) setEditing(false);
       }}
       onKeyDown={(e) => {
         if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+        if (e.key === "Escape" && clickToEdit) {
+          setLocal(value ?? "");
+          setEditing(false);
+        }
       }}
     />
   );

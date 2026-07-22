@@ -361,15 +361,17 @@ tbody tr.is-selected-elsewhere:hover { background: var(--primary-wash); }
    tự co hẹp đồng đều (khiến "Tên hàng hóa"/"Quy cách thùng" bị cắt/xuống
    dòng). Bảng vì vậy rộng hơn khung nhìn — cuộn ngang để xem hết, cột "Tên
    hàng hóa" vẫn ghim cố định bên trái. */
-.product-table { min-width: 1900px; }
+.product-table { min-width: 2100px; }
 .product-table th.col-name, .product-table td.col-name { min-width: 220px; }
 .product-table th.col-group, .product-table td.col-group { min-width: 110px; }
-.product-table th.col-code, .product-table td.col-code { min-width: 130px; }
+/* Mã vạch/Mã thùng/Mã nội bộ là ô nhập 1 dòng (không xuống dòng được) chứa
+   số 13 chữ số — cần đủ rộng để hiện trọn, không thể trông cậy vào wrap. */
+.product-table th.col-code, .product-table td.col-code { min-width: 180px; }
 .product-table th.col-invoice, .product-table td.col-invoice { min-width: 180px; }
 .product-table th.col-dvt, .product-table td.col-dvt { min-width: 90px; }
 .product-table th.num, .product-table td.num { min-width: 110px; }
 .product-table th.col-spec, .product-table td.col-spec { min-width: 150px; }
-.product-table th.col-brand, .product-table td.col-brand { min-width: 130px; }
+.product-table th.col-brand, .product-table td.col-brand { min-width: 150px; }
 .product-table th.col-status, .product-table td.col-status { min-width: 130px; }
 .product-table thead th.col-check, .product-table thead th.col-name { z-index: 3; background: var(--navy); }
 .product-table tbody tr:hover .col-check, .product-table tbody tr:hover .col-name { background: var(--surface-sunken); }
@@ -420,6 +422,15 @@ tbody tr.is-selected-elsewhere:hover { background: var(--primary-wash); }
   outline: 2px solid var(--focus); outline-offset: 0; background: var(--surface); border-color: transparent;
 }
 .inline-cell-input:disabled { opacity: 0.6; }
+
+/* Chế độ "bấm để sửa" (Tên hàng hóa) — hiện chữ thường, xuống dòng tự nhiên
+   khi dài, thay vì ô nhập 1 dòng luôn bị cắt chữ dù cột rộng bao nhiêu. */
+.inline-cell-text {
+  display: inline-block; width: 100%; padding: 4px 6px; border-radius: var(--radius-sm);
+  white-space: normal; word-break: break-word; cursor: pointer; border: 1px solid transparent;
+}
+.inline-cell-text:hover { background: var(--surface); border-color: var(--border-strong); }
+.inline-cell-placeholder { color: var(--faint); font-weight: 400; }
 
 /* Dòng trống cuối bảng "Quản lý hàng hóa" để thêm sản phẩm mới kiểu Excel —
    nền teal nhạt (màu CTA của app, nổi bật kể cả khi các dòng dưới đang cam
