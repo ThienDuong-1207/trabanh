@@ -5,47 +5,76 @@ import { logActivity, getRecipientIds } from "@/lib/activityLog";
 
 export const runtime = "nodejs";
 
-// Sales submits a price-change proposal for an existing product — never
-// writes products.gia_ban/gia_thung directly (RLS from Giai đoạn 1 already
-// blocks that for the sales role); an accountant/admin has to approve it via
-// PATCH /api/price-requests/[id] before it takes effect.
+// Sales sửa thẳng vào ô "Giá bán lẻ"/"Giá thùng" (giống hệt thao tác của Kế
+// toán) — nhưng thay vì ghi thẳng vào products, mỗi lần gõ 1 ô sẽ tạo/cập
+// nhật 1 đề xuất giá (product_id + field). Nếu đã có đề xuất đang "pending"
+// của chính người này cho đúng sản phẩm này, cập nhật đè lên đúng trường vừa
+// sửa (giữ nguyên trường còn lại) thay vì tạo thêm 1 dòng mới — tránh Kế
+// toán thấy nhiều đề xuất trùng nhau cho cùng 1 sản phẩm.
 export async function POST(req: NextRequest) {
   const current = await getCurrentUserRole();
   if (!current) return NextResponse.json({ error: "Chưa đăng nhập hoặc chưa được cấp quyền" }, { status: 401 });
   if (current.role !== "sales") return NextResponse.json({ error: "Chỉ Sales mới đề xuất giá" }, { status: 403 });
 
   try {
-    const { product_id, proposed_gia_ban, proposed_gia_thung } = (await req.json()) as {
+    const { product_id, field, value } = (await req.json()) as {
       product_id: string;
-      proposed_gia_ban: number | null;
-      proposed_gia_thung: number | null;
+      field: "gia_ban" | "gia_thung";
+      value: number | null;
     };
-    if (!product_id || (proposed_gia_ban == null && proposed_gia_thung == null)) {
-      return NextResponse.json({ error: "Thiếu sản phẩm hoặc giá đề xuất" }, { status: 400 });
+    if (!product_id || (field !== "gia_ban" && field !== "gia_thung")) {
+      return NextResponse.json({ error: "Thiếu sản phẩm hoặc trường giá không hợp lệ" }, { status: 400 });
     }
 
     const supabase = supabaseAdmin();
-    const { data, error } = await supabase
-      .from("price_change_requests")
-      .insert({ product_id, proposed_gia_ban, proposed_gia_thung, proposed_by: current.userId })
-      .select("*, product:products(ten_hang_hoa)")
-      .single();
-    if (error) throw error;
+    const proposedColumn = field === "gia_ban" ? "proposed_gia_ban" : "proposed_gia_thung";
 
-    const recipientIds = await getRecipientIds(["accountant", "admin"]);
+    const { data: existing } = await supabase
+      .from("price_change_requests")
+      .select("id")
+      .eq("product_id", product_id)
+      .eq("proposed_by", current.userId)
+      .eq("status", "pending")
+      .maybeSingle();
+
+    let data;
+    if (existing) {
+      const { data: updated, error } = await supabase
+        .from("price_change_requests")
+        .update({ [proposedColumn]: value, created_at: new Date().toISOString() })
+        .eq("id", existing.id)
+        .select("*, product:products(ten_hang_hoa, ma_noi_bo, gia_ban, gia_thung)")
+        .single();
+      if (error) throw error;
+      data = updated;
+    } else {
+      const { data: inserted, error } = await supabase
+        .from("price_change_requests")
+        .insert({ product_id, [proposedColumn]: value, proposed_by: current.userId })
+        .select("*, product:products(ten_hang_hoa, ma_noi_bo, gia_ban, gia_thung)")
+        .single();
+      if (error) throw error;
+      data = inserted;
+    }
+
+    const productName = data.product?.ten_hang_hoa ?? "sản phẩm";
     await logActivity({
       actorId: current.userId,
       actorName: current.displayName,
-      action: "price_request.create",
+      action: existing ? "price_request.update" : "price_request.create",
       targetType: "price_change_request",
       targetId: data.id,
-      targetLabel: data.product?.ten_hang_hoa ?? null,
-      detail: { proposed_gia_ban, proposed_gia_thung },
-      notify: {
-        recipientIds,
-        message: `${current.displayName ?? "Sales"} đã đề xuất giá cho "${data.product?.ten_hang_hoa ?? "sản phẩm"}".`,
-        linkView: "duyetgia",
-      },
+      targetLabel: productName,
+      detail: { field, value },
+      // Chỉ báo cho Kế toán/Admin khi đề xuất mới xuất hiện lần đầu — sửa lại
+      // nhiều lần trong lúc còn "pending" không cần báo lại mỗi lần gõ.
+      notify: existing
+        ? undefined
+        : {
+            recipientIds: await getRecipientIds(["accountant", "admin"]),
+            message: `${current.displayName ?? "Sales"} đã đề xuất giá cho "${productName}".`,
+            linkView: "duyetgia",
+          },
     });
 
     return NextResponse.json(data);

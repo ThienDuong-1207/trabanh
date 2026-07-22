@@ -40,9 +40,8 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
   const [compactView, setCompactView] = useState(false);
   const [tab, setTab] = useState<"all" | "pending" | "draft">("all");
   const [priceRequests, setPriceRequests] = useState<PriceChangeRequest[]>([]);
-  const [priceProposalTarget, setPriceProposalTarget] = useState<Product | null>(null);
-  const [submittingProposal, setSubmittingProposal] = useState(false);
   const [reviewingRequestId, setReviewingRequestId] = useState<string | null>(null);
+  const [approvingAll, setApprovingAll] = useState(false);
   const [completeDraftTarget, setCompleteDraftTarget] = useState<Product | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [exporting, setExporting] = useState<"misa" | "word" | "misa-update" | "vertical" | null>(null);
@@ -87,7 +86,7 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
   async function loadPriceRequests() {
     const { data, error } = await supabase
       .from("price_change_requests")
-      .select("*, product:products(ten_hang_hoa, ma_noi_bo)")
+      .select("*, product:products(ten_hang_hoa, ma_noi_bo, gia_ban, gia_thung)")
       .order("created_at", { ascending: false });
     if (!error) setPriceRequests((data ?? []) as PriceChangeRequest[]);
   }
@@ -191,30 +190,28 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
     );
   }
 
-  async function submitPriceProposal(giaBan: string, giaThung: string) {
-    if (!priceProposalTarget) return;
-    const parse = (s: string) => (s.trim() === "" ? null : Number(s.replace(/[^\d]/g, "")));
-    const proposed_gia_ban = parse(giaBan);
-    const proposed_gia_thung = parse(giaThung);
-    if (proposed_gia_ban === null && proposed_gia_thung === null) {
-      alert("Nhập ít nhất 1 giá đề xuất.");
+  // Sales gõ thẳng vào ô giá (như Kế toán) — nhưng thay vì ghi thẳng vào
+  // products, tạo/cập nhật 1 đề xuất giá; giá thật chỉ đổi khi được duyệt.
+  async function proposePrice(p: Product, field: "gia_ban" | "gia_thung", value: string) {
+    const num = value.trim() === "" ? null : Number(value.replace(/[^\d]/g, ""));
+    if (value.trim() !== "" && (num === null || Number.isNaN(num))) {
+      alert("Giá không hợp lệ");
       return;
     }
-    setSubmittingProposal(true);
+    setSavingId(p.id);
     try {
       const res = await fetch("/api/price-requests", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ product_id: priceProposalTarget.id, proposed_gia_ban, proposed_gia_thung }),
+        body: JSON.stringify({ product_id: p.id, field, value: num }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Gửi đề xuất thất bại");
-      setPriceProposalTarget(null);
       await loadPriceRequests();
     } catch (e: any) {
       alert("Gửi đề xuất thất bại: " + e.message);
     } finally {
-      setSubmittingProposal(false);
+      setSavingId(null);
     }
   }
 
@@ -234,6 +231,21 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
       alert("Xử lý đề xuất thất bại: " + e.message);
     } finally {
       setReviewingRequestId(null);
+    }
+  }
+
+  async function approveAllPriceRequests() {
+    if (!confirm("Duyệt toàn bộ đề xuất giá đang chờ? Không thể hoàn tác.")) return;
+    setApprovingAll(true);
+    try {
+      const res = await fetch("/api/price-requests/approve-all", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Duyệt tất cả thất bại");
+      await Promise.all([loadPriceRequests(), loadProducts()]);
+    } catch (e: any) {
+      alert("Duyệt tất cả thất bại: " + e.message);
+    } finally {
+      setApprovingAll(false);
     }
   }
 
@@ -518,18 +530,16 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
         {!compactView && <td>{p.dvt ?? "—"}</td>}
         <td className="num">
           <PriceInput
-            value={p.gia_ban}
-            onSave={(v) => savePrice(p, "gia_ban", v)}
+            value={role === "sales" && pendingRequest?.proposed_gia_ban != null ? pendingRequest.proposed_gia_ban : p.gia_ban}
+            onSave={(v) => (role === "sales" ? proposePrice(p, "gia_ban", v) : savePrice(p, "gia_ban", v))}
             saving={savingId === p.id}
-            readOnly={role === "sales"}
           />
         </td>
         <td className="num">
           <PriceInput
-            value={p.gia_thung}
-            onSave={(v) => savePrice(p, "gia_thung", v)}
+            value={role === "sales" && pendingRequest?.proposed_gia_thung != null ? pendingRequest.proposed_gia_thung : p.gia_thung}
+            onSave={(v) => (role === "sales" ? proposePrice(p, "gia_thung", v) : savePrice(p, "gia_thung", v))}
             saving={savingId === p.id}
-            readOnly={role === "sales"}
           />
         </td>
         {!compactView && <td>{p.quy_cach ?? "—"}</td>}
@@ -538,37 +548,33 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
         {!compactView && <td className="code-cell">{p.ma_vach ?? "—"}</td>}
         {!compactView && <td className="code-cell">{p.ma_thung ?? "—"}</td>}
         <td>
-          {pendingRequest ? (
+          {pendingRequest && (
             <div className="price-request-cell">
-              <span className="price-request-values">
-                {formatVnd(pendingRequest.proposed_gia_ban)} / {formatVnd(pendingRequest.proposed_gia_thung)}
-              </span>
               {(role === "accountant" || role === "admin") && (
-                <div className="row-actions">
-                  <button
-                    className="btn btn-quiet"
-                    disabled={reviewingRequestId === pendingRequest.id}
-                    onClick={() => reviewPriceRequest(pendingRequest.id, "approve")}
-                  >
-                    Duyệt
-                  </button>
-                  <button
-                    className="btn btn-quiet"
-                    disabled={reviewingRequestId === pendingRequest.id}
-                    onClick={() => reviewPriceRequest(pendingRequest.id, "reject")}
-                  >
-                    Từ chối
-                  </button>
-                </div>
+                <>
+                  <span className="price-request-values">
+                    {formatVnd(pendingRequest.proposed_gia_ban)} / {formatVnd(pendingRequest.proposed_gia_thung)}
+                  </span>
+                  <div className="row-actions">
+                    <button
+                      className="btn btn-quiet"
+                      disabled={reviewingRequestId === pendingRequest.id}
+                      onClick={() => reviewPriceRequest(pendingRequest.id, "approve")}
+                    >
+                      Duyệt
+                    </button>
+                    <button
+                      className="btn btn-quiet"
+                      disabled={reviewingRequestId === pendingRequest.id}
+                      onClick={() => reviewPriceRequest(pendingRequest.id, "reject")}
+                    >
+                      Từ chối
+                    </button>
+                  </div>
+                </>
               )}
-              {role === "sales" && <span className="sub">Đang chờ duyệt</span>}
+              {role === "sales" && <span className="pill pill-warm">Đang chờ duyệt</span>}
             </div>
-          ) : (
-            role === "sales" && (
-              <button className="btn btn-quiet" onClick={() => setPriceProposalTarget(p)}>
-                Đề xuất giá
-              </button>
-            )
           )}
         </td>
         {!compactView && (
@@ -910,15 +916,6 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
         />
       )}
 
-      {priceProposalTarget && (
-        <PriceProposalForm
-          product={priceProposalTarget}
-          submitting={submittingProposal}
-          onCancel={() => setPriceProposalTarget(null)}
-          onSubmit={submitPriceProposal}
-        />
-      )}
-
       {completeDraftTarget && (
         <CompleteDraftForm
           product={completeDraftTarget}
@@ -937,6 +934,8 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
             role={role}
             reviewingRequestId={reviewingRequestId}
             onReview={reviewPriceRequest}
+            approvingAll={approvingAll}
+            onApproveAll={approveAllPriceRequests}
           />
         )}
         {activeView === "users" && role === "admin" && <UserManagementView currentUserId={userId} />}
@@ -1295,17 +1294,23 @@ function PriceRequestsView({
   role,
   reviewingRequestId,
   onReview,
+  approvingAll,
+  onApproveAll,
 }: {
   requests: PriceChangeRequest[];
   role: Role;
   reviewingRequestId: string | null;
   onReview: (id: string, action: "approve" | "reject") => void;
+  approvingAll: boolean;
+  onApproveAll: () => void;
 }) {
   const canReview = role === "accountant" || role === "admin";
   const sorted = useMemo(
     () => [...requests].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
     [requests]
   );
+  const pendingCount = requests.filter((r) => r.status === "pending").length;
+  const colCount = canReview ? 9 : 8;
 
   return (
     <div className="app">
@@ -1314,6 +1319,11 @@ function PriceRequestsView({
           <h1>Chờ duyệt giá</h1>
           <p>{canReview ? "Đề xuất giá từ Sales, chờ Kế toán/Admin duyệt." : "Đề xuất giá bạn đã gửi và trạng thái xử lý."}</p>
         </div>
+        {canReview && pendingCount > 0 && (
+          <button className="btn btn-primary" disabled={approvingAll} onClick={onApproveAll}>
+            {approvingAll ? "Đang duyệt..." : `Duyệt tất cả (${pendingCount})`}
+          </button>
+        )}
       </div>
 
       <div className="table-card">
@@ -1321,36 +1331,39 @@ function PriceRequestsView({
           <table>
             <thead>
               <tr>
-                <th>Sản phẩm</th>
-                <th className="num">Giá đề xuất</th>
-                <th>Trạng thái</th>
+                <th>Tên sản phẩm</th>
+                <th>Mã sản phẩm</th>
+                <th className="num">Giá lẻ cũ</th>
+                <th className="num">Giá lẻ mới</th>
+                <th className="num">Giá thùng cũ</th>
+                <th className="num">Giá thùng mới</th>
                 <th>Thời điểm</th>
+                <th>Trạng thái</th>
                 {canReview && <th style={{ width: 140 }}></th>}
               </tr>
             </thead>
             <tbody>
               {sorted.length === 0 && (
                 <tr>
-                  <td colSpan={canReview ? 5 : 4} style={{ textAlign: "center", color: "var(--muted)" }}>
+                  <td colSpan={colCount} style={{ textAlign: "center", color: "var(--muted)" }}>
                     Chưa có đề xuất nào.
                   </td>
                 </tr>
               )}
               {sorted.map((r) => (
                 <tr key={r.id}>
-                  <td className="name-cell">
-                    {r.product?.ten_hang_hoa ?? "(sản phẩm đã xóa)"}
-                    <span className="sub code-cell">{r.product?.ma_noi_bo}</span>
-                  </td>
-                  <td className="num">
-                    {formatVnd(r.proposed_gia_ban)} / {formatVnd(r.proposed_gia_thung)}
-                  </td>
-                  <td>
-                    {r.status === "pending" && "Đang chờ duyệt"}
-                    {r.status === "approved" && "Đã duyệt"}
-                    {r.status === "rejected" && "Đã từ chối"}
-                  </td>
+                  <td className="col-name">{r.product?.ten_hang_hoa ?? "(sản phẩm đã xóa)"}</td>
+                  <td className="code-cell">{r.product?.ma_noi_bo}</td>
+                  <td className="num">{formatVnd(r.product?.gia_ban)}</td>
+                  <td className="num">{r.proposed_gia_ban != null ? formatVnd(r.proposed_gia_ban) : "—"}</td>
+                  <td className="num">{formatVnd(r.product?.gia_thung)}</td>
+                  <td className="num">{r.proposed_gia_thung != null ? formatVnd(r.proposed_gia_thung) : "—"}</td>
                   <td>{formatDate(r.created_at)}</td>
+                  <td>
+                    {r.status === "pending" && <span className="pill pill-warm">Chờ duyệt</span>}
+                    {r.status === "approved" && <span className="pill pill-success">Đã duyệt</span>}
+                    {r.status === "rejected" && <span className="pill pill-danger">Đã từ chối</span>}
+                  </td>
                   {canReview && (
                     <td>
                       {r.status === "pending" && (
@@ -1771,12 +1784,10 @@ function PriceInput({
   value,
   onSave,
   saving,
-  readOnly,
 }: {
   value: number | null;
   onSave: (v: string) => void;
   saving: boolean;
-  readOnly?: boolean;
 }) {
   const [local, setLocal] = useState(value?.toString() ?? "");
   const [focused, setFocused] = useState(false);
@@ -1789,8 +1800,7 @@ function PriceInput({
       // Shown formatted ("113.000") while at rest, raw digits while being
       // typed — formatting mid-edit would fight the cursor position.
       value={focused ? local : value?.toLocaleString("vi-VN") ?? ""}
-      disabled={saving || readOnly}
-      title={readOnly ? "Chỉ Kế toán/Admin sửa được giá trực tiếp" : undefined}
+      disabled={saving}
       onFocus={() => {
         setFocused(true);
         setLocal(value?.toString() ?? "");
@@ -1957,60 +1967,6 @@ function QuoteForm({
           </button>
           <button className="btn btn-primary" disabled={submitting} onClick={() => onSubmit(form)}>
             {submitting ? "Đang xuất..." : "Xuất PDF"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function PriceProposalForm({
-  product,
-  submitting,
-  onCancel,
-  onSubmit,
-}: {
-  product: Product;
-  submitting: boolean;
-  onCancel: () => void;
-  onSubmit: (giaBan: string, giaThung: string) => void;
-}) {
-  const [giaBan, setGiaBan] = useState("");
-  const [giaThung, setGiaThung] = useState("");
-
-  return (
-    <div className="modal-backdrop" onClick={(e) => e.target === e.currentTarget && onCancel()}>
-      <div className="modal">
-        <h2>Đề xuất giá</h2>
-        <p className="modal-sub">{product.ten_hang_hoa}</p>
-
-        <div className="field-group">
-          <div className="field-grid">
-            <Field label={`Giá bán lẻ hiện tại: ${formatVnd(product.gia_ban)}`}>
-              <input
-                inputMode="numeric"
-                placeholder="Giá đề xuất"
-                value={giaBan}
-                onChange={(e) => setGiaBan(e.target.value)}
-              />
-            </Field>
-            <Field label={`Giá thùng hiện tại: ${formatVnd(product.gia_thung)}`}>
-              <input
-                inputMode="numeric"
-                placeholder="Giá đề xuất"
-                value={giaThung}
-                onChange={(e) => setGiaThung(e.target.value)}
-              />
-            </Field>
-          </div>
-        </div>
-
-        <div className="modal-actions">
-          <button className="btn" onClick={onCancel} disabled={submitting}>
-            Hủy
-          </button>
-          <button className="btn btn-primary" disabled={submitting} onClick={() => onSubmit(giaBan, giaThung)}>
-            {submitting ? "Đang gửi..." : "Gửi đề xuất"}
           </button>
         </div>
       </div>

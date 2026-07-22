@@ -4,6 +4,7 @@ export const ACTION_LABELS: Record<string, string> = {
   "product.delete": "Xóa sản phẩm",
   "product.complete_draft": "Hoàn thiện sản phẩm nháp",
   "price_request.create": "Đề xuất giá",
+  "price_request.update": "Cập nhật đề xuất giá",
   "price_request.approve": "Duyệt đề xuất giá",
   "price_request.reject": "Từ chối đề xuất giá",
   "user.create": "Tạo tài khoản",

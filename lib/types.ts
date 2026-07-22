@@ -41,7 +41,7 @@ export type PriceChangeRequest = {
   reviewed_at: string | null;
   note: string | null;
   created_at: string;
-  product?: { ten_hang_hoa: string; ma_noi_bo: string } | null;
+  product?: { ten_hang_hoa: string; ma_noi_bo: string; gia_ban: number | null; gia_thung: number | null } | null;
 };
 
 export type PriceHistoryEntry = {
