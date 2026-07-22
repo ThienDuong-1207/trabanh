@@ -391,28 +391,27 @@ tbody tr.is-selected-elsewhere:hover { background: var(--primary-wash); }
 
 /* Dòng trống cuối bảng "Quản lý hàng hóa" để thêm sản phẩm mới kiểu Excel —
    nền teal nhạt (màu CTA của app, nổi bật kể cả khi các dòng dưới đang cam
-   "chờ xuất") + viền xanh lá, input/select bên trong trong suốt cho tới khi
-   hover/focus. */
+   "chờ xuất") + viền xanh lá. Khác với các ô sửa inline ở dòng thường (chỉ
+   hiện nền trắng khi hover/focus), ô của dòng thêm mới LUÔN nền trắng — để
+   nhìn là biết ngay đây là dòng đang ở chế độ nhập liệu, không cần tương
+   tác mới thấy. */
 .new-product-row { background: var(--primary-wash); }
 .new-product-row td { border-bottom: 1px dashed var(--success); }
 .new-product-row .col-check svg { color: var(--faint); }
 .new-product-row input,
 .new-product-row select {
-  width: 100%; padding: 5px 8px; border: 1px solid transparent; border-radius: var(--radius-sm);
-  background: transparent; color: var(--ink); font-size: var(--text-body-sm);
+  width: 100%; padding: 5px 8px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+  background: var(--surface); color: var(--ink); font-size: var(--text-body-sm);
 }
 .new-product-row input::placeholder { color: var(--faint); }
-.new-product-row input:hover, .new-product-row select:hover { border-color: var(--border-strong); background: var(--surface); }
 .new-product-row input:focus-visible, .new-product-row select:focus-visible {
-  outline: 2px solid var(--focus); outline-offset: 0; background: var(--surface); border-color: transparent;
+  outline: 2px solid var(--focus); outline-offset: 0; border-color: transparent;
 }
 .new-product-row input:disabled, .new-product-row select:disabled { opacity: 0.6; }
 
 /* Nháy nhẹ sau khi thêm sản phẩm thành công, trước khi dòng trống lại. */
 .new-product-row.just-saved { background: var(--success-wash); }
 
-.new-product-row-name { display: flex; align-items: center; gap: 6px; }
-.new-product-row-name input { flex: 1 1 auto; min-width: 0; }
 .btn-sm { padding: 4px 10px; font-size: var(--text-meta); }
 
 .row-actions { display: flex; gap: 2px; justify-content: flex-end; }

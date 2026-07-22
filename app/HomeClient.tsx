@@ -2264,22 +2264,12 @@ function NewProductRow({
         <PlusIcon />
       </td>
       <td className="col-name">
-        <div className="new-product-row-name">
-          <input
-            placeholder="+ Tên hàng hóa mới..."
-            value={form.ten_hang_hoa}
-            onChange={(e) => set("ten_hang_hoa", e.target.value)}
-            disabled={saving || justSaved}
-          />
-          <button
-            type="button"
-            className={`btn btn-sm ${justSaved ? "btn-success" : "btn-primary"}`}
-            disabled={saving || justSaved || !canSubmit}
-            onClick={commit}
-          >
-            {justSaved ? "✓ Đã thêm" : saving ? "Đang lưu..." : "Thêm"}
-          </button>
-        </div>
+        <input
+          placeholder="+ Tên hàng hóa mới..."
+          value={form.ten_hang_hoa}
+          onChange={(e) => set("ten_hang_hoa", e.target.value)}
+          disabled={saving || justSaved}
+        />
       </td>
       {!compactView && (
         <td>
@@ -2399,7 +2389,18 @@ function NewProductRow({
         <td>{!isSales && <input value={form.ma_thung} onChange={(e) => set("ma_thung", e.target.value)} disabled={saving || justSaved} />}</td>
       )}
       {!compactView && <td />}
-      {!compactView && <td />}
+      {!compactView && (
+        <td>
+          <button
+            type="button"
+            className={`btn btn-sm ${justSaved ? "btn-success" : "btn-primary"}`}
+            disabled={saving || justSaved || !canSubmit}
+            onClick={commit}
+          >
+            {justSaved ? "✓ Đã thêm" : saving ? "Đang lưu..." : "Thêm"}
+          </button>
+        </td>
+      )}
     </tr>
   );
 }
