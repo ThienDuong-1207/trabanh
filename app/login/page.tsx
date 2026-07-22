@@ -38,9 +38,9 @@ export default function LoginPage() {
 
   return (
     <div className="login-shell">
-      <div className="login-banner">
+      <div className="login-image-panel">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/templates/banner.webp" alt="Trà & Bánh — Nguyên liệu pha chế và làm bánh" />
+        <img src="/templates/login.jpg" alt="Trà & Bánh — Nguyên liệu pha chế và làm bánh" />
       </div>
 
       <div className="login-content">
