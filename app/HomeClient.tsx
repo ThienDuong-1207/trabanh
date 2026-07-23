@@ -851,7 +851,7 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
 
       <div className="table-card">
         <div className="table-scroll">
-          <table className="product-table">
+          <table className={`product-table${compactView ? " product-table-compact" : ""}`}>
             <thead>
               <tr>
                 <th className="col-check"></th>

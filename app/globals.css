@@ -380,6 +380,14 @@ tbody tr.is-selected-elsewhere:hover { background: var(--primary-wash); }
 .product-table tbody tr.new-product-row .col-check, .product-table tbody tr.new-product-row .col-name { background: var(--primary-wash); }
 .product-table tbody tr.new-product-row.just-saved .col-check, .product-table tbody tr.new-product-row.just-saved .col-name { background: var(--success-wash); }
 
+/* Chế độ "Update giá" chỉ còn 4 cột (chọn, tên, 2 giá) — min-width 2100px ở
+   trên dành cho bảng đầy đủ khiến "Tên hàng hóa" (cột duy nhất không có
+   width cố định) giãn ra chiếm gần hết bề rộng còn lại. table-layout: fixed
+   + width cố định cho từng cột để bảng gọn lại đúng như bảng đầy đủ. */
+.product-table-compact { min-width: 0; width: auto; table-layout: fixed; }
+.product-table-compact th.col-name, .product-table-compact td.col-name { width: 360px; min-width: 0; max-width: 360px; }
+.product-table-compact th.num, .product-table-compact td.num { width: 180px; min-width: 0; }
+
 .code-cell { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: var(--text-meta); color: var(--muted); }
 .name-cell { font-weight: 550; }
 .name-cell .sub { display: block; font-weight: 400; color: var(--muted); font-size: var(--text-meta); margin-top: 1px; }
