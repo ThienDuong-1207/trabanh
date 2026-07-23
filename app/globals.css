@@ -373,9 +373,15 @@ tbody tr.is-selected-elsewhere:hover { background: var(--primary-wash); }
 .product-table tbody tr.new-product-row .col-check, .product-table tbody tr.new-product-row .col-name { background: var(--primary-wash); }
 .product-table tbody tr.new-product-row.just-saved .col-check, .product-table tbody tr.new-product-row.just-saved .col-name { background: var(--success-wash); }
 
-/* Tay kéo giãn cột (kiểu Excel) — dải mỏng bám mép phải mỗi <th> có thể kéo. */
+/* Tay kéo giãn cột (kiểu Excel) — dải mỏng bám mép phải mỗi <th> có thể kéo.
+   PHẢI nằm gọn trong chính <th> của nó (right: 0, không lấn sang phải như
+   right: -3px trước đây) — ô bảng có luật vẽ chồng lớp riêng (khác block
+   thường), khiến <th> liền kề luôn đè lên phần tay kéo bị lấn ra ngoài dù đã
+   đặt z-index cao hơn, chặn hẳn sự kiện chuột không bao giờ tới được tay kéo.
+   Đã kiểm chứng bằng document.elementFromPoint(): với offset âm, điểm giữa
+   tay kéo trả về đúng <th> bên cạnh chứ không phải tay kéo. */
 .col-resize-handle {
-  position: absolute; right: -3px; top: 0; height: 100%; width: 6px; z-index: 4;
+  position: absolute; right: 0; top: 0; height: 100%; width: 6px; z-index: 4;
   cursor: col-resize; touch-action: none; user-select: none; background: transparent;
 }
 .col-resize-handle:hover, .col-resize-handle.is-resizing { background: var(--primary); opacity: 0.6; }
