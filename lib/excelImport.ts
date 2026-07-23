@@ -1,6 +1,40 @@
 import ExcelJS from "exceljs";
+import JSZip from "jszip";
 import { supabaseAdmin } from "./supabaseServer";
 import { CATEGORY_ORDER } from "./types";
+
+// exceljs 4.4.0 crashes with "Cannot read properties of undefined (reading
+// 'anchors')" on some real-world xlsx files that carry an embedded
+// image/logo or a cell-comment drawing it can't fully parse (worksheet-xform.js
+// looks up the drawing part by name and assumes it always resolves). We only
+// ever read cell values here, never images, so the safest fix is to strip
+// every <drawing>/<legacyDrawing> reference (and its relationship entry) out
+// of the raw zip before handing the buffer to exceljs — sidesteps the bug
+// entirely instead of patching a third-party dependency.
+async function stripDrawingReferences(buffer: Buffer): Promise<Buffer> {
+  try {
+    const zip = await JSZip.loadAsync(buffer);
+    const sheetPaths = Object.keys(zip.files).filter((p) => /^xl\/worksheets\/sheet\d+\.xml$/.test(p));
+    for (const path of sheetPaths) {
+      const file = zip.file(path);
+      if (!file) continue;
+      const xml = await file.async("string");
+      const stripped = xml.replace(/<drawing\b[^>]*\/>/g, "").replace(/<legacyDrawing\b[^>]*\/>/g, "");
+      if (stripped !== xml) zip.file(path, stripped);
+
+      const relsPath = `xl/worksheets/_rels/${path.split("/").pop()}.rels`;
+      const relsFile = zip.file(relsPath);
+      if (relsFile) {
+        const relsXml = await relsFile.async("string");
+        const strippedRels = relsXml.replace(/<Relationship\b[^>]*Type="[^"]*\/(?:drawing|vmlDrawing)"[^>]*\/>/g, "");
+        if (strippedRels !== relsXml) zip.file(relsPath, strippedRels);
+      }
+    }
+    return await zip.generateAsync({ type: "nodebuffer" });
+  } catch {
+    return buffer;
+  }
+}
 
 export const SKIP_SHEETS = new Set(["HUONG DAN", "Master (Tổng hợp)", "Hướng dẫn nhập khẩu (MISA)"]);
 
@@ -59,10 +93,11 @@ function cellValue(raw: ExcelJS.CellValue): string | number | null {
 // one sheet per CATEGORY_ORDER entry, columns matching COLUMN_TO_FIELD headers.
 export async function importProductsFromWorkbook(buffer: Buffer, mode: ImportMode = "new-only"): Promise<ImportSummary> {
   const workbook = new ExcelJS.Workbook();
+  const cleanedBuffer = await stripDrawingReferences(buffer);
   // exceljs's own .d.ts redeclares an ambient `Buffer extends ArrayBuffer`, which
   // conflicts with @types/node's real Buffer under TS's newer resizable-ArrayBuffer
   // typings — cast to sidestep that bad third-party type, not a real type issue.
-  await workbook.xlsx.load(buffer as any);
+  await workbook.xlsx.load(cleanedBuffer as any);
 
   const rows: ProductRow[] = [];
   const skippedSheets: string[] = [];
