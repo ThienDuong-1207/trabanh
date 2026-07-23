@@ -5,12 +5,14 @@ import { CATEGORY_ORDER } from "./types";
 
 // exceljs 4.4.0 crashes with "Cannot read properties of undefined (reading
 // 'anchors')" on some real-world xlsx files that carry an embedded
-// image/logo or a cell-comment drawing it can't fully parse (worksheet-xform.js
-// looks up the drawing part by name and assumes it always resolves). We only
-// ever read cell values here, never images, so the safest fix is to strip
-// every <drawing>/<legacyDrawing> reference (and its relationship entry) out
-// of the raw zip before handing the buffer to exceljs — sidesteps the bug
-// entirely instead of patching a third-party dependency.
+// image/logo or a cell-comment drawing it can't fully parse. exceljs parses
+// every xl/drawings/*.xml part unconditionally while loading (xlsx.js scans
+// all zip entries by path, independent of whether any worksheet actually
+// references that drawing) — so it's not enough to remove the <drawing>
+// reference from the worksheet XML; the drawing part itself still gets
+// parsed and still crashes. We only ever read cell values here, never
+// images, so the reliable fix is to delete the drawing/media parts from the
+// zip entirely before handing the buffer to exceljs.
 async function stripDrawingReferences(buffer: Buffer): Promise<Buffer> {
   try {
     const zip = await JSZip.loadAsync(buffer);
@@ -30,6 +32,15 @@ async function stripDrawingReferences(buffer: Buffer): Promise<Buffer> {
         if (strippedRels !== relsXml) zip.file(relsPath, strippedRels);
       }
     }
+
+    // Remove the drawing/media parts themselves (drawing defs, their rels,
+    // legacy VML drawings, and the embedded image binaries) so exceljs's own
+    // unconditional zip-entry scan never encounters — and never tries to
+    // parse — them at all.
+    for (const path of Object.keys(zip.files)) {
+      if (/^xl\/drawings\//.test(path) || /^xl\/media\//.test(path)) zip.remove(path);
+    }
+
     return await zip.generateAsync({ type: "nodebuffer" });
   } catch {
     return buffer;
