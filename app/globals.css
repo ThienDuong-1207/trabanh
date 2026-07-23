@@ -352,9 +352,12 @@ tbody tr.is-selected-elsewhere:hover { background: var(--primary-wash); }
 
 /* Quản lý hàng hóa — riêng bảng này còn ghim cột checkbox + "Tên hàng hóa"
    bên trái khi cuộn ngang (nhiều cột hơn hẳn các bảng khác trong app). */
+/* left offset của .col-name được set qua inline style (nameColumnStickyLeft
+   trong HomeClient.tsx), tính từ độ rộng thật của .col-check qua TanStack
+   Table column pinning — không hardcode 36px nữa. */
 .product-table .col-check, .product-table .col-name { position: sticky; z-index: 1; background: var(--surface); }
-.product-table .col-check { left: 0; width: 36px; }
-.product-table .col-name { left: 36px; font-weight: 550; border-right: 1px solid var(--border-strong); }
+.product-table .col-check { left: 0; }
+.product-table .col-name { font-weight: 550; border-right: 1px solid var(--border-strong); }
 
 /* Độ rộng từng cột giờ do TanStack Table quản lý (kéo giãn được — xem
    .col-resize-handle bên dưới) và áp vào <colgroup> ngay trong JSX, nên

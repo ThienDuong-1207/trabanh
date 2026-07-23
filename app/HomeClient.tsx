@@ -1,7 +1,7 @@
 "use client";
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useReactTable, getCoreRowModel, type ColumnDef, type ColumnSizingState } from "@tanstack/react-table";
+import { useReactTable, getCoreRowModel, type ColumnDef, type ColumnSizingState, type VisibilityState } from "@tanstack/react-table";
 import { supabase } from "@/lib/supabaseClient";
 import {
   Product,
@@ -51,6 +51,23 @@ const PRODUCT_COLUMNS: ColumnDef<Product, unknown>[] = [
   { id: "actions", size: 120, enableResizing: false },
 ];
 
+// Chế độ "Update giá" (compact) ẩn đúng nhóm cột này cùng lúc — không phải
+// bật/tắt từng cột riêng, nên chỉ cần 1 checkbox điều khiển toàn bộ nhóm qua
+// columnVisibility, thay vì 1 state `compactView` tách rời như trước.
+const COMPACT_HIDDEN_COLUMN_IDS = [
+  "category_sheet",
+  "ma_noi_bo",
+  "ten_hoa_don",
+  "dvt",
+  "quy_cach",
+  "ty_le",
+  "brand",
+  "ma_vach",
+  "ma_thung",
+  "status",
+  "actions",
+];
+
 const COLUMN_SIZING_STORAGE_KEY = "product-table-column-sizing";
 
 function loadStoredColumnSizing(): ColumnSizingState {
@@ -73,7 +90,11 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
   const [category, setCategory] = useState<string>("Tất cả");
   const [brandFilter, setBrandFilter] = useState<string>("Tất cả");
   const [missingOnly, setMissingOnly] = useState(false);
-  const [compactView, setCompactView] = useState(false);
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
+  // "compactView" giờ chỉ là 1 giá trị suy ra từ columnVisibility (đại diện
+  // bằng 1 cột trong nhóm bị ẩn cùng lúc) — không còn là state riêng, để
+  // tránh 2 nguồn sự thật lệch nhau.
+  const compactView = columnVisibility.category_sheet === false;
   const [tab, setTab] = useState<"all" | "pending" | "draft">("all");
   const [priceRequests, setPriceRequests] = useState<PriceChangeRequest[]>([]);
   const [priceHistoryRefreshToken, setPriceHistoryRefreshToken] = useState(0);
@@ -226,10 +247,16 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
     columns: PRODUCT_COLUMNS,
     getCoreRowModel: getCoreRowModel(),
     columnResizeMode: "onChange",
-    state: { columnSizing },
+    state: { columnSizing, columnVisibility },
     onColumnSizingChange: setColumnSizing,
+    onColumnVisibilityChange: setColumnVisibility,
+    // Ghim "Chọn" + "Tên hàng hóa" bên trái khi cuộn ngang — offset (left)
+    // của "Tên hàng hóa" được tính từ độ rộng thật của "Chọn" thay vì hardcode
+    // 36px trong CSS, nên vẫn đúng nếu độ rộng cột ghim trước đó thay đổi.
+    initialState: { columnPinning: { left: ["select", "ten_hang_hoa"] } },
   });
   const [productHeaderRow] = productTable.getHeaderGroups();
+  const nameColumnStickyLeft = productTable.getColumn("ten_hang_hoa")?.getStart("left") ?? 36;
   function renderResizeHandle(columnId: string) {
     const header = productHeaderRow.headers.find((h) => h.id === columnId);
     if (!header || !header.column.getCanResize()) return null;
@@ -677,6 +704,7 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
         onEdit={setFormTarget}
         onDelete={handleDeleteProduct}
         onCompleteDraft={setCompleteDraftTarget}
+        nameColumnStickyLeft={nameColumnStickyLeft}
       />
     );
   }
@@ -734,7 +762,18 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
           Thiếu thông tin
         </label>
         <label className="toggle-pill toggle-pill-warm">
-          <input type="checkbox" checked={compactView} onChange={(e) => setCompactView(e.target.checked)} />
+          <input
+            type="checkbox"
+            checked={compactView}
+            onChange={(e) => {
+              const hide = e.target.checked;
+              setColumnVisibility((prev) => {
+                const next = { ...prev };
+                for (const id of COMPACT_HIDDEN_COLUMN_IDS) next[id] = !hide;
+                return next;
+              });
+            }}
+          />
           Update giá
         </label>
 
@@ -939,7 +978,7 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
             <thead>
               <tr>
                 <th className="col-check"></th>
-                <th className="col-name">
+                <th className="col-name" style={{ left: nameColumnStickyLeft }}>
                   Tên hàng hóa
                   {renderResizeHandle("ten_hang_hoa")}
                 </th>
@@ -1022,6 +1061,7 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
                   brandNames={brandNames}
                   categoryFilter={category}
                   onCreate={handleCreateProductInline}
+                  nameColumnStickyLeft={nameColumnStickyLeft}
                 />
               )}
               {loading && (
@@ -1136,6 +1176,7 @@ type ProductRowProps = {
   onEdit: (p: Product) => void;
   onDelete: (p: Product) => void;
   onCompleteDraft: (p: Product) => void;
+  nameColumnStickyLeft: number;
 };
 
 // Bọc React.memo để 1 dòng không re-render khi state không liên quan của
@@ -1157,6 +1198,7 @@ const ProductRow = memo(function ProductRow({
   onEdit,
   onDelete,
   onCompleteDraft,
+  nameColumnStickyLeft,
 }: ProductRowProps) {
   const className = [isPending ? "is-pending" : "", extraClassName ?? ""].filter(Boolean).join(" ");
   const isAdmin = role === "admin";
@@ -1175,7 +1217,7 @@ const ProductRow = memo(function ProductRow({
       <td className="col-check">
         <input type="checkbox" checked={isSelected} onChange={() => onToggleSelect(p.id)} />
       </td>
-      <td className="col-name">
+      <td className="col-name" style={{ left: nameColumnStickyLeft }}>
         <InlineTextCell
           value={p.ten_hang_hoa}
           onSave={(v) => onUpdateField(p, "ten_hang_hoa", v)}
@@ -2669,12 +2711,14 @@ function NewProductRow({
   brandNames,
   categoryFilter,
   onCreate,
+  nameColumnStickyLeft,
 }: {
   role: Role;
   compactView: boolean;
   brandNames: string[];
   categoryFilter: string;
   onCreate: (input: ProductInput) => Promise<boolean>;
+  nameColumnStickyLeft: number;
 }) {
   const defaultCategory = categoryFilter !== "Tất cả" ? categoryFilter : CATEGORY_ORDER[0];
   const blank = (): FormState => ({ ...productToFormState(null), category_sheet: defaultCategory });
@@ -2729,7 +2773,7 @@ function NewProductRow({
       <td className="col-check">
         <PlusIcon />
       </td>
-      <td className="col-name">
+      <td className="col-name" style={{ left: nameColumnStickyLeft }}>
         <input
           placeholder="+ Tên hàng hóa mới..."
           value={form.ten_hang_hoa}
