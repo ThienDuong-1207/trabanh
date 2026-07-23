@@ -66,8 +66,10 @@ export async function syncFromGoogleSheet(): Promise<ImportSummary> {
         if (field) fieldByCol.set(colIndex, field);
       });
 
-      for (const row of values.slice(1)) {
-        const record: ProductRow = { category_sheet: category };
+      values.slice(1).forEach((row, rowIndex) => {
+        // +1 for the header row already sliced off, +1 to convert 0-based to
+        // the 1-based row number as it appears in the actual Google Sheet.
+        const record: ProductRow = { category_sheet: category, row_number: rowIndex + 2 };
         let hasMaNoiBo = false;
         fieldByCol.forEach((field, colIndex) => {
           const raw = row[colIndex];
@@ -84,7 +86,7 @@ export async function syncFromGoogleSheet(): Promise<ImportSummary> {
           }
         });
         if (hasMaNoiBo) rows.push(record);
-      }
+      });
     });
   }
 

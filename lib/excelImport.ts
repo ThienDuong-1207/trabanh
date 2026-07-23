@@ -82,7 +82,10 @@ export type UpsertSummary = {
 
 export type ImportSummary = UpsertSummary & { skippedSheets: string[] };
 
-export type ProductRow = Record<string, string | number | null> & { category_sheet: string };
+// row_number is 1-based, matching the row as it appears in the source
+// spreadsheet — only used to point at exactly which row a duplicate-check
+// error refers to; stripped back out before the DB upsert (not a real column).
+export type ProductRow = Record<string, string | number | null> & { category_sheet: string; row_number: number };
 
 // Google Sheets sometimes appends a disambiguation suffix to a tab name
 // (e.g. "Trà (76,18,77,78)") after a copy/merge conflict — strip a trailing
@@ -130,7 +133,7 @@ export async function importProductsFromWorkbook(buffer: Buffer, mode: ImportMod
 
     worksheet.eachRow((row, rowNumber) => {
       if (rowNumber === 1) return;
-      const record: ProductRow = { category_sheet: category };
+      const record: ProductRow = { category_sheet: category, row_number: rowNumber };
       let hasMaNoiBo = false;
       fieldByCol.forEach((field, colNumber) => {
         const value = cellValue(row.getCell(colNumber).value);
@@ -151,17 +154,25 @@ export async function importProductsFromWorkbook(buffer: Buffer, mode: ImportMod
 // enforces as unique) doesn't say which rows collided — so check every one
 // of these before hitting the database at all.
 function checkDuplicates(rows: ProductRow[], field: "ma_noi_bo" | "ma_vach" | "ma_thung", label: string) {
-  const sheetsByValue = new Map<string, string[]>();
+  const occurrencesByValue = new Map<string, { sheet: string; row: number }[]>();
   for (const r of rows) {
     const value = r[field];
     if (!value) continue;
-    const sheets = sheetsByValue.get(String(value)) ?? [];
-    sheets.push(r.category_sheet);
-    sheetsByValue.set(String(value), sheets);
+    const occurrences = occurrencesByValue.get(String(value)) ?? [];
+    occurrences.push({ sheet: r.category_sheet, row: r.row_number });
+    occurrencesByValue.set(String(value), occurrences);
   }
-  const duplicates = [...sheetsByValue.entries()].filter(([, sheets]) => sheets.length > 1);
+  const duplicates = [...occurrencesByValue.entries()].filter(([, occurrences]) => occurrences.length > 1);
   if (duplicates.length > 0) {
-    const detail = duplicates.map(([value, sheets]) => `"${value}" (${sheets.length} lần, sheet: ${sheets.join(", ")})`).join("; ");
+    // Report sheet + row per occurrence (not just the sheet name repeated) —
+    // otherwise "2 lần, sheet: Trà, Trà" reads as if there were 2 different
+    // "Trà" sheets, when it actually means 2 different rows in that one sheet.
+    const detail = duplicates
+      .map(([value, occurrences]) => {
+        const locations = occurrences.map((o) => `${o.sheet} dòng ${o.row}`).join(", ");
+        return `"${value}" (${occurrences.length} lần: ${locations})`;
+      })
+      .join("; ");
     throw new Error(`Dữ liệu có ${label} bị trùng, cần sửa trước khi nhập: ${detail}`);
   }
 }
@@ -199,7 +210,7 @@ export async function upsertProductRows(rows: ProductRow[], mode: ImportMode): P
   const brandIdByName = new Map((brands ?? []).map((b) => [b.name as string, b.id as string]));
 
   let productRows: (Record<string, string | number | null> & { brand_id: string | null })[] = rows.map(
-    ({ thuong_hieu, nha_cung_cap, ...rest }) => ({
+    ({ thuong_hieu, nha_cung_cap, row_number, ...rest }) => ({
       ...rest,
       brand_id: typeof thuong_hieu === "string" ? brandIdByName.get(thuong_hieu) ?? null : null,
     })

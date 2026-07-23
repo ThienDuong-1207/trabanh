@@ -1,6 +1,7 @@
 "use client";
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useReactTable, getCoreRowModel, type ColumnDef, type ColumnSizingState } from "@tanstack/react-table";
 import { supabase } from "@/lib/supabaseClient";
 import {
   Product,
@@ -26,6 +27,41 @@ const ROLE_LABEL: Record<Role, string> = {
   accountant: "Kế toán",
   admin: "Admin",
 };
+
+// Chỉ dùng TanStack Table để quản lý ĐỘ RỘNG (kéo giãn) từng cột của bảng
+// sản phẩm — không dùng cơ chế render cell/row của nó, toàn bộ JSX từng ô
+// (sửa inline, phân quyền theo role...) vẫn viết tay như cũ trong ProductRow.
+// Kích thước mặc định lấy đúng theo các giá trị min-width đã tinh chỉnh
+// trước đó (đủ cho tên dài/mã vạch 13 số).
+const PRODUCT_COLUMNS: ColumnDef<Product, unknown>[] = [
+  { id: "select", size: 36, enableResizing: false },
+  { id: "ten_hang_hoa", size: 220, minSize: 160 },
+  { id: "category_sheet", size: 110, minSize: 90 },
+  { id: "ma_noi_bo", size: 180, minSize: 140 },
+  { id: "ten_hoa_don", size: 180, minSize: 140 },
+  { id: "dvt", size: 90, minSize: 70 },
+  { id: "gia_ban", size: 110, minSize: 90 },
+  { id: "gia_thung", size: 110, minSize: 90 },
+  { id: "quy_cach", size: 150, minSize: 110 },
+  { id: "ty_le", size: 110, minSize: 90 },
+  { id: "brand", size: 150, minSize: 110 },
+  { id: "ma_vach", size: 180, minSize: 140 },
+  { id: "ma_thung", size: 180, minSize: 140 },
+  { id: "status", size: 130, minSize: 100 },
+  { id: "actions", size: 120, enableResizing: false },
+];
+
+const COLUMN_SIZING_STORAGE_KEY = "product-table-column-sizing";
+
+function loadStoredColumnSizing(): ColumnSizingState {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = window.localStorage.getItem(COLUMN_SIZING_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
 
 export default function HomeClient({ displayName, role, userId }: { displayName: string; role: Role; userId: string }) {
   const [activeView, setActiveView] = useState<View>("hanghoa");
@@ -174,6 +210,37 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
     () => visible.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE),
     [visible, currentPage]
   );
+
+  // Kéo giãn cột bảng sản phẩm (Giai đoạn 2) — chỉ dùng TanStack Table cho
+  // phần trạng thái độ rộng cột; JSX từng ô vẫn do ProductRow tự vẽ như cũ.
+  const [columnSizing, setColumnSizing] = useState<ColumnSizingState>(loadStoredColumnSizing);
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(COLUMN_SIZING_STORAGE_KEY, JSON.stringify(columnSizing));
+    } catch {
+      // localStorage có thể bị chặn (chế độ ẩn danh...) — bỏ qua, không ảnh hưởng chức năng chính.
+    }
+  }, [columnSizing]);
+  const productTable = useReactTable({
+    data: pagedVisible,
+    columns: PRODUCT_COLUMNS,
+    getCoreRowModel: getCoreRowModel(),
+    columnResizeMode: "onChange",
+    state: { columnSizing },
+    onColumnSizingChange: setColumnSizing,
+  });
+  const [productHeaderRow] = productTable.getHeaderGroups();
+  function renderResizeHandle(columnId: string) {
+    const header = productHeaderRow.headers.find((h) => h.id === columnId);
+    if (!header || !header.column.getCanResize()) return null;
+    return (
+      <div
+        className={`col-resize-handle${header.column.getIsResizing() ? " is-resizing" : ""}`}
+        onMouseDown={header.getResizeHandler()}
+        onTouchStart={header.getResizeHandler()}
+      />
+    );
+  }
 
   const draftInFilter = useMemo(() => filteredByCriteria.filter((p) => p.is_draft).length, [filteredByCriteria]);
 
@@ -851,24 +918,100 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
 
       <div className="table-card">
         <div className="table-scroll">
-          <table className={`product-table${compactView ? " product-table-compact" : ""}`}>
+          <table className="product-table">
+            <colgroup>
+              <col style={{ width: productTable.getColumn("select")?.getSize() }} />
+              <col style={{ width: productTable.getColumn("ten_hang_hoa")?.getSize() }} />
+              {!compactView && <col style={{ width: productTable.getColumn("category_sheet")?.getSize() }} />}
+              {!compactView && <col style={{ width: productTable.getColumn("ma_noi_bo")?.getSize() }} />}
+              {!compactView && <col style={{ width: productTable.getColumn("ten_hoa_don")?.getSize() }} />}
+              {!compactView && <col style={{ width: productTable.getColumn("dvt")?.getSize() }} />}
+              <col style={{ width: productTable.getColumn("gia_ban")?.getSize() }} />
+              <col style={{ width: productTable.getColumn("gia_thung")?.getSize() }} />
+              {!compactView && <col style={{ width: productTable.getColumn("quy_cach")?.getSize() }} />}
+              {!compactView && <col style={{ width: productTable.getColumn("ty_le")?.getSize() }} />}
+              {!compactView && <col style={{ width: productTable.getColumn("brand")?.getSize() }} />}
+              {!compactView && <col style={{ width: productTable.getColumn("ma_vach")?.getSize() }} />}
+              {!compactView && <col style={{ width: productTable.getColumn("ma_thung")?.getSize() }} />}
+              {!compactView && <col style={{ width: productTable.getColumn("status")?.getSize() }} />}
+              {!compactView && <col style={{ width: productTable.getColumn("actions")?.getSize() }} />}
+            </colgroup>
             <thead>
               <tr>
                 <th className="col-check"></th>
-                <th className="col-name">Tên hàng hóa</th>
-                {!compactView && <th className="col-group">Nhóm hàng</th>}
-                {!compactView && <th className="col-code">Mã nội bộ</th>}
-                {!compactView && <th className="col-invoice">Tên hóa đơn</th>}
-                {!compactView && <th className="col-dvt">ĐVT</th>}
-                <th className="num">Giá bán lẻ</th>
-                <th className="num">Giá thùng</th>
-                {!compactView && <th className="col-spec">Quy cách thùng</th>}
-                {!compactView && <th className="num">Tỷ lệ quy đổi</th>}
-                {!compactView && <th className="col-brand">Thương hiệu</th>}
-                {!compactView && <th className="col-code">Mã vạch</th>}
-                {!compactView && <th className="col-code">Mã thùng</th>}
-                {!compactView && <th className="col-status">Trạng thái</th>}
-                {!compactView && <th style={{ width: 120 }}></th>}
+                <th className="col-name">
+                  Tên hàng hóa
+                  {renderResizeHandle("ten_hang_hoa")}
+                </th>
+                {!compactView && (
+                  <th className="col-group">
+                    Nhóm hàng
+                    {renderResizeHandle("category_sheet")}
+                  </th>
+                )}
+                {!compactView && (
+                  <th className="col-code">
+                    Mã nội bộ
+                    {renderResizeHandle("ma_noi_bo")}
+                  </th>
+                )}
+                {!compactView && (
+                  <th className="col-invoice">
+                    Tên hóa đơn
+                    {renderResizeHandle("ten_hoa_don")}
+                  </th>
+                )}
+                {!compactView && (
+                  <th className="col-dvt">
+                    ĐVT
+                    {renderResizeHandle("dvt")}
+                  </th>
+                )}
+                <th className="num">
+                  Giá bán lẻ
+                  {renderResizeHandle("gia_ban")}
+                </th>
+                <th className="num">
+                  Giá thùng
+                  {renderResizeHandle("gia_thung")}
+                </th>
+                {!compactView && (
+                  <th className="col-spec">
+                    Quy cách thùng
+                    {renderResizeHandle("quy_cach")}
+                  </th>
+                )}
+                {!compactView && (
+                  <th className="num">
+                    Tỷ lệ quy đổi
+                    {renderResizeHandle("ty_le")}
+                  </th>
+                )}
+                {!compactView && (
+                  <th className="col-brand">
+                    Thương hiệu
+                    {renderResizeHandle("brand")}
+                  </th>
+                )}
+                {!compactView && (
+                  <th className="col-code">
+                    Mã vạch
+                    {renderResizeHandle("ma_vach")}
+                  </th>
+                )}
+                {!compactView && (
+                  <th className="col-code">
+                    Mã thùng
+                    {renderResizeHandle("ma_thung")}
+                  </th>
+                )}
+                {!compactView && (
+                  <th className="col-status">
+                    Trạng thái
+                    {renderResizeHandle("status")}
+                  </th>
+                )}
+                {!compactView && <th></th>}
               </tr>
             </thead>
             <tbody>

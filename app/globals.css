@@ -356,23 +356,13 @@ tbody tr.is-selected-elsewhere:hover { background: var(--primary-wash); }
 .product-table .col-check { left: 0; width: 36px; }
 .product-table .col-name { left: 36px; font-weight: 550; border-right: 1px solid var(--border-strong); }
 
-/* 14 cột là quá nhiều để chia đều trong 1 khung nhìn — mỗi cột đặt độ rộng
-   tối thiểu riêng theo đúng nội dung thực tế của nó, thay vì để trình duyệt
-   tự co hẹp đồng đều (khiến "Tên hàng hóa"/"Quy cách thùng" bị cắt/xuống
-   dòng). Bảng vì vậy rộng hơn khung nhìn — cuộn ngang để xem hết, cột "Tên
-   hàng hóa" vẫn ghim cố định bên trái. */
-.product-table { min-width: 2100px; }
-.product-table th.col-name, .product-table td.col-name { min-width: 220px; }
-.product-table th.col-group, .product-table td.col-group { min-width: 110px; }
-/* Mã vạch/Mã thùng/Mã nội bộ là ô nhập 1 dòng (không xuống dòng được) chứa
-   số 13 chữ số — cần đủ rộng để hiện trọn, không thể trông cậy vào wrap. */
-.product-table th.col-code, .product-table td.col-code { min-width: 180px; }
-.product-table th.col-invoice, .product-table td.col-invoice { min-width: 180px; }
-.product-table th.col-dvt, .product-table td.col-dvt { min-width: 90px; }
-.product-table th.num, .product-table td.num { min-width: 110px; }
-.product-table th.col-spec, .product-table td.col-spec { min-width: 150px; }
-.product-table th.col-brand, .product-table td.col-brand { min-width: 150px; }
-.product-table th.col-status, .product-table td.col-status { min-width: 130px; }
+/* Độ rộng từng cột giờ do TanStack Table quản lý (kéo giãn được — xem
+   .col-resize-handle bên dưới) và áp vào <colgroup> ngay trong JSX, nên
+   table-layout: fixed + width: auto để trình duyệt dùng đúng độ rộng đó
+   thay vì tự tính lại. Áp dụng chung cho cả bảng đầy đủ lẫn chế độ "Update
+   giá" (compact) — không cần override riêng nữa. */
+.product-table { width: auto; table-layout: fixed; }
+.product-table th { position: relative; }
 .product-table thead th.col-check, .product-table thead th.col-name { z-index: 3; background: var(--navy); }
 .product-table tbody tr:hover .col-check, .product-table tbody tr:hover .col-name { background: var(--surface-sunken); }
 .product-table tbody tr.is-pending .col-check, .product-table tbody tr.is-pending .col-name { background: var(--warm-wash); }
@@ -380,13 +370,12 @@ tbody tr.is-selected-elsewhere:hover { background: var(--primary-wash); }
 .product-table tbody tr.new-product-row .col-check, .product-table tbody tr.new-product-row .col-name { background: var(--primary-wash); }
 .product-table tbody tr.new-product-row.just-saved .col-check, .product-table tbody tr.new-product-row.just-saved .col-name { background: var(--success-wash); }
 
-/* Chế độ "Update giá" chỉ còn 4 cột (chọn, tên, 2 giá) — min-width 2100px ở
-   trên dành cho bảng đầy đủ khiến "Tên hàng hóa" (cột duy nhất không có
-   width cố định) giãn ra chiếm gần hết bề rộng còn lại. table-layout: fixed
-   + width cố định cho từng cột để bảng gọn lại đúng như bảng đầy đủ. */
-.product-table-compact { min-width: 0; width: auto; table-layout: fixed; }
-.product-table-compact th.col-name, .product-table-compact td.col-name { width: 360px; min-width: 0; max-width: 360px; }
-.product-table-compact th.num, .product-table-compact td.num { width: 180px; min-width: 0; }
+/* Tay kéo giãn cột (kiểu Excel) — dải mỏng bám mép phải mỗi <th> có thể kéo. */
+.col-resize-handle {
+  position: absolute; right: -3px; top: 0; height: 100%; width: 6px; z-index: 4;
+  cursor: col-resize; touch-action: none; user-select: none; background: transparent;
+}
+.col-resize-handle:hover, .col-resize-handle.is-resizing { background: var(--primary); opacity: 0.6; }
 
 .code-cell { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: var(--text-meta); color: var(--muted); }
 .name-cell { font-weight: 550; }
