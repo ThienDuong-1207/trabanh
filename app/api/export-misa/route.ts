@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
     return new NextResponse(new Uint8Array(buf), {
       headers: {
         "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        "Content-Disposition": `attachment; filename="MISA_Import_Update.xlsx"`,
+        "Content-Disposition": `attachment; filename="MISA_Nhap_khau_hang_hoa.xlsx"`,
       },
     });
   } catch (e: any) {

@@ -452,7 +452,7 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
       }
       const blob = await res.blob();
       const filenames = {
-        misa: "MISA_Import_Update.xlsx",
+        misa: "MISA_Nhap_khau_hang_hoa.xlsx",
         word: "Bang_gia_block_7.7x4cm_Update.docx",
         "misa-update": "MISA_Cap_nhat_thong_tin.xlsx",
         vertical: "Bang_gia_dung.pdf",
@@ -891,7 +891,7 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
                     }}
                   >
                     <SheetIcon />
-                    Xuất MISA (.xlsx)
+                    Xuất MISA_Nhập khẩu hàng hóa
                   </button>
                   <button
                     onClick={() => {
