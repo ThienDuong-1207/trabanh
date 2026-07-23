@@ -381,7 +381,7 @@ tbody tr.is-selected-elsewhere:hover { background: var(--primary-wash); }
    Đã kiểm chứng bằng document.elementFromPoint(): với offset âm, điểm giữa
    tay kéo trả về đúng <th> bên cạnh chứ không phải tay kéo. */
 .col-resize-handle {
-  position: absolute; right: 0; top: 0; height: 100%; width: 6px; z-index: 4;
+  position: absolute; right: 0; top: 0; height: 100%; width: 10px; z-index: 4;
   cursor: col-resize; touch-action: none; user-select: none; background: transparent;
 }
 .col-resize-handle:hover, .col-resize-handle.is-resizing { background: var(--primary); opacity: 0.6; }
