@@ -2,6 +2,7 @@ import JSZip from "jszip";
 import fs from "fs";
 import path from "path";
 import { Product } from "./types";
+import { extractUnitFromQuyCach } from "./suggestionLists";
 
 // Builds MISA's "cập nhật thông tin hàng hóa" (update existing product info)
 // import file — a different template from misaBuilder.ts's "nhập hàng hóa
@@ -65,9 +66,10 @@ function buildRow(rIdx: number, values: Record<string, string>, numValues: Recor
   return parts.join("");
 }
 
-// One row per unit (retail always, "Thùng" only when quy_cach+ty_le are
-// both set) — matches every product in the reference file, which always
-// had exactly 2 rows (retail + case).
+// One row per unit (retail always, a case-level row only when quy_cach+ty_le
+// are both set). The case unit's name comes from quy_cach itself (e.g. "Hộp"
+// out of "Hộp (12 gói)") rather than assuming "Thùng" — plenty of products
+// use "Hộp" or another word as their actual case-level packaging unit.
 function itemToRowSpecs(item: Product) {
   const ma = item.ma_noi_bo;
   const hasConv = Boolean(item.quy_cach && item.ty_le);
@@ -92,7 +94,7 @@ function itemToRowSpecs(item: Product) {
     const caseValues: Record<string, string> = {
       A: ma,
       C: item.ma_thung || "",
-      I: "Thùng",
+      I: extractUnitFromQuyCach(item.quy_cach || ""),
       S: "00001",
     };
     const caseNum: Record<string, number | null | undefined> = { D: 0, J: item.gia_thung, T: item.ty_le };

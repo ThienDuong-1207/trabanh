@@ -2,6 +2,7 @@ import JSZip from "jszip";
 import fs from "fs";
 import path from "path";
 import { Product } from "./types";
+import { extractUnitFromQuyCach } from "./suggestionLists";
 
 const TEMPLATE_PATH = path.join(process.cwd(), "public", "templates", "Nhap_khau_hang_hoa_MISA.xlsx");
 const cellsTemplate: [string, string | null][] = JSON.parse(
@@ -60,7 +61,7 @@ function itemToRowSpecs(item: Product) {
       A: "Toàn chuỗi",
       C: LOAI_HANG_CON_DVT,
       F: ma,
-      X: "Thùng",
+      X: extractUnitFromQuyCach(item.quy_cach || ""),
     };
     const childNum: Record<string, number | null | undefined> = {
       Y: item.ty_le,

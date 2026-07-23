@@ -22,3 +22,13 @@ export function extractQuantityFromQuyCach(quyCach: string): number | null {
   const match = quyCach.match(/\(\s*(\d+)/);
   return match ? Number(match[1]) : null;
 }
+
+// Pulls the leading packaging-unit word out of a "Hộp (12 gói)"-style label
+// (as opposed to extractQuantityFromQuyCach's quantity) — Quy cách thùng
+// isn't always literally "Thùng" (many products use "Hộp" as their case
+// unit), so the MISA export builders read the real word here instead of
+// hardcoding "Thùng" for every product's case-level row.
+export function extractUnitFromQuyCach(quyCach: string): string {
+  const match = quyCach.match(/^(\S+)/);
+  return match ? match[1] : "Thùng";
+}
