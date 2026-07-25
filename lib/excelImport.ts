@@ -1,51 +1,7 @@
 import ExcelJS from "exceljs";
-import JSZip from "jszip";
 import { supabaseAdmin } from "./supabaseServer";
 import { CATEGORY_ORDER } from "./types";
-
-// exceljs 4.4.0 crashes with "Cannot read properties of undefined (reading
-// 'anchors')" on some real-world xlsx files that carry an embedded
-// image/logo or a cell-comment drawing it can't fully parse. exceljs parses
-// every xl/drawings/*.xml part unconditionally while loading (xlsx.js scans
-// all zip entries by path, independent of whether any worksheet actually
-// references that drawing) — so it's not enough to remove the <drawing>
-// reference from the worksheet XML; the drawing part itself still gets
-// parsed and still crashes. We only ever read cell values here, never
-// images, so the reliable fix is to delete the drawing/media parts from the
-// zip entirely before handing the buffer to exceljs.
-async function stripDrawingReferences(buffer: Buffer): Promise<Buffer> {
-  try {
-    const zip = await JSZip.loadAsync(buffer);
-    const sheetPaths = Object.keys(zip.files).filter((p) => /^xl\/worksheets\/sheet\d+\.xml$/.test(p));
-    for (const path of sheetPaths) {
-      const file = zip.file(path);
-      if (!file) continue;
-      const xml = await file.async("string");
-      const stripped = xml.replace(/<drawing\b[^>]*\/>/g, "").replace(/<legacyDrawing\b[^>]*\/>/g, "");
-      if (stripped !== xml) zip.file(path, stripped);
-
-      const relsPath = `xl/worksheets/_rels/${path.split("/").pop()}.rels`;
-      const relsFile = zip.file(relsPath);
-      if (relsFile) {
-        const relsXml = await relsFile.async("string");
-        const strippedRels = relsXml.replace(/<Relationship\b[^>]*Type="[^"]*\/(?:drawing|vmlDrawing)"[^>]*\/>/g, "");
-        if (strippedRels !== relsXml) zip.file(relsPath, strippedRels);
-      }
-    }
-
-    // Remove the drawing/media parts themselves (drawing defs, their rels,
-    // legacy VML drawings, and the embedded image binaries) so exceljs's own
-    // unconditional zip-entry scan never encounters — and never tries to
-    // parse — them at all.
-    for (const path of Object.keys(zip.files)) {
-      if (/^xl\/drawings\//.test(path) || /^xl\/media\//.test(path)) zip.remove(path);
-    }
-
-    return await zip.generateAsync({ type: "nodebuffer" });
-  } catch {
-    return buffer;
-  }
-}
+import { stripXlsxDrawings } from "./stripXlsxDrawings";
 
 export const SKIP_SHEETS = new Set(["HUONG DAN", "Master (Tổng hợp)", "Hướng dẫn nhập khẩu (MISA)"]);
 
@@ -107,11 +63,12 @@ function cellValue(raw: ExcelJS.CellValue): string | number | null {
 // one sheet per CATEGORY_ORDER entry, columns matching COLUMN_TO_FIELD headers.
 export async function importProductsFromWorkbook(buffer: Buffer, mode: ImportMode = "new-only"): Promise<ImportSummary> {
   const workbook = new ExcelJS.Workbook();
-  const cleanedBuffer = await stripDrawingReferences(buffer);
+  const arrayBuffer = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength) as ArrayBuffer;
+  const cleaned = await stripXlsxDrawings(arrayBuffer);
   // exceljs's own .d.ts redeclares an ambient `Buffer extends ArrayBuffer`, which
   // conflicts with @types/node's real Buffer under TS's newer resizable-ArrayBuffer
   // typings — cast to sidestep that bad third-party type, not a real type issue.
-  await workbook.xlsx.load(cleanedBuffer as any);
+  await workbook.xlsx.load(Buffer.from(cleaned) as any);
 
   const rows: ProductRow[] = [];
   const skippedSheets: string[] = [];

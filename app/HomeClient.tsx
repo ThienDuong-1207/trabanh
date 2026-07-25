@@ -14,6 +14,7 @@ import {
 } from "@/lib/types";
 import { QUY_CACH_SUGGESTIONS, TY_LE_SUGGESTIONS, DVT_SUGGESTIONS, extractQuantityFromQuyCach } from "@/lib/suggestionLists";
 import { ACTION_LABELS } from "@/lib/activityLabels";
+import { stripXlsxDrawings } from "@/lib/stripXlsxDrawings";
 import PasswordChecklist from "@/components/PasswordChecklist";
 
 type View = "hanghoa" | "tonkho" | "baocao" | "duyetgia" | "users" | "activitylog";
@@ -605,11 +606,27 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
     setMoreMenuOpen(false);
     setImporting(true);
     try {
+      // Chỉ cần đọc dữ liệu ô, không cần hình ảnh/logo nhúng trong file — gỡ
+      // ảnh ngay trên trình duyệt trước khi tải lên để file nhỏ lại, tránh bị
+      // chặn ở tầng hạ tầng do quá dung lượng cho phép (413 Request Entity
+      // Too Large) trước cả khi tới được code xử lý của app.
+      const cleaned = await stripXlsxDrawings(await file.arrayBuffer());
+      const cleanedFile = new File([cleaned], file.name, { type: file.type });
+
       const form = new FormData();
-      form.append("file", file);
+      form.append("file", cleanedFile);
       form.append("mode", importOnlyNew ? "new-only" : "update-all");
       const res = await fetch("/api/import-products", { method: "POST", body: form });
-      const data = await res.json();
+      let data: any;
+      try {
+        data = await res.json();
+      } catch {
+        throw new Error(
+          res.status === 413
+            ? "File vẫn còn quá lớn để tải lên (giới hạn khoảng 4MB). Vui lòng chia nhỏ file hoặc giảm bớt dữ liệu rồi thử lại."
+            : `Máy chủ phản hồi không hợp lệ (mã lỗi ${res.status}). Vui lòng thử lại sau.`
+        );
+      }
       if (!res.ok) throw new Error(data.error || "Nhập file thất bại");
       const skipped = data.skippedSheets?.length ? ` (bỏ qua sheet: ${data.skippedSheets.join(", ")})` : "";
       const summary = importOnlyNew
