@@ -134,6 +134,20 @@ function checkDuplicates(rows: ProductRow[], field: "ma_noi_bo" | "ma_vach" | "m
   }
 }
 
+// Fail fast with sheet+row pointers when a required field is missing —
+// otherwise the DB's own not-null constraint violation only reports a
+// batch-index range (e.g. "dòng 401-422") that's an internal offset into the
+// deduplicated upsert list, not a real row number in the source spreadsheet,
+// leaving no way to find what to actually fix.
+function checkRequiredField(rows: ProductRow[], field: "ten_hang_hoa", label: string) {
+  const missing = rows.filter((r) => !r[field]);
+  if (missing.length === 0) return;
+  const LIMIT = 30;
+  const locations = missing.slice(0, LIMIT).map((r) => `${r.category_sheet} dòng ${r.row_number}`);
+  const suffix = missing.length > LIMIT ? ` và ${missing.length - LIMIT} dòng khác` : "";
+  throw new Error(`Dữ liệu thiếu ${label}, cần sửa trước khi nhập: ${locations.join(", ")}${suffix}`);
+}
+
 // Shared by both the Excel import and the Google Sheet sync: takes rows
 // already parsed into our column shape and upserts them into `products`.
 //
@@ -147,6 +161,7 @@ function checkDuplicates(rows: ProductRow[], field: "ma_noi_bo" | "ma_vach" | "m
 //   source's values — for when the source really is the source of truth to
 //   sync from (deliberate bulk corrections, or the Google Sheet sync).
 export async function upsertProductRows(rows: ProductRow[], mode: ImportMode): Promise<UpsertSummary> {
+  checkRequiredField(rows, "ten_hang_hoa", "Tên hàng hóa");
   checkDuplicates(rows, "ma_noi_bo", "Mã nội bộ");
   checkDuplicates(rows, "ma_vach", "Mã vạch");
   checkDuplicates(rows, "ma_thung", "Mã thùng");
