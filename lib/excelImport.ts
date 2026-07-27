@@ -3,7 +3,12 @@ import { supabaseAdmin } from "./supabaseServer";
 import { CATEGORY_ORDER } from "./types";
 import { stripXlsxDrawings } from "./stripXlsxDrawings";
 
-export const SKIP_SHEETS = new Set(["HUONG DAN", "Master (Tổng hợp)", "Hướng dẫn nhập khẩu (MISA)"]);
+export const SKIP_SHEETS = new Set([
+  "HUONG DAN",
+  "Master (Tổng hợp)",
+  "Hướng dẫn nhập khẩu (MISA)",
+  "Công cụ dụng cụ",
+]);
 
 export const COLUMN_TO_FIELD: Record<string, string> = {
   "Mã nội bộ": "ma_noi_bo",
