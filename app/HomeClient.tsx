@@ -372,8 +372,8 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
     }
   }
 
-  async function approveAllPriceRequests() {
-    if (!confirm("Duyệt toàn bộ đề xuất giá đang chờ? Không thể hoàn tác.")) return;
+  async function approveAllPriceRequests(): Promise<boolean> {
+    if (!confirm("Duyệt toàn bộ đề xuất giá đang chờ? Không thể hoàn tác.")) return false;
     setApprovingAll(true);
     try {
       const res = await fetch("/api/price-requests/approve-all", { method: "POST" });
@@ -381,8 +381,10 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
       if (!res.ok) throw new Error(data.error || "Duyệt tất cả thất bại");
       await Promise.all([loadPriceRequests(), loadProducts()]);
       setPriceHistoryRefreshToken((v) => v + 1);
+      return true;
     } catch (e: any) {
       alert("Duyệt tất cả thất bại: " + e.message);
+      return false;
     } finally {
       setApprovingAll(false);
     }
@@ -1641,7 +1643,7 @@ function PriceRequestsView({
   reviewingRequestId: string | null;
   onReview: (id: string, action: "approve" | "reject") => void;
   approvingAll: boolean;
-  onApproveAll: () => void;
+  onApproveAll: () => Promise<boolean>;
   historyRefreshToken: number;
 }) {
   const canReview = role === "accountant" || role === "admin";
@@ -1659,6 +1661,60 @@ function PriceRequestsView({
   const [historyLoading, setHistoryLoading] = useState(true);
   const [historyLoadingMore, setHistoryLoadingMore] = useState(false);
   const [historyHasMore, setHistoryHasMore] = useState(true);
+
+  // Chọn sản phẩm ngay từ lịch sử đã duyệt để xuất báo giá — khỏi phải quay
+  // lại Quản lý hàng hóa chọn lại từ đầu. Chọn theo product_id (không phải
+  // theo dòng đề xuất) vì 1 sản phẩm có thể có nhiều dòng lịch sử nếu giá đổi
+  // nhiều lần — dedupe khi xuất để không in trùng.
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [quoteModalOpen, setQuoteModalOpen] = useState(false);
+  const [exportingQuote, setExportingQuote] = useState(false);
+
+  const approvedProductIds = useMemo(
+    () => Array.from(new Set(history.filter((r) => r.status === "approved").map((r) => r.product_id))),
+    [history]
+  );
+
+  function toggleSelect(productId: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      next.has(productId) ? next.delete(productId) : next.add(productId);
+      return next;
+    });
+  }
+
+  function selectAllApproved() {
+    setSelected((prev) => new Set([...prev, ...approvedProductIds]));
+  }
+
+  async function handleApproveAllAndSelect() {
+    const justApproved = pending.map((r) => r.product_id);
+    const ok = await onApproveAll();
+    if (ok) setSelected((prev) => new Set([...prev, ...justApproved]));
+  }
+
+  async function doExportQuote(fields: QuoteFormFields) {
+    setExportingQuote(true);
+    try {
+      const res = await fetch("/api/export-quote", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: Array.from(selected), ...fields }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error || (await res.text()));
+      }
+      const blob = await res.blob();
+      const dateStr = (fields.date || new Date().toISOString().slice(0, 10)).replace(/-/g, "");
+      downloadBlob(blob, `Bao_gia_${dateStr}.pdf`);
+      setQuoteModalOpen(false);
+    } catch (e: any) {
+      alert("Xuất báo giá thất bại: " + e.message);
+    } finally {
+      setExportingQuote(false);
+    }
+  }
 
   const loadHistoryPage = useCallback(async (offset: number, replace: boolean) => {
     if (replace) setHistoryLoading(true);
@@ -1692,7 +1748,7 @@ function PriceRequestsView({
           <p>{canReview ? "Đề xuất giá từ mọi người, chờ Kế toán/Admin duyệt." : "Đề xuất giá bạn đã gửi và trạng thái xử lý."}</p>
         </div>
         {canReview && pendingCount > 0 && (
-          <button className="btn btn-primary" disabled={approvingAll} onClick={onApproveAll}>
+          <button className="btn btn-primary" disabled={approvingAll} onClick={handleApproveAllAndSelect}>
             {approvingAll ? "Đang duyệt..." : `Duyệt tất cả (${pendingCount})`}
           </button>
         )}
@@ -1762,15 +1818,39 @@ function PriceRequestsView({
       <div className="view-header" style={{ marginTop: 28 }}>
         <div>
           <h1>Lịch sử duyệt giá</h1>
-          <p>Các đề xuất đã được duyệt hoặc từ chối trước đây.</p>
+          <p>Các đề xuất đã được duyệt hoặc từ chối trước đây — chọn sản phẩm đã duyệt để xuất báo giá ngay tại đây.</p>
+        </div>
+        <div className="row-actions">
+          {approvedProductIds.length > 0 && (
+            <button className="btn btn-neutral" onClick={selectAllApproved}>
+              Chọn tất cả đã duyệt ({approvedProductIds.length})
+            </button>
+          )}
+          {selected.size > 0 && (
+            <button className="btn btn-danger" onClick={() => setSelected(new Set())}>
+              Bỏ chọn
+            </button>
+          )}
         </div>
       </div>
+
+      {selected.size > 0 && (
+        <div className="selection-bar">
+          <span>
+            Đã chọn <b>{selected.size}</b> sản phẩm
+          </span>
+          <button className="btn btn-primary" disabled={exportingQuote} onClick={() => setQuoteModalOpen(true)}>
+            {exportingQuote ? "Đang xuất..." : "Xuất báo giá (PDF)"}
+          </button>
+        </div>
+      )}
 
       <div className="table-card">
         <div className="table-scroll">
           <table>
             <thead>
               <tr>
+                <th className="col-check"></th>
                 <th>Tên sản phẩm</th>
                 <th>Mã sản phẩm</th>
                 <th className="num">Giá lẻ cũ</th>
@@ -1785,20 +1865,25 @@ function PriceRequestsView({
             <tbody>
               {historyLoading && (
                 <tr>
-                  <td colSpan={9} style={{ textAlign: "center", color: "var(--muted)" }}>
+                  <td colSpan={10} style={{ textAlign: "center", color: "var(--muted)" }}>
                     Đang tải...
                   </td>
                 </tr>
               )}
               {!historyLoading && history.length === 0 && (
                 <tr>
-                  <td colSpan={9} style={{ textAlign: "center", color: "var(--muted)" }}>
+                  <td colSpan={10} style={{ textAlign: "center", color: "var(--muted)" }}>
                     Chưa có lịch sử duyệt giá nào.
                   </td>
                 </tr>
               )}
               {history.map((r) => (
                 <tr key={r.id}>
+                  <td className="col-check">
+                    {r.status === "approved" && (
+                      <input type="checkbox" checked={selected.has(r.product_id)} onChange={() => toggleSelect(r.product_id)} />
+                    )}
+                  </td>
                   <td className="col-name">{r.product?.ten_hang_hoa ?? "(sản phẩm đã xóa)"}</td>
                   <td className="code-cell">{r.product?.ma_noi_bo}</td>
                   <td className="num">{formatVnd(r.product?.gia_ban)}</td>
@@ -1824,6 +1909,15 @@ function PriceRequestsView({
             {historyLoadingMore ? "Đang tải..." : "Xem thêm"}
           </button>
         </div>
+      )}
+
+      {quoteModalOpen && (
+        <QuoteForm
+          selectedCount={selected.size}
+          submitting={exportingQuote}
+          onCancel={() => setQuoteModalOpen(false)}
+          onSubmit={doExportQuote}
+        />
       )}
     </div>
   );
