@@ -1667,8 +1667,7 @@ function PriceRequestsView({
   // theo dòng đề xuất) vì 1 sản phẩm có thể có nhiều dòng lịch sử nếu giá đổi
   // nhiều lần — dedupe khi xuất để không in trùng.
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [quoteModalOpen, setQuoteModalOpen] = useState(false);
-  const [exportingQuote, setExportingQuote] = useState(false);
+  const [exportingWord, setExportingWord] = useState(false);
 
   const approvedProductIds = useMemo(
     () => Array.from(new Set(history.filter((r) => r.status === "approved").map((r) => r.product_id))),
@@ -1693,26 +1692,29 @@ function PriceRequestsView({
     if (ok) setSelected((prev) => new Set([...prev, ...justApproved]));
   }
 
-  async function doExportQuote(fields: QuoteFormFields) {
-    setExportingQuote(true);
+  async function doExportWordBlock() {
+    setExportingWord(true);
     try {
-      const res = await fetch("/api/export-quote", {
+      const res = await fetch("/api/export-word", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids: Array.from(selected), ...fields }),
+        body: JSON.stringify({ ids: Array.from(selected) }),
       });
       if (!res.ok) {
-        const data = await res.json().catch(() => null);
-        throw new Error(data?.error || (await res.text()));
+        const t = await res.text();
+        throw new Error(t);
       }
       const blob = await res.blob();
-      const dateStr = (fields.date || new Date().toISOString().slice(0, 10)).replace(/-/g, "");
-      downloadBlob(blob, `Bao_gia_${dateStr}.pdf`);
-      setQuoteModalOpen(false);
+      downloadBlob(blob, "Bang_gia_block_7.7x4cm_Update.docx");
+
+      const now = new Date().toISOString();
+      const { error } = await supabase.from("products").update({ last_exported_at: now }).in("id", Array.from(selected));
+      if (error) throw error;
+      setSelected(new Set());
     } catch (e: any) {
-      alert("Xuất báo giá thất bại: " + e.message);
+      alert("Xuất file thất bại: " + e.message);
     } finally {
-      setExportingQuote(false);
+      setExportingWord(false);
     }
   }
 
@@ -1818,7 +1820,7 @@ function PriceRequestsView({
       <div className="view-header" style={{ marginTop: 28 }}>
         <div>
           <h1>Lịch sử duyệt giá</h1>
-          <p>Các đề xuất đã được duyệt hoặc từ chối trước đây — chọn sản phẩm đã duyệt để xuất báo giá ngay tại đây.</p>
+          <p>Các đề xuất đã được duyệt hoặc từ chối trước đây — chọn sản phẩm đã duyệt để xuất Block giá 7.7x4cm ngay tại đây.</p>
         </div>
         <div className="row-actions">
           {approvedProductIds.length > 0 && (
@@ -1839,8 +1841,8 @@ function PriceRequestsView({
           <span>
             Đã chọn <b>{selected.size}</b> sản phẩm
           </span>
-          <button className="btn btn-primary" disabled={exportingQuote} onClick={() => setQuoteModalOpen(true)}>
-            {exportingQuote ? "Đang xuất..." : "Xuất báo giá (PDF)"}
+          <button className="btn btn-primary" disabled={exportingWord} onClick={doExportWordBlock}>
+            {exportingWord ? "Đang xuất..." : "Block giá 7.7x4cm"}
           </button>
         </div>
       )}
@@ -1909,15 +1911,6 @@ function PriceRequestsView({
             {historyLoadingMore ? "Đang tải..." : "Xem thêm"}
           </button>
         </div>
-      )}
-
-      {quoteModalOpen && (
-        <QuoteForm
-          selectedCount={selected.size}
-          submitting={exportingQuote}
-          onCancel={() => setQuoteModalOpen(false)}
-          onSubmit={doExportQuote}
-        />
       )}
     </div>
   );
