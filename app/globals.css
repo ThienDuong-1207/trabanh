@@ -184,11 +184,31 @@ button, input, select { font: inherit; color: inherit; }
 }
 .note svg { flex-shrink: 0; margin-top: 1px; }
 
+/* Nút hamburger mở/đóng menu điều hướng trên điện thoại — ẩn mặc định, chỉ
+   hiện trong @media bên dưới (860px trở xuống), cùng lớp phủ (backdrop) để
+   bấm ra ngoài là đóng menu, giống cách chuông thông báo đã làm. */
+.sidebar-mobile-toggle {
+  display: none; align-items: center; justify-content: center; margin-left: auto;
+  width: 36px; height: 36px; border-radius: var(--radius-sm); flex-shrink: 0;
+  border: 1px solid var(--border); background: var(--surface); color: var(--ink); cursor: pointer;
+}
+.sidebar-backdrop { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.35); z-index: 49; }
+
 @media (max-width: 860px) {
   .shell { flex-direction: column; }
   .sidebar { width: 100%; flex: none; height: auto; position: static; border-right: none; border-bottom: 1px solid var(--border); }
-  .nav { flex-direction: row; overflow-x: auto; }
+  .brand { display: flex; align-items: center; }
+  .sidebar-mobile-toggle { display: flex; }
+  /* Menu ẩn mặc định — .mobile-open (bật khi bấm hamburger) biến nó thành
+     drawer trượt từ trái, đè lên nội dung thay vì chiếm chỗ cố định. */
+  .nav { display: none; }
   .sidebar-foot { display: none; }
+  .sidebar.mobile-open .nav {
+    display: flex; flex-direction: column; position: fixed; top: 0; left: 0; bottom: 0;
+    width: 78vw; max-width: 300px; background: var(--sidebar-bg); z-index: 50;
+    overflow-y: auto; box-shadow: var(--shadow-2); padding-top: 12px;
+  }
+  .sidebar.mobile-open .sidebar-foot { display: block; position: fixed; left: 0; bottom: 0; width: 78vw; max-width: 300px; z-index: 50; background: var(--sidebar-bg); }
   .panels { grid-template-columns: 1fr; }
 }
 

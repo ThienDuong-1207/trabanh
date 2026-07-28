@@ -83,6 +83,7 @@ function loadStoredColumnSizing(): ColumnSizingState {
 
 export default function HomeClient({ displayName, role, userId }: { displayName: string; role: Role; userId: string }) {
   const [activeView, setActiveView] = useState<View>("hanghoa");
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [brandNames, setBrandNames] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
@@ -732,11 +733,16 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
     <div className="shell">
       <Sidebar
         activeView={activeView}
-        onChange={setActiveView}
+        onChange={(v) => {
+          setActiveView(v);
+          setMobileNavOpen(false);
+        }}
         pendingCount={pendingIds.size}
         priceRequestCount={priceRequests.filter((r) => r.status === "pending").length}
         displayName={displayName}
         role={role}
+        mobileNavOpen={mobileNavOpen}
+        onToggleMobileNav={() => setMobileNavOpen((v) => !v)}
       />
       <main className="main">
         {activeView === "hanghoa" && (
@@ -1398,6 +1404,8 @@ function Sidebar({
   priceRequestCount,
   displayName,
   role,
+  mobileNavOpen,
+  onToggleMobileNav,
 }: {
   activeView: View;
   onChange: (v: View) => void;
@@ -1405,6 +1413,8 @@ function Sidebar({
   priceRequestCount: number;
   displayName: string;
   role: Role;
+  mobileNavOpen: boolean;
+  onToggleMobileNav: () => void;
 }) {
   async function signOut() {
     await supabase.auth.signOut();
@@ -1412,12 +1422,21 @@ function Sidebar({
   }
 
   return (
-    <nav className="sidebar">
+    <nav className={`sidebar${mobileNavOpen ? " mobile-open" : ""}`}>
       <div className="brand">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img className="brand-logo" src="/templates/logo.png" alt="Trà & Bánh" />
         <div className="brand-text-under">Quản lý sản phẩm</div>
+        <button
+          className="sidebar-mobile-toggle"
+          aria-label={mobileNavOpen ? "Đóng menu" : "Mở menu"}
+          aria-expanded={mobileNavOpen}
+          onClick={onToggleMobileNav}
+        >
+          <MenuIcon />
+        </button>
       </div>
+      {mobileNavOpen && <div className="sidebar-backdrop" onClick={onToggleMobileNav} />}
       <div className="nav">
         <button className={`nav-item${activeView === "hanghoa" ? " active" : ""}`} onClick={() => onChange("hanghoa")}>
           <TagIcon />
@@ -3251,6 +3270,15 @@ function relativeTimeVi(iso: string): string {
   return `${diffMonth} tháng trước`;
 }
 
+function MenuIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 6h18" />
+      <path d="M3 12h18" />
+      <path d="M3 18h18" />
+    </svg>
+  );
+}
 function TagIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
