@@ -587,6 +587,53 @@ label.field input:disabled { opacity: 0.6; }
   .app-header { flex-direction: column; align-items: flex-start; gap: 8px; }
 }
 
+/* Điện thoại (~600px trở xuống) — .app-header/.toolbar/.view-row đã tự xuống
+   dòng sẵn (flex-wrap), phần này chỉ xử lý các chỗ còn lại: 2 thẻ KPI tự xếp
+   chồng thay vì bị bóp lại, gạch phân chia trong toolbar ẩn đi vì không còn
+   hợp lý khi các nhóm đã xuống dòng riêng, thanh tab/thanh đã chọn cuộn ngang
+   được thay vì tràn/vỡ layout khi nhãn dài hoặc nhiều nút hành động. */
+@media (max-width: 600px) {
+  .stat-kpis { flex-wrap: wrap; }
+  .toolbar-spacer { display: none; }
+  .segmented { max-width: 100%; overflow-x: auto; }
+  .selection-bar { flex-wrap: wrap; }
+
+  /* Bảng sản phẩm (.product-table) — sập thành danh sách thẻ dọc thay vì
+     bảng cuộn ngang, dễ chạm/sửa bằng ngón tay hơn nhiều. Vẫn dùng đúng các
+     ô sửa-inline/phân quyền hiện có (InlineTextCell, PriceInput, select...)
+     — chỉ đổi cách sắp xếp qua CSS (nhãn từng trường lấy từ data-label trên
+     <td>), không tạo component/luồng dữ liệu riêng cho mobile. */
+  .product-table thead { display: none; }
+  .product-table, .product-table tbody { display: block; min-width: 0; }
+  .product-table tr {
+    display: flex; flex-wrap: wrap; align-items: flex-start; gap: 2px 10px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md);
+    padding: 12px; margin-bottom: 10px; box-shadow: var(--shadow-1);
+  }
+  .product-table td {
+    flex: 1 1 100%; display: flex; align-items: center; gap: 8px;
+    padding: 4px 0; border: none; width: auto !important; text-align: left;
+    min-width: 0;
+  }
+  .product-table td::before {
+    content: attr(data-label); flex: 0 0 104px; font-weight: 600; font-size: var(--text-meta); color: var(--muted);
+    text-align: left;
+  }
+  .product-table td.col-check, .product-table td.col-name { position: static; }
+  .product-table td.col-check { flex: 0 0 auto; order: -2; }
+  .product-table td.col-name {
+    display: block; flex: 1 1 auto; order: -1; font-weight: 650; font-size: 15px;
+    min-width: 0; overflow-wrap: break-word; border-right: none;
+  }
+  .product-table td.col-check::before,
+  .product-table td.col-name::before,
+  .product-table td.col-actions::before { content: none; }
+  .product-table td.col-actions { justify-content: flex-end; }
+  .product-table td.loading-state, .product-table td.empty-state, .product-table td.section-divider {
+    justify-content: center;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   * { transition-duration: 0.01ms !important; }
 }

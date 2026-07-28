@@ -1248,7 +1248,7 @@ const ProductRow = memo(function ProductRow({
         {p.is_draft && <span className="pill pill-warm draft-badge">Nháp</span>}
       </td>
       {!compactView && (
-        <td className="col-group">
+        <td className="col-group" data-label="Nhóm hàng">
           {isAdmin ? (
             <select value={p.category_sheet} onChange={(e) => onUpdateField(p, "category_sheet", e.target.value)} disabled={isSaving}>
               {CATEGORY_ORDER.map((c) => (
@@ -1261,7 +1261,7 @@ const ProductRow = memo(function ProductRow({
         </td>
       )}
       {!compactView && (
-        <td className="code-cell col-code">
+        <td className="code-cell col-code" data-label="Mã nội bộ">
           <InlineTextCell
             value={p.ma_noi_bo}
             onSave={(v) => onUpdateField(p, "ma_noi_bo", v)}
@@ -1271,7 +1271,7 @@ const ProductRow = memo(function ProductRow({
         </td>
       )}
       {!compactView && (
-        <td className="col-invoice">
+        <td className="col-invoice" data-label="Tên hóa đơn">
           <InlineTextCell
             value={p.ten_hoa_don}
             onSave={(v) => onUpdateField(p, "ten_hoa_don", v)}
@@ -1281,7 +1281,7 @@ const ProductRow = memo(function ProductRow({
         </td>
       )}
       {!compactView && (
-        <td className="col-dvt">
+        <td className="col-dvt" data-label="ĐVT">
           {isAdmin ? (
             <select value={p.dvt ?? ""} onChange={(e) => onUpdateField(p, "dvt", e.target.value)} disabled={isSaving}>
               <option value="">—</option>
@@ -1294,14 +1294,14 @@ const ProductRow = memo(function ProductRow({
           )}
         </td>
       )}
-      <td className="num">
+      <td className="num" data-label="Giá bán lẻ">
         <PriceInput
           value={pendingRequest?.proposed_gia_ban != null ? pendingRequest.proposed_gia_ban : p.gia_ban}
           onSave={(v) => onProposePrice(p, "gia_ban", v)}
           saving={isSaving}
         />
       </td>
-      <td className="num">
+      <td className="num" data-label="Giá thùng">
         <PriceInput
           value={pendingRequest?.proposed_gia_thung != null ? pendingRequest.proposed_gia_thung : p.gia_thung}
           onSave={(v) => onProposePrice(p, "gia_thung", v)}
@@ -1309,7 +1309,7 @@ const ProductRow = memo(function ProductRow({
         />
       </td>
       {!compactView && (
-        <td className="col-spec">
+        <td className="col-spec" data-label="Quy cách thùng">
           {isAdmin ? (
             <select value={p.quy_cach ?? ""} onChange={(e) => onUpdateField(p, "quy_cach", e.target.value)} disabled={isSaving}>
               <option value="">—</option>
@@ -1323,7 +1323,7 @@ const ProductRow = memo(function ProductRow({
         </td>
       )}
       {!compactView && (
-        <td className="num">
+        <td className="num" data-label="Tỷ lệ quy đổi">
           {isAdmin ? (
             <select value={p.ty_le?.toString() ?? ""} onChange={(e) => onUpdateField(p, "ty_le", e.target.value)} disabled={isSaving}>
               <option value="">—</option>
@@ -1337,7 +1337,7 @@ const ProductRow = memo(function ProductRow({
         </td>
       )}
       {!compactView && (
-        <td className="col-brand">
+        <td className="col-brand" data-label="Thương hiệu">
           {isAdmin ? (
             <select value={brandNames.includes(p.brand?.name ?? "") ? p.brand?.name : ""} onChange={(e) => selectBrand(e.target.value)} disabled={isSaving}>
               <option value="">—</option>
@@ -1352,22 +1352,22 @@ const ProductRow = memo(function ProductRow({
         </td>
       )}
       {!compactView && (
-        <td className="code-cell col-code">
+        <td className="code-cell col-code" data-label="Mã vạch">
           <InlineTextCell value={p.ma_vach} onSave={(v) => onUpdateField(p, "ma_vach", v)} saving={isSaving} disabled={!isAdmin} />
         </td>
       )}
       {!compactView && (
-        <td className="code-cell col-code">
+        <td className="code-cell col-code" data-label="Mã thùng">
           <InlineTextCell value={p.ma_thung} onSave={(v) => onUpdateField(p, "ma_thung", v)} saving={isSaving} disabled={!isAdmin} />
         </td>
       )}
       {!compactView && (
-        <td className="col-status">
+        <td className="col-status" data-label="Trạng thái">
           <StatusPill product={p} isPending={isPending} />
         </td>
       )}
       {!compactView && (
-        <td>
+        <td className="col-actions">
           <div className="row-actions">
             {p.is_draft && (role === "accountant" || role === "admin") && (
               <button className="btn btn-quiet" onClick={() => onCompleteDraft(p)}>
@@ -2886,7 +2886,7 @@ function NewProductRow({
         />
       </td>
       {!compactView && (
-        <td>
+        <td data-label="Nhóm hàng">
           <select value={form.category_sheet} onChange={(e) => set("category_sheet", e.target.value)} disabled={saving || justSaved}>
             {CATEGORY_ORDER.map((c) => (
               <option key={c}>{c}</option>
@@ -2895,19 +2895,19 @@ function NewProductRow({
         </td>
       )}
       {!compactView && (
-        <td>
+        <td data-label="Mã nội bộ">
           {!isSales && (
             <input placeholder="Mã nội bộ" value={form.ma_noi_bo} onChange={(e) => set("ma_noi_bo", e.target.value)} disabled={saving || justSaved} />
           )}
         </td>
       )}
       {!compactView && (
-        <td>
+        <td data-label="Tên hóa đơn">
           {!isSales && <input value={form.ten_hoa_don} onChange={(e) => set("ten_hoa_don", e.target.value)} disabled={saving || justSaved} />}
         </td>
       )}
       {!compactView && (
-        <td>
+        <td data-label="ĐVT">
           {!isSales && (
             <select value={form.dvt} onChange={(e) => set("dvt", e.target.value)} disabled={saving || justSaved}>
               <option value="">—</option>
@@ -2918,7 +2918,7 @@ function NewProductRow({
           )}
         </td>
       )}
-      <td className="num">
+      <td className="num" data-label="Giá bán lẻ">
         {!isSales && (
           <input
             className="price-input"
@@ -2929,7 +2929,7 @@ function NewProductRow({
           />
         )}
       </td>
-      <td className="num">
+      <td className="num" data-label="Giá thùng">
         {!isSales && (
           <input
             className="price-input"
@@ -2941,7 +2941,7 @@ function NewProductRow({
         )}
       </td>
       {!compactView && (
-        <td>
+        <td data-label="Quy cách thùng">
           {!isSales && (
             <select value={form.quy_cach} onChange={(e) => setQuyCach(e.target.value)} disabled={saving || justSaved}>
               <option value="">—</option>
@@ -2953,7 +2953,7 @@ function NewProductRow({
         </td>
       )}
       {!compactView && (
-        <td className="num">
+        <td className="num" data-label="Tỷ lệ quy đổi">
           {!isSales && (
             <select value={form.ty_le} onChange={(e) => set("ty_le", e.target.value)} disabled={saving || justSaved}>
               <option value="">—</option>
@@ -2965,7 +2965,7 @@ function NewProductRow({
         </td>
       )}
       {!compactView && (
-        <td>
+        <td data-label="Thương hiệu">
           {!isSales &&
             (brandCustom ? (
               <input
@@ -2997,14 +2997,14 @@ function NewProductRow({
         </td>
       )}
       {!compactView && (
-        <td>{!isSales && <input value={form.ma_vach} onChange={(e) => set("ma_vach", e.target.value)} disabled={saving || justSaved} />}</td>
+        <td data-label="Mã vạch">{!isSales && <input value={form.ma_vach} onChange={(e) => set("ma_vach", e.target.value)} disabled={saving || justSaved} />}</td>
       )}
       {!compactView && (
-        <td>{!isSales && <input value={form.ma_thung} onChange={(e) => set("ma_thung", e.target.value)} disabled={saving || justSaved} />}</td>
+        <td data-label="Mã thùng">{!isSales && <input value={form.ma_thung} onChange={(e) => set("ma_thung", e.target.value)} disabled={saving || justSaved} />}</td>
       )}
       {!compactView && <td />}
       {!compactView && (
-        <td>
+        <td className="col-actions">
           <button
             type="button"
             className={`btn btn-sm ${justSaved ? "btn-success" : "btn-primary"}`}
