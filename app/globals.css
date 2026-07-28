@@ -198,7 +198,8 @@ button, input, select { font: inherit; color: inherit; }
   .shell { flex-direction: column; }
   .sidebar { width: 100%; flex: none; height: auto; position: static; border-right: none; border-bottom: 1px solid var(--border); }
   .brand { display: flex; align-items: center; }
-  .sidebar-mobile-toggle { display: flex; }
+  .sidebar-mobile-toggle { display: flex; order: -1; margin-left: 0; }
+  .brand-logo { margin-left: auto; }
   /* Menu ẩn mặc định — .mobile-open (bật khi bấm hamburger) biến nó thành
      drawer trượt từ trái, đè lên nội dung thay vì chiếm chỗ cố định. */
   .nav { display: none; }
