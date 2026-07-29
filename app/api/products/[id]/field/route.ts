@@ -22,6 +22,8 @@ const FIELD_ROLES: Record<string, Role[]> = {
   ty_le_cap_2: ["admin"],
   gia_hop: ["admin"],
   brand: ["admin"],
+  nha_cung_cap: ["admin"],
+  ma_hang_hoa: ["admin"],
   ma_vach: ["admin"],
   ma_thung: ["admin"],
   ten_hoa_don: ["admin", "accountant"],

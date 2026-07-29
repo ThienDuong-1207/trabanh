@@ -32,7 +32,10 @@ export async function syncFromGoogleSheet(): Promise<ImportSummary> {
   const skippedSheets: string[] = [];
   const matchedTabs: { name: string; category: string }[] = [];
   for (const name of allTabNames) {
-    if (SKIP_SHEETS.has(name)) continue;
+    // Cùng logic so khớp với excelImport.ts: strip hậu tố trong ngoặc trước
+    // khi so với SKIP_SHEETS, tránh sheet có hậu tố lọt qua bước skip.
+    const strippedName = name.replace(/\s*\([^)]*\)\s*$/, "").trim();
+    if (SKIP_SHEETS.has(name) || SKIP_SHEETS.has(strippedName)) continue;
     const category = resolveCategoryName(name);
     if (!category) {
       skippedSheets.push(name);

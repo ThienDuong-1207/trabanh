@@ -29,6 +29,7 @@ export const COLUMN_TO_FIELD: Record<string, string> = {
   "Giá Hộp": "gia_hop",
   "Thương hiệu": "thuong_hieu",
   "Nhà cung cấp": "nha_cung_cap",
+  "Mã hàng NCC": "ma_hang_hoa", // mã SKU riêng của NCC, đối chiếu với họ — khác "Mã hàng hóa" (ma_noi_bo) ở trên, vốn là mã định danh nội bộ
   "Mã vạch": "ma_vach",
   "Mã thùng": "ma_thung",
   "Mã nhóm thay thế": "ma_nhom_thay_the",
@@ -86,7 +87,12 @@ export async function importProductsFromWorkbook(buffer: Buffer, mode: ImportMod
 
   for (const worksheet of workbook.worksheets) {
     const name = worksheet.name;
-    if (SKIP_SHEETS.has(name)) continue;
+    // So khớp cả tên gốc lẫn tên đã cắt hậu tố trong ngoặc (vd sheet thật tên
+    // "Công cụ dụng cụ(DC)" phải khớp entry "Công cụ dụng cụ" trong SKIP_SHEETS) —
+    // nếu chỉ so khớp chính xác, sheet có hậu tố sẽ lọt qua bước skip rồi vẫn
+    // được resolveCategoryName() công nhận là category hợp lệ và bị nhập nhầm.
+    const strippedName = name.replace(/\s*\([^)]*\)\s*$/, "").trim();
+    if (SKIP_SHEETS.has(name) || SKIP_SHEETS.has(strippedName)) continue;
     const category = resolveCategoryName(name);
     if (!category) {
       skippedSheets.push(name);
@@ -184,7 +190,7 @@ export async function upsertProductRows(rows: ProductRow[], mode: ImportMode): P
   const brandIdByName = new Map((brands ?? []).map((b) => [b.name as string, b.id as string]));
 
   let productRows: (Record<string, string | number | null> & { brand_id: string | null })[] = rows.map(
-    ({ thuong_hieu, nha_cung_cap, row_number, ...rest }) => ({
+    ({ thuong_hieu, row_number, ...rest }) => ({
       ...rest,
       brand_id: typeof thuong_hieu === "string" ? brandIdByName.get(thuong_hieu) ?? null : null,
     })

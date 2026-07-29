@@ -42,13 +42,15 @@ const PRODUCT_COLUMNS: ColumnDef<Product, unknown>[] = [
   { id: "ten_hoa_don", size: 180, minSize: 140 },
   { id: "dvt", size: 90, minSize: 70 },
   { id: "gia_ban", size: 110, minSize: 90 },
+  { id: "gia_hop", size: 130, minSize: 100 },
   { id: "gia_thung", size: 110, minSize: 90 },
   { id: "quy_cach", size: 150, minSize: 110 },
   { id: "ty_le", size: 110, minSize: 90 },
   { id: "dvt_cap_2", size: 140, minSize: 110 },
   { id: "ty_le_cap_2", size: 140, minSize: 110 },
-  { id: "gia_hop", size: 130, minSize: 100 },
   { id: "brand", size: 150, minSize: 110 },
+  { id: "nha_cung_cap", size: 150, minSize: 110 },
+  { id: "ma_hang_hoa", size: 160, minSize: 120 },
   { id: "ma_vach", size: 180, minSize: 140 },
   { id: "ma_thung", size: 180, minSize: 140 },
   { id: "status", size: 130, minSize: 100 },
@@ -63,12 +65,14 @@ const COMPACT_HIDDEN_COLUMN_IDS = [
   "ma_noi_bo",
   "ten_hoa_don",
   "dvt",
+  "gia_hop",
   "quy_cach",
   "ty_le",
   "dvt_cap_2",
   "ty_le_cap_2",
-  "gia_hop",
   "brand",
+  "nha_cung_cap",
+  "ma_hang_hoa",
   "ma_vach",
   "ma_thung",
   "status",
@@ -1001,13 +1005,15 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
               {!compactView && <col style={{ width: productTable.getColumn("ten_hoa_don")?.getSize() }} />}
               {!compactView && <col style={{ width: productTable.getColumn("dvt")?.getSize() }} />}
               <col style={{ width: productTable.getColumn("gia_ban")?.getSize() }} />
+              {!compactView && <col style={{ width: productTable.getColumn("gia_hop")?.getSize() }} />}
               <col style={{ width: productTable.getColumn("gia_thung")?.getSize() }} />
               {!compactView && <col style={{ width: productTable.getColumn("quy_cach")?.getSize() }} />}
               {!compactView && <col style={{ width: productTable.getColumn("ty_le")?.getSize() }} />}
               {!compactView && <col style={{ width: productTable.getColumn("dvt_cap_2")?.getSize() }} />}
               {!compactView && <col style={{ width: productTable.getColumn("ty_le_cap_2")?.getSize() }} />}
-              {!compactView && <col style={{ width: productTable.getColumn("gia_hop")?.getSize() }} />}
               {!compactView && <col style={{ width: productTable.getColumn("brand")?.getSize() }} />}
+              {!compactView && <col style={{ width: productTable.getColumn("nha_cung_cap")?.getSize() }} />}
+              {!compactView && <col style={{ width: productTable.getColumn("ma_hang_hoa")?.getSize() }} />}
               {!compactView && <col style={{ width: productTable.getColumn("ma_vach")?.getSize() }} />}
               {!compactView && <col style={{ width: productTable.getColumn("ma_thung")?.getSize() }} />}
               {!compactView && <col style={{ width: productTable.getColumn("status")?.getSize() }} />}
@@ -1048,6 +1054,12 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
                   Giá bán lẻ
                   {renderResizeHandle("gia_ban")}
                 </th>
+                {!compactView && (
+                  <th className="num">
+                    Giá Hộp
+                    {renderResizeHandle("gia_hop")}
+                  </th>
+                )}
                 <th className="num">
                   Giá thùng
                   {renderResizeHandle("gia_thung")}
@@ -1077,15 +1089,21 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
                   </th>
                 )}
                 {!compactView && (
-                  <th className="num">
-                    Giá Hộp
-                    {renderResizeHandle("gia_hop")}
-                  </th>
-                )}
-                {!compactView && (
                   <th className="col-brand">
                     Thương hiệu
                     {renderResizeHandle("brand")}
+                  </th>
+                )}
+                {!compactView && (
+                  <th>
+                    Nhà cung cấp
+                    {renderResizeHandle("nha_cung_cap")}
+                  </th>
+                )}
+                {!compactView && (
+                  <th className="col-code">
+                    Mã hàng NCC
+                    {renderResizeHandle("ma_hang_hoa")}
                   </th>
                 )}
                 {!compactView && (
@@ -1122,14 +1140,14 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
               )}
               {loading && (
                 <tr>
-                  <td colSpan={18} className="loading-state">
+                  <td colSpan={20} className="loading-state">
                     Đang tải...
                   </td>
                 </tr>
               )}
               {!loading && visible.length === 0 && (
                 <tr>
-                  <td colSpan={18} className="empty-state">
+                  <td colSpan={20} className="empty-state">
                     Không có sản phẩm nào.
                   </td>
                 </tr>
@@ -1137,7 +1155,7 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
               {pagedVisible.map((p) => renderRow(p))}
               {selectedElsewhere.length > 0 && (
                 <tr className="section-divider-row">
-                  <td colSpan={18} className="section-divider">
+                  <td colSpan={20} className="section-divider">
                     Đã chọn ở bộ lọc khác ({selectedElsewhere.length})
                   </td>
                 </tr>
@@ -1338,6 +1356,11 @@ const ProductRow = memo(function ProductRow({
           saving={isSaving}
         />
       </td>
+      {!compactView && (
+        <td className="num" data-label="Giá Hộp">
+          <PriceInput value={p.gia_hop} onSave={(v) => onUpdateField(p, "gia_hop", v === "" ? null : Number(v.replace(/[^\d]/g, "")))} saving={isSaving} />
+        </td>
+      )}
       <td className="num" data-label="Giá thùng">
         <PriceInput
           value={pendingRequest?.proposed_gia_thung != null ? pendingRequest.proposed_gia_thung : p.gia_thung}
@@ -1402,11 +1425,6 @@ const ProductRow = memo(function ProductRow({
         </td>
       )}
       {!compactView && (
-        <td className="num" data-label="Giá Hộp">
-          <PriceInput value={p.gia_hop} onSave={(v) => onUpdateField(p, "gia_hop", v === "" ? null : Number(v.replace(/[^\d]/g, "")))} saving={isSaving} />
-        </td>
-      )}
-      {!compactView && (
         <td className="col-brand" data-label="Thương hiệu">
           {isAdmin ? (
             <select value={brandNames.includes(p.brand?.name ?? "") ? p.brand?.name : ""} onChange={(e) => selectBrand(e.target.value)} disabled={isSaving}>
@@ -1419,6 +1437,16 @@ const ProductRow = memo(function ProductRow({
           ) : (
             p.brand?.name ?? "—"
           )}
+        </td>
+      )}
+      {!compactView && (
+        <td data-label="Nhà cung cấp">
+          <InlineTextCell value={p.nha_cung_cap} onSave={(v) => onUpdateField(p, "nha_cung_cap", v)} saving={isSaving} disabled={!isAdmin} />
+        </td>
+      )}
+      {!compactView && (
+        <td className="code-cell col-code" data-label="Mã hàng NCC">
+          <InlineTextCell value={p.ma_hang_hoa} onSave={(v) => onUpdateField(p, "ma_hang_hoa", v)} saving={isSaving} disabled={!isAdmin} />
         </td>
       )}
       {!compactView && (
@@ -2665,6 +2693,8 @@ type FormState = {
   ty_le_cap_2: string;
   gia_hop: string;
   brand: string;
+  nha_cung_cap: string;
+  ma_hang_hoa: string;
   ma_vach: string;
   ma_thung: string;
   ma_nhom_thay_the: string;
@@ -2687,6 +2717,8 @@ function productToFormState(p: Product | null): FormState {
     ty_le_cap_2: p?.ty_le_cap_2?.toString() ?? "",
     gia_hop: p?.gia_hop?.toString() ?? "",
     brand: p?.brand?.name ?? "",
+    nha_cung_cap: p?.nha_cung_cap ?? "",
+    ma_hang_hoa: p?.ma_hang_hoa ?? "",
     ma_vach: p?.ma_vach ?? "",
     ma_thung: p?.ma_thung ?? "",
     ma_nhom_thay_the: p?.ma_nhom_thay_the ?? "",
@@ -2712,6 +2744,8 @@ function formStateToInput(f: FormState): ProductInput {
     ty_le_cap_2: num(f.ty_le_cap_2),
     gia_hop: num(f.gia_hop),
     brand: str(f.brand),
+    nha_cung_cap: str(f.nha_cung_cap),
+    ma_hang_hoa: str(f.ma_hang_hoa),
     ma_vach: str(f.ma_vach),
     ma_thung: str(f.ma_thung),
     ma_nhom_thay_the: str(f.ma_nhom_thay_the),
@@ -3021,6 +3055,19 @@ function NewProductRow({
           />
         )}
       </td>
+      {!compactView && (
+        <td className="num" data-label="Giá Hộp">
+          {!isSales && (
+            <input
+              className="price-input"
+              inputMode="numeric"
+              value={form.gia_hop}
+              onChange={(e) => set("gia_hop", e.target.value)}
+              disabled={saving || justSaved}
+            />
+          )}
+        </td>
+      )}
       <td className="num" data-label="Giá thùng">
         {!isSales && (
           <input
@@ -3081,19 +3128,6 @@ function NewProductRow({
         </td>
       )}
       {!compactView && (
-        <td className="num" data-label="Giá Hộp">
-          {!isSales && (
-            <input
-              className="price-input"
-              inputMode="numeric"
-              value={form.gia_hop}
-              onChange={(e) => set("gia_hop", e.target.value)}
-              disabled={saving || justSaved}
-            />
-          )}
-        </td>
-      )}
-      {!compactView && (
         <td data-label="Thương hiệu">
           {!isSales &&
             (brandCustom ? (
@@ -3123,6 +3157,16 @@ function NewProductRow({
                 <option value="__new__">+ Thương hiệu mới…</option>
               </select>
             ))}
+        </td>
+      )}
+      {!compactView && (
+        <td data-label="Nhà cung cấp">
+          {!isSales && <input value={form.nha_cung_cap} onChange={(e) => set("nha_cung_cap", e.target.value)} disabled={saving || justSaved} />}
+        </td>
+      )}
+      {!compactView && (
+        <td data-label="Mã hàng NCC">
+          {!isSales && <input value={form.ma_hang_hoa} onChange={(e) => set("ma_hang_hoa", e.target.value)} disabled={saving || justSaved} />}
         </td>
       )}
       {!compactView && (
@@ -3332,6 +3376,12 @@ function ProductForm({
                   <option value="__new__">+ Thương hiệu mới…</option>
                 </select>
               )}
+            </Field>
+            <Field label="Nhà cung cấp">
+              <input value={form.nha_cung_cap} onChange={(e) => set("nha_cung_cap", e.target.value)} />
+            </Field>
+            <Field label="Mã hàng NCC">
+              <input value={form.ma_hang_hoa} onChange={(e) => set("ma_hang_hoa", e.target.value)} />
             </Field>
             <Field label="Mã vạch">
               <input value={form.ma_vach} onChange={(e) => set("ma_vach", e.target.value)} />

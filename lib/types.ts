@@ -13,6 +13,8 @@ export type Product = {
   gia_hop: number | null;    // Giá Hộp
   brand_id: string | null;
   brand?: { name: string } | null; // populated only when a query joins brand:brands(name)
+  nha_cung_cap: string | null;
+  ma_hang_hoa: string | null; // Mã hàng NCC — mã SKU riêng của nhà cung cấp, dùng để đối chiếu (khác ma_noi_bo, vốn dùng để định danh sản phẩm trong hệ thống)
   ma_vach: string | null;
   ma_thung: string | null;
   ma_nhom_thay_the: string | null;

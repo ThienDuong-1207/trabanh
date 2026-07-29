@@ -18,7 +18,7 @@ create table if not exists products (
   quy_cach text,                            -- Quy cach thung
   ty_le integer,                            -- Ty le quy doi
   brand_id uuid references brands(id),
-  ma_hang_hoa text,                         -- Ma hang hoa goc (NCC/POS)
+  ma_hang_hoa text,                         -- Ma hang NCC — ma SKU rieng cua nha cung cap, doi chieu voi ho (khac ma_noi_bo, dung de dinh danh san pham trong he thong)
   ma_vach text,
   ma_thung text,
   ma_nhom_thay_the text,
@@ -41,6 +41,10 @@ alter table products add column if not exists is_draft boolean not null default 
 alter table products add column if not exists dvt_cap_2 text;      -- Don vi cap 2 (Hop)
 alter table products add column if not exists ty_le_cap_2 numeric; -- Ty le quy doi cap 2 (Goi/Tui -> Hop)
 alter table products add column if not exists gia_hop numeric;     -- Gia Hop
+
+-- Nha cung cap (ten) — doc tu file Excel truoc day bi bo qua truoc khi ghi DB,
+-- gio luu that su theo yeu cau.
+alter table products add column if not exists nha_cung_cap text;
 
 -- Speeds up the "pending export" query (updated_at > last_exported_at)
 create index if not exists idx_products_pending
