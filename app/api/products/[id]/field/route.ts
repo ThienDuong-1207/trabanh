@@ -18,13 +18,16 @@ const FIELD_ROLES: Record<string, Role[]> = {
   dvt: ["admin"],
   quy_cach: ["admin"],
   ty_le: ["admin"],
+  dvt_cap_2: ["admin"],
+  ty_le_cap_2: ["admin"],
+  gia_hop: ["admin"],
   brand: ["admin"],
   ma_vach: ["admin"],
   ma_thung: ["admin"],
   ten_hoa_don: ["admin", "accountant"],
 };
 
-const NUMERIC_FIELDS = new Set(["ty_le"]);
+const NUMERIC_FIELDS = new Set(["ty_le", "ty_le_cap_2", "gia_hop"]);
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const current = await getCurrentUserRole();

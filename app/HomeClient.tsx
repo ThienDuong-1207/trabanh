@@ -45,6 +45,9 @@ const PRODUCT_COLUMNS: ColumnDef<Product, unknown>[] = [
   { id: "gia_thung", size: 110, minSize: 90 },
   { id: "quy_cach", size: 150, minSize: 110 },
   { id: "ty_le", size: 110, minSize: 90 },
+  { id: "dvt_cap_2", size: 140, minSize: 110 },
+  { id: "ty_le_cap_2", size: 140, minSize: 110 },
+  { id: "gia_hop", size: 130, minSize: 100 },
   { id: "brand", size: 150, minSize: 110 },
   { id: "ma_vach", size: 180, minSize: 140 },
   { id: "ma_thung", size: 180, minSize: 140 },
@@ -62,6 +65,9 @@ const COMPACT_HIDDEN_COLUMN_IDS = [
   "dvt",
   "quy_cach",
   "ty_le",
+  "dvt_cap_2",
+  "ty_le_cap_2",
+  "gia_hop",
   "brand",
   "ma_vach",
   "ma_thung",
@@ -998,6 +1004,9 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
               <col style={{ width: productTable.getColumn("gia_thung")?.getSize() }} />
               {!compactView && <col style={{ width: productTable.getColumn("quy_cach")?.getSize() }} />}
               {!compactView && <col style={{ width: productTable.getColumn("ty_le")?.getSize() }} />}
+              {!compactView && <col style={{ width: productTable.getColumn("dvt_cap_2")?.getSize() }} />}
+              {!compactView && <col style={{ width: productTable.getColumn("ty_le_cap_2")?.getSize() }} />}
+              {!compactView && <col style={{ width: productTable.getColumn("gia_hop")?.getSize() }} />}
               {!compactView && <col style={{ width: productTable.getColumn("brand")?.getSize() }} />}
               {!compactView && <col style={{ width: productTable.getColumn("ma_vach")?.getSize() }} />}
               {!compactView && <col style={{ width: productTable.getColumn("ma_thung")?.getSize() }} />}
@@ -1056,6 +1065,24 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
                   </th>
                 )}
                 {!compactView && (
+                  <th>
+                    Đơn vị cấp 2 (Hộp)
+                    {renderResizeHandle("dvt_cap_2")}
+                  </th>
+                )}
+                {!compactView && (
+                  <th className="num">
+                    Tỷ lệ quy đổi cấp 2
+                    {renderResizeHandle("ty_le_cap_2")}
+                  </th>
+                )}
+                {!compactView && (
+                  <th className="num">
+                    Giá Hộp
+                    {renderResizeHandle("gia_hop")}
+                  </th>
+                )}
+                {!compactView && (
                   <th className="col-brand">
                     Thương hiệu
                     {renderResizeHandle("brand")}
@@ -1095,14 +1122,14 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
               )}
               {loading && (
                 <tr>
-                  <td colSpan={15} className="loading-state">
+                  <td colSpan={18} className="loading-state">
                     Đang tải...
                   </td>
                 </tr>
               )}
               {!loading && visible.length === 0 && (
                 <tr>
-                  <td colSpan={15} className="empty-state">
+                  <td colSpan={18} className="empty-state">
                     Không có sản phẩm nào.
                   </td>
                 </tr>
@@ -1110,7 +1137,7 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
               {pagedVisible.map((p) => renderRow(p))}
               {selectedElsewhere.length > 0 && (
                 <tr className="section-divider-row">
-                  <td colSpan={15} className="section-divider">
+                  <td colSpan={18} className="section-divider">
                     Đã chọn ở bộ lọc khác ({selectedElsewhere.length})
                   </td>
                 </tr>
@@ -1344,6 +1371,39 @@ const ProductRow = memo(function ProductRow({
           ) : (
             p.ty_le ?? "—"
           )}
+        </td>
+      )}
+      {!compactView && (
+        <td data-label="Đơn vị cấp 2 (Hộp)">
+          {isAdmin ? (
+            <select value={p.dvt_cap_2 ?? ""} onChange={(e) => onUpdateField(p, "dvt_cap_2", e.target.value)} disabled={isSaving}>
+              <option value="">—</option>
+              {withCurrent(DVT_SUGGESTIONS, p.dvt_cap_2 ?? "").map((d) => (
+                <option key={d}>{d}</option>
+              ))}
+            </select>
+          ) : (
+            p.dvt_cap_2 ?? "—"
+          )}
+        </td>
+      )}
+      {!compactView && (
+        <td className="num" data-label="Tỷ lệ quy đổi cấp 2">
+          {isAdmin ? (
+            <select value={p.ty_le_cap_2?.toString() ?? ""} onChange={(e) => onUpdateField(p, "ty_le_cap_2", e.target.value)} disabled={isSaving}>
+              <option value="">—</option>
+              {withCurrent(TY_LE_SUGGESTIONS, p.ty_le_cap_2?.toString() ?? "").map((t) => (
+                <option key={t}>{t}</option>
+              ))}
+            </select>
+          ) : (
+            p.ty_le_cap_2 ?? "—"
+          )}
+        </td>
+      )}
+      {!compactView && (
+        <td className="num" data-label="Giá Hộp">
+          <PriceInput value={p.gia_hop} onSave={(v) => onUpdateField(p, "gia_hop", v === "" ? null : Number(v.replace(/[^\d]/g, "")))} saving={isSaving} />
         </td>
       )}
       {!compactView && (
@@ -2993,6 +3053,43 @@ function NewProductRow({
                 <option key={t}>{t}</option>
               ))}
             </select>
+          )}
+        </td>
+      )}
+      {!compactView && (
+        <td data-label="Đơn vị cấp 2 (Hộp)">
+          {!isSales && (
+            <select value={form.dvt_cap_2} onChange={(e) => set("dvt_cap_2", e.target.value)} disabled={saving || justSaved}>
+              <option value="">—</option>
+              {withCurrent(DVT_SUGGESTIONS, form.dvt_cap_2).map((d) => (
+                <option key={d}>{d}</option>
+              ))}
+            </select>
+          )}
+        </td>
+      )}
+      {!compactView && (
+        <td className="num" data-label="Tỷ lệ quy đổi cấp 2">
+          {!isSales && (
+            <select value={form.ty_le_cap_2} onChange={(e) => set("ty_le_cap_2", e.target.value)} disabled={saving || justSaved}>
+              <option value="">—</option>
+              {withCurrent(TY_LE_SUGGESTIONS, form.ty_le_cap_2).map((t) => (
+                <option key={t}>{t}</option>
+              ))}
+            </select>
+          )}
+        </td>
+      )}
+      {!compactView && (
+        <td className="num" data-label="Giá Hộp">
+          {!isSales && (
+            <input
+              className="price-input"
+              inputMode="numeric"
+              value={form.gia_hop}
+              onChange={(e) => set("gia_hop", e.target.value)}
+              disabled={saving || justSaved}
+            />
           )}
         </td>
       )}
