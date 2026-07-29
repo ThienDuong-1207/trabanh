@@ -77,7 +77,14 @@ function buildRow(rIdx: number, values: Record<string, string>, numValues: Recor
 // chung 1 mã hàng hóa để quét trên MISA, nhân viên tự chọn đơn vị lúc bán.
 function itemToRowSpecs(item: Product) {
   const ma = item.ma_noi_bo;
-  const hasConv = Boolean(item.quy_cach && item.ty_le);
+  // Bắt buộc có gia_thung — nhiều sản phẩm (đặc biệt "Công cụ dụng cụ") điền
+  // sẵn quy_cach/ty_le chỉ để tham khảo quy cách đóng gói nhưng chưa từng bán
+  // theo Thùng (không có giá thùng, không có mã thùng riêng); nếu vẫn sinh
+  // dòng Thùng cho các sản phẩm này, dòng đó thiếu cả giá lẫn mã vạch (cột C
+  // rỗng) → MISA từ chối cập nhật (lỗi thật gặp phải với DC0001-DC0007).
+  // Không đòi thêm ma_thung vì hàng trăm sản phẩm hợp lệ khác có giá thùng
+  // nhưng không có mã thùng riêng.
+  const hasConv = Boolean(item.quy_cach && item.ty_le && item.gia_thung);
   const hasHop = Boolean(item.dvt_cap_2 && item.ty_le_cap_2 && item.gia_hop);
   const nhh = CATEGORY_TO_NHH[item.category_sheet] ?? "";
 
@@ -105,7 +112,12 @@ function itemToRowSpecs(item: Product) {
     const hopValues: Record<string, string> = {
       A: ma,
       C: item.ma_vach || "",
-      I: (item.dvt_cap_2 || "").trim(),
+      // extractUnitFromQuyCach chứ không dùng dvt_cap_2 thô — cột này đôi khi
+      // được điền kiểu mô tả "Hộp (12 gói)" giống quy_cach thay vì chỉ "Hộp",
+      // mà MISA chỉ nhận đơn vị tính đơn giản (Hộp/Túi/Thùng/...), không nhận
+      // cả cụm mô tả kèm số lượng — đây chính là lỗi thật gặp ở 2 sản phẩm
+      // Bột Rau Câu (dvt_cap_2 lưu "Hộp (12 gói)"/"Hộp (10 gói)").
+      I: extractUnitFromQuyCach(item.dvt_cap_2 || ""),
       S: "00001",
     };
     const hopNum: Record<string, number | null | undefined> = { D: 0, J: item.gia_hop, T: item.ty_le_cap_2 };
