@@ -525,8 +525,11 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
         throw new Error(data?.error || (await res.text()));
       }
       const blob = await res.blob();
-      const dateStr = (fields.date || new Date().toISOString().slice(0, 10)).replace(/-/g, "");
-      downloadBlob(blob, `Bao_gia_${dateStr}.pdf`);
+      // Tên file tải về đặt qua thuộc tính <a download> phía trình duyệt
+      // (không qua header Content-Disposition của server), nên có dấu tiếng
+      // Việt vẫn hiển thị đúng, không lo lỗi encoding header như file MISA.
+      const [yyyy, mm, dd] = (fields.date || new Date().toISOString().slice(0, 10)).split("-");
+      downloadBlob(blob, `Bảng báo giá ${dd}-${mm}-${yyyy.slice(2)}.pdf`);
       setQuoteModalOpen(false);
     } catch (e: any) {
       alert("Xuất báo giá thất bại: " + e.message);

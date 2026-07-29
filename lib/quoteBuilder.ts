@@ -37,20 +37,33 @@ const tableBorder = {
 export async function buildQuotePdf(items: Product[], info: QuoteInfo): Promise<Buffer> {
   const sorted = sortForQuote(items);
 
-  const tableBody = [
+  // Chèn 1 dòng tiêu đề tên nhóm hàng trước sản phẩm đầu tiên của mỗi nhóm
+  // khác với nhóm ngay trước đó — STT vẫn đếm liên tục xuyên suốt bảng,
+  // không reset về 1 ở mỗi nhóm (items đã được sortForQuote sắp theo đúng
+  // thứ tự nhóm hàng nên chỉ cần so sánh với nhóm liền trước).
+  const tableBody: any[] = [
     [
       { text: "STT", bold: true, alignment: "center" },
       { text: "TÊN SẢN PHẨM", bold: true, alignment: "center" },
       { text: "GIÁ LẺ", bold: true, alignment: "center" },
       { text: "GIÁ THÙNG", bold: true, alignment: "center" },
     ],
-    ...sorted.map((p, i) => [
-      { text: String(i + 1), alignment: "center" },
+  ];
+  let lastCategory: string | null = null;
+  let stt = 1;
+  for (const p of sorted) {
+    if (p.category_sheet !== lastCategory) {
+      tableBody.push([{ text: `${p.category_sheet}:`, bold: true, colSpan: 4, fillColor: "#f2f2f2" }, {}, {}, {}]);
+      lastCategory = p.category_sheet;
+    }
+    tableBody.push([
+      { text: String(stt), alignment: "center" },
       { text: p.ten_hang_hoa, alignment: "left" },
       { text: formatPrice(p.gia_ban), alignment: "right" },
       { text: formatPrice(p.gia_thung), alignment: "right" },
-    ]),
-  ];
+    ]);
+    stt++;
+  }
 
   const content: any[] = [
     { text: "BẢNG BÁO GIÁ", bold: true, fontSize: 16, alignment: "center", margin: [0, 0, 0, 4] },
