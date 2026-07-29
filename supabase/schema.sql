@@ -34,6 +34,14 @@ create table if not exists products (
 
 alter table products add column if not exists is_draft boolean not null default false;
 
+-- Cấp đóng gói trung gian (Hộp) cho số ít sản phẩm bán theo 3 cấp thay vì 2
+-- (Gói/Túi → Hộp → Thùng, ví dụ Bột Rau Câu) — luôn để trống với sản phẩm
+-- thường. dvt/gia_ban vẫn là cấp bán lẻ, quy_cach/ty_le/gia_thung vẫn là cấp
+-- ngoài cùng (Thùng) như trước giờ, không đổi ý nghĩa.
+alter table products add column if not exists dvt_cap_2 text;      -- Don vi cap 2 (Hop)
+alter table products add column if not exists ty_le_cap_2 numeric; -- Ty le quy doi cap 2 (Goi/Tui -> Hop)
+alter table products add column if not exists gia_hop numeric;     -- Gia Hop
+
 -- Speeds up the "pending export" query (updated_at > last_exported_at)
 create index if not exists idx_products_pending
   on products (updated_at, last_exported_at);

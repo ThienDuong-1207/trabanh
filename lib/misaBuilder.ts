@@ -41,10 +41,14 @@ function buildRow(rIdx: number, values: Record<string, string>, numValues: Recor
 function itemToRowSpecs(item: Product) {
   const ma = item.ma_noi_bo;
   const hasConv = Boolean(item.quy_cach && item.ty_le);
+  // Cấp Hộp (trung gian) — chỉ số ít sản phẩm bán đủ 3 cấp Gói/Túi → Hộp →
+  // Thùng mới có (vd Bột Rau Câu); Gói/Hộp/Thùng dùng chung 1 mã hàng hóa,
+  // nhân viên tự chọn đơn vị lúc quét trên MISA nên không cần mã vạch riêng.
+  const hasHop = Boolean(item.dvt_cap_2 && item.ty_le_cap_2 && item.gia_hop);
 
   const parentValues: Record<string, string> = {
     A: "Toàn chuỗi",
-    C: hasConv ? LOAI_HANG_CHA : LOAI_KHONG_THUOC_TINH,
+    C: hasConv || hasHop ? LOAI_HANG_CHA : LOAI_KHONG_THUOC_TINH,
     D: ma,
     E: item.ma_vach || "",
     G: (item.ten_hang_hoa || item.ten_hoa_don || "").trim(),
@@ -55,6 +59,23 @@ function itemToRowSpecs(item: Product) {
   const parentNum: Record<string, number | null> = { H: item.gia_ban, J: 8 };
 
   const specs: [Record<string, string>, Record<string, number | null | undefined>][] = [[parentValues, parentNum]];
+
+  // Sinh trước cấp Hộp rồi tới cấp Thùng — khớp thứ tự Gói → Hộp → Thùng.
+  // Cả 2 đều là dòng "con" độc lập tham chiếu thẳng về mã cha (F: ma), không
+  // lồng dòng Thùng vào trong dòng Hộp.
+  if (hasHop) {
+    const hopValues: Record<string, string> = {
+      A: "Toàn chuỗi",
+      C: LOAI_HANG_CON_DVT,
+      F: ma,
+      X: (item.dvt_cap_2 || "").trim(),
+    };
+    const hopNum: Record<string, number | null | undefined> = {
+      Y: item.ty_le_cap_2,
+      Z: item.gia_hop,
+    };
+    specs.push([hopValues, hopNum]);
+  }
 
   if (hasConv) {
     const childValues: Record<string, string> = {

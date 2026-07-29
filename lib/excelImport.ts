@@ -22,6 +22,11 @@ export const COLUMN_TO_FIELD: Record<string, string> = {
   "Giá thùng": "gia_thung",
   "Quy cách thùng": "quy_cach",
   "Tỷ lệ quy đổi": "ty_le",
+  // Cấp đóng gói trung gian (Hộp) — chỉ số ít sản phẩm bán 3 cấp mới điền
+  // (vd Bột Rau Câu), còn lại để trống như bình thường.
+  "Đơn vị cấp 2 (Hộp)": "dvt_cap_2",
+  "Tỷ lệ quy đổi cấp 2 (Gói/Túi → Hộp)": "ty_le_cap_2",
+  "Giá Hộp": "gia_hop",
   "Thương hiệu": "thuong_hieu",
   "Nhà cung cấp": "nha_cung_cap",
   "Mã vạch": "ma_vach",
@@ -31,7 +36,7 @@ export const COLUMN_TO_FIELD: Record<string, string> = {
   "Xuất xứ": "xuat_xu",
 };
 
-export const NUMERIC_FIELDS = new Set(["gia_ban", "gia_thung", "ty_le"]);
+export const NUMERIC_FIELDS = new Set(["gia_ban", "gia_thung", "ty_le", "ty_le_cap_2", "gia_hop"]);
 
 export type ImportMode = "new-only" | "update-all";
 

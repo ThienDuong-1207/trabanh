@@ -70,9 +70,15 @@ function buildRow(rIdx: number, values: Record<string, string>, numValues: Recor
 // are both set). The case unit's name comes from quy_cach itself (e.g. "Hộp"
 // out of "Hộp (12 gói)") rather than assuming "Thùng" — plenty of products
 // use "Hộp" or another word as their actual case-level packaging unit.
+//
+// Cấp Hộp (trung gian, Gói/Túi → Hộp → Thùng) — chỉ số ít sản phẩm bán đủ 3
+// cấp mới có (vd Bột Rau Câu). Dùng lại đúng "Mã vạch" (ma_vach) của cấp bán
+// lẻ cho dòng Hộp — không có mã vạch riêng cho cấp Hộp: Gói/Hộp/Thùng dùng
+// chung 1 mã hàng hóa để quét trên MISA, nhân viên tự chọn đơn vị lúc bán.
 function itemToRowSpecs(item: Product) {
   const ma = item.ma_noi_bo;
   const hasConv = Boolean(item.quy_cach && item.ty_le);
+  const hasHop = Boolean(item.dvt_cap_2 && item.ty_le_cap_2 && item.gia_hop);
   const nhh = CATEGORY_TO_NHH[item.category_sheet] ?? "";
 
   const retailValues: Record<string, string> = {
@@ -90,12 +96,28 @@ function itemToRowSpecs(item: Product) {
 
   const specs: [Record<string, string>, Record<string, number | null | undefined>][] = [[retailValues, retailNum]];
 
+  // Sinh trước cấp Hộp (S: 00001) rồi tới cấp Thùng (S: 00002) — khớp thứ tự
+  // Gói → Hộp → Thùng. Giá trị "S" tăng dần theo từng dòng đơn vị phụ của
+  // cùng 1 sản phẩm — TODO: xác nhận lại đúng quy tắc này khi có ví dụ MISA
+  // thật cho sản phẩm 3 cấp (hiện chỉ suy ra từ cách dùng "00001" cho dòng
+  // phụ duy nhất ở sản phẩm 2 cấp).
+  if (hasHop) {
+    const hopValues: Record<string, string> = {
+      A: ma,
+      C: item.ma_vach || "",
+      I: (item.dvt_cap_2 || "").trim(),
+      S: "00001",
+    };
+    const hopNum: Record<string, number | null | undefined> = { D: 0, J: item.gia_hop, T: item.ty_le_cap_2 };
+    specs.push([hopValues, hopNum]);
+  }
+
   if (hasConv) {
     const caseValues: Record<string, string> = {
       A: ma,
       C: item.ma_thung || "",
       I: extractUnitFromQuyCach(item.quy_cach || ""),
-      S: "00001",
+      S: hasHop ? "00002" : "00001",
     };
     const caseNum: Record<string, number | null | undefined> = { D: 0, J: item.gia_thung, T: item.ty_le };
     specs.push([caseValues, caseNum]);

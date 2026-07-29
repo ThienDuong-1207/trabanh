@@ -8,6 +8,9 @@ export type Product = {
   gia_thung: number | null;
   quy_cach: string | null;
   ty_le: number | null;
+  dvt_cap_2: string | null;   // Đơn vị cấp 2 (Hộp) — chỉ dùng cho sản phẩm bán 3 cấp Gói/Túi → Hộp → Thùng
+  ty_le_cap_2: number | null; // Tỷ lệ quy đổi cấp 2 (Gói/Túi → Hộp)
+  gia_hop: number | null;    // Giá Hộp
   brand_id: string | null;
   brand?: { name: string } | null; // populated only when a query joins brand:brands(name)
   ma_vach: string | null;

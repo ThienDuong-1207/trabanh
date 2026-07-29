@@ -2601,6 +2601,9 @@ type FormState = {
   gia_thung: string;
   quy_cach: string;
   ty_le: string;
+  dvt_cap_2: string;
+  ty_le_cap_2: string;
+  gia_hop: string;
   brand: string;
   ma_vach: string;
   ma_thung: string;
@@ -2620,6 +2623,9 @@ function productToFormState(p: Product | null): FormState {
     gia_thung: p?.gia_thung?.toString() ?? "",
     quy_cach: p?.quy_cach ?? "",
     ty_le: p?.ty_le?.toString() ?? "",
+    dvt_cap_2: p?.dvt_cap_2 ?? "",
+    ty_le_cap_2: p?.ty_le_cap_2?.toString() ?? "",
+    gia_hop: p?.gia_hop?.toString() ?? "",
     brand: p?.brand?.name ?? "",
     ma_vach: p?.ma_vach ?? "",
     ma_thung: p?.ma_thung ?? "",
@@ -2642,6 +2648,9 @@ function formStateToInput(f: FormState): ProductInput {
     gia_thung: num(f.gia_thung),
     quy_cach: str(f.quy_cach),
     ty_le: num(f.ty_le),
+    dvt_cap_2: str(f.dvt_cap_2),
+    ty_le_cap_2: num(f.ty_le_cap_2),
+    gia_hop: num(f.gia_hop),
     brand: str(f.brand),
     ma_vach: str(f.ma_vach),
     ma_thung: str(f.ma_thung),
@@ -3059,6 +3068,10 @@ function ProductForm({
   const [saving, setSaving] = useState(false);
 
   const [brandCustom, setBrandCustom] = useState(!!initial.brand?.name && !brandNames.includes(initial.brand.name));
+  // Số ít sản phẩm bán đủ 3 cấp (Gói/Túi → Hộp → Thùng, vd Bột Rau Câu) mới
+  // cần tới phần này — ẩn mặc định để không làm rối form cho các sản phẩm
+  // 2 cấp bình thường, tự mở sẵn nếu sản phẩm đã có dữ liệu cấp Hộp.
+  const [showHopTier, setShowHopTier] = useState(Boolean(initial.dvt_cap_2 || initial.ty_le_cap_2 || initial.gia_hop));
 
   // Chỉ Admin mới đổi được tên hàng hóa — Kế toán vẫn sửa được các trường
   // khác, chỉ riêng tên bị khóa (app/api/products/[id]/route.ts chặn ở API).
@@ -3153,6 +3166,38 @@ function ProductForm({
             </Field>
           </div>
         </div>
+
+        {showHopTier ? (
+          <div className="field-group">
+            <h3>Cấp đóng gói trung gian (Hộp)</h3>
+            <p className="modal-sub">Chỉ điền nếu sản phẩm bán đủ 3 cấp Gói/Túi → Hộp → Thùng — sản phẩm bình thường để trống.</p>
+            <div className="field-grid">
+              <Field label="Đơn vị cấp 2 (Hộp)">
+                <select value={form.dvt_cap_2} onChange={(e) => set("dvt_cap_2", e.target.value)}>
+                  <option value="">— Chọn đơn vị —</option>
+                  {withCurrent(DVT_SUGGESTIONS, form.dvt_cap_2).map((d) => (
+                    <option key={d}>{d}</option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Tỷ lệ quy đổi cấp 2">
+                <select value={form.ty_le_cap_2} onChange={(e) => set("ty_le_cap_2", e.target.value)}>
+                  <option value="">— Chọn tỷ lệ —</option>
+                  {withCurrent(TY_LE_SUGGESTIONS, form.ty_le_cap_2).map((t) => (
+                    <option key={t}>{t}</option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Giá Hộp">
+                <input value={form.gia_hop} onChange={(e) => set("gia_hop", e.target.value)} />
+              </Field>
+            </div>
+          </div>
+        ) : (
+          <button type="button" className="btn btn-quiet" onClick={() => setShowHopTier(true)}>
+            + Thêm cấp đóng gói (Hộp)
+          </button>
+        )}
 
         <div className="field-group">
           <h3>Thương hiệu &amp; mã liên quan</h3>
