@@ -41,7 +41,7 @@ export type UpsertSummary = {
   brandsUpserted: number;
 };
 
-export type ImportSummary = UpsertSummary & { skippedSheets: string[] };
+export type ImportSummary = UpsertSummary & { skippedSheets: string[]; skippedIncomplete: number };
 
 // row_number is 1-based, matching the row as it appears in the source
 // spreadsheet — only used to point at exactly which row a duplicate-check
@@ -77,6 +77,7 @@ export async function importProductsFromWorkbook(buffer: Buffer, mode: ImportMod
 
   const rows: ProductRow[] = [];
   const skippedSheets: string[] = [];
+  let skippedIncomplete = 0;
 
   for (const worksheet of workbook.worksheets) {
     const name = worksheet.name;
@@ -97,17 +98,23 @@ export async function importProductsFromWorkbook(buffer: Buffer, mode: ImportMod
       if (rowNumber === 1) return;
       const record: ProductRow = { category_sheet: category, row_number: rowNumber };
       let hasMaNoiBo = false;
+      let hasTenHangHoa = false;
       fieldByCol.forEach((field, colNumber) => {
         const value = cellValue(row.getCell(colNumber).value);
         if (field === "ma_noi_bo" && value) hasMaNoiBo = true;
+        if (field === "ten_hang_hoa" && value) hasTenHangHoa = true;
         record[field] = NUMERIC_FIELDS.has(field) && value !== null ? Number(value) : value;
       });
-      if (hasMaNoiBo) rows.push(record);
+      // Chỉ nhập dòng có đủ cả Mã hàng hóa lẫn Tên hàng hóa — thiếu 1 trong 2
+      // thì bỏ qua dòng đó thay vì chặn cả file (dòng hoàn toàn trống thì
+      // không tính là "thiếu", chỉ là dòng rỗng bình thường trong sheet).
+      if (hasMaNoiBo && hasTenHangHoa) rows.push(record);
+      else if (hasMaNoiBo || hasTenHangHoa) skippedIncomplete++;
     });
   }
 
   const summary = await upsertProductRows(rows, mode);
-  return { ...summary, skippedSheets };
+  return { ...summary, skippedSheets, skippedIncomplete };
 }
 
 // Fail fast with a clear message: an upsert can't apply two rows with the
@@ -139,20 +146,6 @@ function checkDuplicates(rows: ProductRow[], field: "ma_noi_bo" | "ma_vach" | "m
   }
 }
 
-// Fail fast with sheet+row pointers when a required field is missing —
-// otherwise the DB's own not-null constraint violation only reports a
-// batch-index range (e.g. "dòng 401-422") that's an internal offset into the
-// deduplicated upsert list, not a real row number in the source spreadsheet,
-// leaving no way to find what to actually fix.
-function checkRequiredField(rows: ProductRow[], field: "ten_hang_hoa", label: string) {
-  const missing = rows.filter((r) => !r[field]);
-  if (missing.length === 0) return;
-  const LIMIT = 30;
-  const locations = missing.slice(0, LIMIT).map((r) => `${r.category_sheet} dòng ${r.row_number}`);
-  const suffix = missing.length > LIMIT ? ` và ${missing.length - LIMIT} dòng khác` : "";
-  throw new Error(`Dữ liệu thiếu ${label}, cần sửa trước khi nhập: ${locations.join(", ")}${suffix}`);
-}
-
 // Shared by both the Excel import and the Google Sheet sync: takes rows
 // already parsed into our column shape and upserts them into `products`.
 //
@@ -166,7 +159,6 @@ function checkRequiredField(rows: ProductRow[], field: "ten_hang_hoa", label: st
 //   source's values — for when the source really is the source of truth to
 //   sync from (deliberate bulk corrections, or the Google Sheet sync).
 export async function upsertProductRows(rows: ProductRow[], mode: ImportMode): Promise<UpsertSummary> {
-  checkRequiredField(rows, "ten_hang_hoa", "Tên hàng hóa");
   checkDuplicates(rows, "ma_noi_bo", "Mã nội bộ");
   checkDuplicates(rows, "ma_vach", "Mã vạch");
   checkDuplicates(rows, "ma_thung", "Mã thùng");

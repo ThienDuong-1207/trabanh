@@ -632,10 +632,11 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
       }
       if (!res.ok) throw new Error(data.error || "Nhập file thất bại");
       const skipped = data.skippedSheets?.length ? ` (bỏ qua sheet: ${data.skippedSheets.join(", ")})` : "";
+      const skippedIncomplete = data.skippedIncomplete > 0 ? ` Bỏ qua ${data.skippedIncomplete} dòng thiếu Tên hàng hóa hoặc Mã hàng hóa.` : "";
       const summary = importOnlyNew
         ? `Đã thêm ${data.newCount} sản phẩm mới. ${data.existingCount} sản phẩm đã tồn tại (giữ nguyên, không thay đổi).`
         : `Đã cập nhật ${data.existingCount} sản phẩm đã có và thêm ${data.newCount} sản phẩm mới.`;
-      alert(`${summary} ${data.brandsUpserted} thương hiệu.${skipped}`);
+      alert(`${summary} ${data.brandsUpserted} thương hiệu.${skipped}${skippedIncomplete}`);
       await loadProducts();
       await loadBrandNames();
     } catch (e: any) {

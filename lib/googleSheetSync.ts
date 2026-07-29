@@ -42,6 +42,7 @@ export async function syncFromGoogleSheet(): Promise<ImportSummary> {
   }
 
   const rows: ProductRow[] = [];
+  let skippedIncomplete = 0;
   if (matchedTabs.length > 0) {
     const { data } = await sheets.spreadsheets.values.batchGet({
       spreadsheetId,
@@ -71,10 +72,12 @@ export async function syncFromGoogleSheet(): Promise<ImportSummary> {
         // the 1-based row number as it appears in the actual Google Sheet.
         const record: ProductRow = { category_sheet: category, row_number: rowIndex + 2 };
         let hasMaNoiBo = false;
+        let hasTenHangHoa = false;
         fieldByCol.forEach((field, colIndex) => {
           const raw = row[colIndex];
           const value = raw === undefined || raw === "" ? null : raw;
           if (field === "ma_noi_bo" && value) hasMaNoiBo = true;
+          if (field === "ten_hang_hoa" && value) hasTenHangHoa = true;
           if (NUMERIC_FIELDS.has(field) && value !== null) {
             const n = Number(value);
             // Guard against ever writing NaN — it JSON-serializes to null and
@@ -85,11 +88,15 @@ export async function syncFromGoogleSheet(): Promise<ImportSummary> {
             record[field] = value;
           }
         });
-        if (hasMaNoiBo) rows.push(record);
+        // Chỉ đồng bộ dòng có đủ cả Mã hàng hóa lẫn Tên hàng hóa — thiếu 1
+        // trong 2 thì bỏ qua dòng đó thay vì để lỗi ràng buộc not-null của DB
+        // chặn cả lần đồng bộ (dòng hoàn toàn trống thì không tính là "thiếu").
+        if (hasMaNoiBo && hasTenHangHoa) rows.push(record);
+        else if (hasMaNoiBo || hasTenHangHoa) skippedIncomplete++;
       });
     });
   }
 
   const summary = await upsertProductRows(rows, "update-all");
-  return { ...summary, skippedSheets };
+  return { ...summary, skippedSheets, skippedIncomplete };
 }
