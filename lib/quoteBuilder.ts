@@ -19,6 +19,14 @@ function formatDateLine(dateStr?: string | null) {
   return `Ngày ${d.getDate()} tháng ${d.getMonth() + 1} năm ${d.getFullYear()}`;
 }
 
+// Gộp quy cách 2 cấp đóng gói (Thùng + Hộp trung gian, nếu có) thành 1 dòng
+// mô tả cho khách xem, vd "Thùng (10 hộp), Hộp (12 gói)" — sản phẩm thường
+// (2 cấp, không có dvt_cap_2) chỉ hiện đúng quy_cach sẵn có.
+function formatQuyCach(p: Product): string {
+  const parts = [p.quy_cach, p.dvt_cap_2].filter((s): s is string => Boolean(s));
+  return parts.join(", ");
+}
+
 function sortForQuote(items: Product[]): Product[] {
   return [...items].sort((a, b) => {
     const catDiff = CATEGORY_ORDER.indexOf(a.category_sheet) - CATEGORY_ORDER.indexOf(b.category_sheet);
@@ -45,7 +53,9 @@ export async function buildQuotePdf(items: Product[], info: QuoteInfo): Promise<
     [
       { text: "STT", bold: true, alignment: "center" },
       { text: "TÊN SẢN PHẨM", bold: true, alignment: "center" },
+      { text: "QUY CÁCH", bold: true, alignment: "center" },
       { text: "GIÁ LẺ", bold: true, alignment: "center" },
+      { text: "GIÁ HỘP", bold: true, alignment: "center" },
       { text: "GIÁ THÙNG", bold: true, alignment: "center" },
     ],
   ];
@@ -53,13 +63,15 @@ export async function buildQuotePdf(items: Product[], info: QuoteInfo): Promise<
   let stt = 1;
   for (const p of sorted) {
     if (p.category_sheet !== lastCategory) {
-      tableBody.push([{ text: `${p.category_sheet}:`, bold: true, colSpan: 4, fillColor: "#f2f2f2" }, {}, {}, {}]);
+      tableBody.push([{ text: `${p.category_sheet}:`, bold: true, colSpan: 6, fillColor: "#f2f2f2" }, {}, {}, {}, {}, {}]);
       lastCategory = p.category_sheet;
     }
     tableBody.push([
       { text: String(stt), alignment: "center" },
       { text: p.ten_hang_hoa, alignment: "left" },
+      { text: formatQuyCach(p), alignment: "left" },
       { text: formatPrice(p.gia_ban), alignment: "right" },
+      { text: formatPrice(p.gia_hop), alignment: "right" },
       { text: formatPrice(p.gia_thung), alignment: "right" },
     ]);
     stt++;
@@ -79,7 +91,7 @@ export async function buildQuotePdf(items: Product[], info: QuoteInfo): Promise<
     content.push({ text: "Không có sản phẩm nào trong danh sách đã chọn." });
   } else {
     content.push({
-      table: { headerRows: 1, widths: ["8%", "51%", "20.5%", "20.5%"], body: tableBody },
+      table: { headerRows: 1, widths: ["7%", "31%", "20%", "14%", "14%", "14%"], body: tableBody },
       layout: tableBorder,
     });
   }
