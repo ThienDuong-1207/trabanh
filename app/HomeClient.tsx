@@ -7,6 +7,7 @@ import {
   Product,
   ProductInput,
   PriceChangeRequest,
+  PriceHistoryEntry,
   Profile,
   ActivityLogEntry,
   Notification,
@@ -1702,9 +1703,67 @@ function NotificationBell({ userId, onNavigate }: { userId: string; onNavigate: 
   );
 }
 
+// Biểu đồ đường tự vẽ bằng SVG (không thêm thư viện) — trục X dàn theo đúng
+// vị trí thời gian thực (không chỉ theo thứ tự), trục Y co giãn theo đúng
+// min/max của chính chuỗi đó (2 chuỗi Giá lẻ/Giá thùng lệch nhau nhiều lần
+// nên mỗi chuỗi có 1 trục Y riêng, không dùng chung — nếu dùng chung, chuỗi
+// giá trị nhỏ hơn hẳn sẽ nhìn như 1 đường thẳng phẳng lì).
+function MiniLineChart({ points, color }: { points: { t: number; v: number }[]; color: string }) {
+  if (points.length === 0) {
+    return <p style={{ color: "var(--muted)", fontSize: 12.5 }}>Chưa có lịch sử.</p>;
+  }
+  const W = 600;
+  const H = 130;
+  const PAD_X = 8;
+  const PAD_Y = 16;
+  const minT = points[0].t;
+  const maxT = points[points.length - 1].t;
+  const rangeT = maxT - minT || 1;
+  const values = points.map((p) => p.v);
+  const minV = Math.min(...values);
+  const maxV = Math.max(...values);
+  const rangeV = maxV - minV || 1;
+  const xFor = (t: number) => (points.length === 1 ? W / 2 : PAD_X + ((t - minT) / rangeT) * (W - PAD_X * 2));
+  const yFor = (v: number) => H - PAD_Y - ((v - minV) / rangeV) * (H - PAD_Y * 2);
+  const path = points.map((p, i) => `${i === 0 ? "M" : "L"} ${xFor(p.t).toFixed(1)} ${yFor(p.v).toFixed(1)}`).join(" ");
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: H, display: "block" }} preserveAspectRatio="none">
+      <path d={path} fill="none" stroke={color} strokeWidth={2} />
+      {points.map((p, i) => (
+        <circle key={i} cx={xFor(p.t)} cy={yFor(p.v)} r={3} fill={color} />
+      ))}
+    </svg>
+  );
+}
+
+// Nạp lịch sử giá RIÊNG bên trong view này (không đưa lên HomeClient) vì chỉ
+// dùng cho báo cáo — giới hạn 3000 dòng gần nhất là đủ dư dùng ở quy mô hiện
+// tại (~66 dòng); nếu về sau lịch sử phình to hơn nhiều, biểu đồ tháng/top 10
+// có thể thiếu vài dòng cũ nhất, chấp nhận được cho 1 trang tổng quan nhanh.
 function DashboardView({ products, pendingCount }: { products: Product[]; pendingCount: number }) {
-  const totalValue = products.reduce((sum, p) => sum + (p.gia_ban ?? 0), 0);
   const missingPrice = products.filter((p) => !p.gia_ban).length;
+
+  const [historyRows, setHistoryRows] = useState<PriceHistoryEntry[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(true);
+  const [selectedProductId, setSelectedProductId] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from("price_history")
+        .select("*, product:products(ten_hang_hoa, ma_noi_bo)")
+        .order("changed_at", { ascending: false })
+        .limit(3000);
+      if (!cancelled) {
+        if (!error) setHistoryRows((data ?? []) as PriceHistoryEntry[]);
+        setHistoryLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const byCategory = useMemo(() => {
     const counts = new Map<string, number>();
@@ -1713,9 +1772,60 @@ function DashboardView({ products, pendingCount }: { products: Product[]; pendin
   }, [products]);
   const maxCount = Math.max(1, ...byCategory.map((c) => c.count));
 
-  const recent = useMemo(
-    () => [...products].sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()).slice(0, 8),
-    [products]
+  const recentPriceChanges = useMemo(() => historyRows.slice(0, 8), [historyRows]);
+
+  const topChangedProducts = useMemo(() => {
+    const counts = new Map<string, { name: string; count: number }>();
+    for (const h of historyRows) {
+      const cur = counts.get(h.product_id);
+      if (cur) cur.count++;
+      else counts.set(h.product_id, { name: h.product?.ten_hang_hoa ?? "(sản phẩm đã xóa)", count: 1 });
+    }
+    return [...counts.values()].sort((a, b) => b.count - a.count).slice(0, 10);
+  }, [historyRows]);
+  const maxChangedCount = Math.max(1, ...topChangedProducts.map((c) => c.count));
+
+  // Luôn dựng đủ 12 tháng gần nhất (kể cả tháng chưa có thay đổi giá nào =
+  // cột rỗng) để trục thời gian nhất quán, không co giãn theo dữ liệu có sẵn.
+  const monthlyCounts = useMemo(() => {
+    const now = new Date();
+    const buckets: { key: string; label: string; count: number }[] = [];
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      buckets.push({ key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`, label: `Th${d.getMonth() + 1}`, count: 0 });
+    }
+    const byKey = new Map(buckets.map((b) => [b.key, b]));
+    for (const h of historyRows) {
+      const b = byKey.get(h.changed_at.slice(0, 7));
+      if (b) b.count++;
+    }
+    return buckets;
+  }, [historyRows]);
+  const maxMonthCount = Math.max(1, ...monthlyCounts.map((b) => b.count));
+
+  const sortedProducts = useMemo(() => [...products].sort((a, b) => a.ten_hang_hoa.localeCompare(b.ten_hang_hoa, "vi")), [products]);
+
+  const selectedHistory = useMemo(
+    () =>
+      historyRows
+        .filter((h) => h.product_id === selectedProductId)
+        .slice()
+        .reverse(), // historyRows đang sắp mới nhất trước — đảo lại để biểu đồ chạy trái sang phải theo thời gian
+    [historyRows, selectedProductId]
+  );
+  const giaBanPoints = useMemo(
+    () =>
+      selectedHistory
+        .filter((h) => h.gia_ban_new != null)
+        .map((h) => ({ t: new Date(h.changed_at).getTime(), v: h.gia_ban_new as number })),
+    [selectedHistory]
+  );
+  const giaThungPoints = useMemo(
+    () =>
+      selectedHistory
+        .filter((h) => h.gia_thung_new != null)
+        .map((h) => ({ t: new Date(h.changed_at).getTime(), v: h.gia_thung_new as number })),
+    [selectedHistory]
   );
 
   return (
@@ -1723,7 +1833,7 @@ function DashboardView({ products, pendingCount }: { products: Product[]; pendin
       <div className="view-header">
         <div>
           <h1>Báo cáo</h1>
-          <p>Tổng quan nhanh về danh mục sản phẩm và tình trạng đồng bộ.</p>
+          <p>Tổng quan nhanh về danh mục sản phẩm và tình trạng thay đổi giá.</p>
         </div>
       </div>
 
@@ -1732,10 +1842,6 @@ function DashboardView({ products, pendingCount }: { products: Product[]; pendin
           <div className="label">Tổng sản phẩm</div>
           <div className="value">{products.length}</div>
           <div className="delta">{byCategory.filter((c) => c.count > 0).length} nhóm hàng</div>
-        </div>
-        <div className="kpi-card">
-          <div className="label">Giá trị bán lẻ ước tính</div>
-          <div className="value">{totalValue.toLocaleString("vi-VN")} ₫</div>
         </div>
         <div className="kpi-card">
           <div className="label">Chờ xuất file</div>
@@ -1761,18 +1867,91 @@ function DashboardView({ products, pendingCount }: { products: Product[]; pendin
             </div>
           ))}
         </div>
+
         <div className="panel">
-          <h3>Cập nhật gần đây</h3>
-          {recent.length === 0 && <p style={{ color: "var(--muted)", fontSize: 12.5 }}>Chưa có dữ liệu.</p>}
-          {recent.map((p) => (
-            <div className="activity-row" key={p.id}>
-              <div className="activity-dot" />
-              <div>
-                {p.ten_hang_hoa}
-                <div className="t">{relativeTimeVi(p.updated_at)}</div>
+          <h3>Thay đổi giá gần đây</h3>
+          {historyLoading && <p style={{ color: "var(--muted)", fontSize: 12.5 }}>Đang tải...</p>}
+          {!historyLoading && recentPriceChanges.length === 0 && (
+            <p style={{ color: "var(--muted)", fontSize: 12.5 }}>Chưa có lịch sử thay đổi giá.</p>
+          )}
+          {recentPriceChanges.map((h) => {
+            const banChanged = h.gia_ban_old !== h.gia_ban_new;
+            const thungChanged = h.gia_thung_old !== h.gia_thung_new;
+            return (
+              <div className="activity-row" key={h.id}>
+                <div className="activity-dot" />
+                <div>
+                  {h.product?.ten_hang_hoa ?? "(sản phẩm đã xóa)"}
+                  <div className="t">
+                    {banChanged && `Giá lẻ ${formatVnd(h.gia_ban_old)}→${formatVnd(h.gia_ban_new)}`}
+                    {banChanged && thungChanged && " · "}
+                    {thungChanged && `Giá thùng ${formatVnd(h.gia_thung_old)}→${formatVnd(h.gia_thung_new)}`}
+                    {" · "}
+                    {relativeTimeVi(h.changed_at)}
+                  </div>
+                </div>
               </div>
+            );
+          })}
+        </div>
+
+        <div className="panel">
+          <h3>Top 10 sản phẩm hay đổi giá nhất</h3>
+          {!historyLoading && topChangedProducts.length === 0 && (
+            <p style={{ color: "var(--muted)", fontSize: 12.5 }}>Chưa có dữ liệu.</p>
+          )}
+          {topChangedProducts.map((c) => (
+            <div className="bar-row bar-row-wide" key={c.name}>
+              <div className="cat-name" title={c.name}>{c.name}</div>
+              <div className="bar-track">
+                <div className="bar-fill" style={{ width: `${(c.count / maxChangedCount) * 100}%` }} />
+              </div>
+              <div className="n">{c.count}</div>
             </div>
           ))}
+        </div>
+
+        <div className="panel panel-wide">
+          <h3>Số lần đổi giá theo tháng</h3>
+          <div className="month-chart">
+            {monthlyCounts.map((b) => (
+              <div className="month-bar" key={b.key} title={`${b.label}: ${b.count} lần`}>
+                <div className="month-bar-track">
+                  <div className="month-bar-fill" style={{ height: `${(b.count / maxMonthCount) * 100}%` }} />
+                </div>
+                <div className="month-bar-label">{b.label}</div>
+                <div className="month-bar-count">{b.count}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="panel panel-wide">
+          <h3>Lịch sử giá theo thời gian — chọn sản phẩm</h3>
+          <select value={selectedProductId} onChange={(e) => setSelectedProductId(e.target.value)} style={{ marginBottom: 14, maxWidth: 420 }}>
+            <option value="">— Chọn sản phẩm —</option>
+            {sortedProducts.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.ten_hang_hoa}
+              </option>
+            ))}
+          </select>
+          {selectedProductId && (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+              <div>
+                <div className="stat-kpi-label" style={{ marginBottom: 6 }}>
+                  Giá lẻ
+                </div>
+                <MiniLineChart points={giaBanPoints} color="var(--primary)" />
+              </div>
+              <div>
+                <div className="stat-kpi-label" style={{ marginBottom: 6 }}>
+                  Giá thùng
+                </div>
+                <MiniLineChart points={giaThungPoints} color="var(--warm-ink)" />
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
