@@ -1,5 +1,6 @@
 import pdfmake from "./pdfFonts";
 import { CATEGORY_ORDER, Product } from "./types";
+import { extractUnitFromQuyCach } from "./suggestionLists";
 
 export type QuoteInfo = {
   customerName?: string | null;
@@ -19,12 +20,43 @@ function formatDateLine(dateStr?: string | null) {
   return `Ngày ${d.getDate()} tháng ${d.getMonth() + 1} năm ${d.getFullYear()}`;
 }
 
+// dvt_cap_2 chỉ lưu tên đơn vị sạch (vd "Hộp"), số lượng nằm riêng ở
+// ty_le_cap_2 — tự ghép lại thành mô tả đầy đủ "Hộp (12 Gói)" ở đây thay vì
+// giả định dvt_cap_2 đã có sẵn số lượng. extractUnitFromQuyCach phòng
+// trường hợp dữ liệu cũ/nhập tay vẫn còn dạng "Hộp (12 gói)" (tránh lặp số
+// lượng 2 lần trong 1 câu).
+function formatHopUnit(p: Product): string | null {
+  if (!p.dvt_cap_2 || !p.ty_le_cap_2 || !p.dvt) return null;
+  return `${extractUnitFromQuyCach(p.dvt_cap_2)} (${p.ty_le_cap_2} ${p.dvt})`;
+}
+
 // Gộp quy cách 2 cấp đóng gói (Thùng + Hộp trung gian, nếu có) thành 1 dòng
-// mô tả cho khách xem, vd "Thùng (10 hộp), Hộp (12 gói)" — sản phẩm thường
+// mô tả cho khách xem, vd "Thùng (10 hộp), Hộp (12 Gói)" — sản phẩm thường
 // (2 cấp, không có dvt_cap_2) chỉ hiện đúng quy_cach sẵn có.
 function formatQuyCach(p: Product): string {
-  const parts = [p.quy_cach, p.dvt_cap_2].filter((s): s is string => Boolean(s));
+  const parts = [p.quy_cach, formatHopUnit(p)].filter((s): s is string => Boolean(s));
   return parts.join(", ");
+}
+
+// Sản phẩm bán 3 cấp (có giá Hộp) không có cột giá riêng — thay vào đó chèn
+// 1 dòng ghi chú nhỏ ngay dưới tên sản phẩm, để khách thấy ngay giá Hộp gắn
+// liền với đúng sản phẩm đó thay vì phải dò một cột giá riêng.
+// Dùng "stack" (2 paragraph riêng) chứ không phải 1 "text" có ký tự "\n" —
+// ký tự "\n" lồng trong text làm pdfmake tính sai chiều cao dòng, khiến các
+// ô khác cùng hàng (vd cột Quy cách) bị cắt mất dòng thứ 2 (đã gặp thực tế).
+// Cũng tránh ký tự mũi tên "↳": font Roboto nhúng trong file không có glyph
+// này, hiện ra thành ô vuông rỗng.
+function nameCell(p: Product) {
+  const hopUnit = formatHopUnit(p);
+  if (p.gia_hop && hopUnit) {
+    return {
+      stack: [
+        { text: p.ten_hang_hoa },
+        { text: `- Giá ${hopUnit}: ${formatPrice(p.gia_hop)}đ`, italics: true, fontSize: 9, color: "#555555", margin: [0, 2, 0, 0] },
+      ],
+    };
+  }
+  return { text: p.ten_hang_hoa, alignment: "left" };
 }
 
 function sortForQuote(items: Product[]): Product[] {
@@ -55,7 +87,6 @@ export async function buildQuotePdf(items: Product[], info: QuoteInfo): Promise<
       { text: "TÊN SẢN PHẨM", bold: true, alignment: "center" },
       { text: "QUY CÁCH", bold: true, alignment: "center" },
       { text: "GIÁ LẺ", bold: true, alignment: "center" },
-      { text: "GIÁ HỘP", bold: true, alignment: "center" },
       { text: "GIÁ THÙNG", bold: true, alignment: "center" },
     ],
   ];
@@ -63,15 +94,14 @@ export async function buildQuotePdf(items: Product[], info: QuoteInfo): Promise<
   let stt = 1;
   for (const p of sorted) {
     if (p.category_sheet !== lastCategory) {
-      tableBody.push([{ text: `${p.category_sheet}:`, bold: true, colSpan: 6, fillColor: "#f2f2f2" }, {}, {}, {}, {}, {}]);
+      tableBody.push([{ text: `${p.category_sheet}:`, bold: true, colSpan: 5, fillColor: "#f2f2f2" }, {}, {}, {}, {}]);
       lastCategory = p.category_sheet;
     }
     tableBody.push([
       { text: String(stt), alignment: "center" },
-      { text: p.ten_hang_hoa, alignment: "left" },
+      nameCell(p),
       { text: formatQuyCach(p), alignment: "left" },
       { text: formatPrice(p.gia_ban), alignment: "right" },
-      { text: formatPrice(p.gia_hop), alignment: "right" },
       { text: formatPrice(p.gia_thung), alignment: "right" },
     ]);
     stt++;
@@ -91,7 +121,7 @@ export async function buildQuotePdf(items: Product[], info: QuoteInfo): Promise<
     content.push({ text: "Không có sản phẩm nào trong danh sách đã chọn." });
   } else {
     content.push({
-      table: { headerRows: 1, widths: ["7%", "31%", "20%", "14%", "14%", "14%"], body: tableBody },
+      table: { headerRows: 1, widths: ["7%", "35%", "24%", "17%", "17%"], body: tableBody },
       layout: tableBorder,
     });
   }
