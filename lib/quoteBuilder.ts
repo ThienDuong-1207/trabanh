@@ -98,13 +98,19 @@ export async function buildQuotePdf(items: Product[], info: QuoteInfo): Promise<
   // khác với nhóm ngay trước đó — STT vẫn đếm liên tục xuyên suốt bảng,
   // không reset về 1 ở mỗi nhóm (items đã được sortForQuote sắp theo đúng
   // thứ tự nhóm hàng nên chỉ cần so sánh với nhóm liền trước).
+  // Màu ô lấy đúng theo file mẫu thật của tiệm (đo trực tiếp từ file PDF
+  // "bao_gia_tra_banh_sheet1_logo_note_only.pdf"): header vàng #FFFF00, dòng
+  // tiêu đề nhóm hàng màu cam nhạt #FDEADA.
+  const HEADER_FILL = "#FFFF00";
+  const CATEGORY_FILL = "#FDEADA";
+
   const tableBody: any[] = [
     [
-      { text: "STT", bold: true, alignment: "center" },
-      { text: "TÊN SẢN PHẨM", bold: true, alignment: "center" },
-      { text: "QUY CÁCH", bold: true, alignment: "center" },
-      { text: "GIÁ HỘP/TÚI", bold: true, alignment: "center" },
-      { text: "GIÁ THÙNG", bold: true, alignment: "center" },
+      { text: "STT", bold: true, alignment: "center", fillColor: HEADER_FILL },
+      { text: "TÊN SẢN PHẨM", bold: true, alignment: "center", fillColor: HEADER_FILL },
+      { text: "QUY CÁCH", bold: true, alignment: "center", fillColor: HEADER_FILL },
+      { text: "GIÁ HỘP/TÚI", bold: true, alignment: "center", fillColor: HEADER_FILL },
+      { text: "GIÁ THÙNG", bold: true, alignment: "center", fillColor: HEADER_FILL },
     ],
   ];
   let lastCategory: string | null = null;
@@ -114,7 +120,7 @@ export async function buildQuotePdf(items: Product[], info: QuoteInfo): Promise<
     if (p.category_sheet !== lastCategory) {
       categoryIndex++;
       tableBody.push([
-        { text: `${toRoman(categoryIndex)}. ${p.category_sheet}:`, bold: true, italics: true, decoration: "underline", colSpan: 5 },
+        { text: `${toRoman(categoryIndex)}. ${p.category_sheet}:`, bold: true, italics: true, decoration: "underline", colSpan: 5, fillColor: CATEGORY_FILL },
         {},
         {},
         {},
