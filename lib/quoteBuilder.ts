@@ -1,14 +1,31 @@
+import fs from "fs";
+import path from "path";
 import pdfmake from "./pdfFonts";
 import { CATEGORY_ORDER, Product } from "./types";
 import { extractUnitFromQuyCach } from "./suggestionLists";
 
+// Chuyển sang dạng bảng giá niêm yết chung (không phải báo giá riêng theo
+// từng khách) — theo mẫu thiết kế thật của tiệm, không còn thu thập tên/địa
+// chỉ/điện thoại khách hàng nữa, chỉ còn ngày báo giá.
 export type QuoteInfo = {
-  customerName?: string | null;
-  address?: string | null;
-  phone?: string | null;
-  note?: string | null;
   date?: string | null; // yyyy-mm-dd
 };
+
+// Thông tin công ty cố định cho phần đầu trang (letterhead) — lấy nguyên văn
+// từ mẫu thiết kế thật của tiệm ("bao_gia_tra_banh_sheet1_logo_note_only.pdf").
+const COMPANY_INFO = [
+  "CN TIỆM TRÀ BÁNH SỐ 1 - CÔNG TY CỔ PHẦN HỌC VIỆN TRÀ VIỆT NAM",
+  "MST: 0317447929-001",
+  "Số 5 Ung Văn Khiêm, phường Thạnh Mỹ Tây, TP Hồ Chí Minh, Việt Nam",
+  "Hotline: 0906.363.395",
+];
+
+const LOGO_PATH = path.join(process.cwd(), "public", "templates", "logo.png");
+
+const ROMAN_NUMERALS = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII", "XIII", "XIV", "XV"];
+function toRoman(n: number): string {
+  return ROMAN_NUMERALS[n - 1] ?? String(n);
+}
 
 function formatPrice(n: number | null) {
   if (n === null || n === undefined) return "";
@@ -86,15 +103,23 @@ export async function buildQuotePdf(items: Product[], info: QuoteInfo): Promise<
       { text: "STT", bold: true, alignment: "center" },
       { text: "TÊN SẢN PHẨM", bold: true, alignment: "center" },
       { text: "QUY CÁCH", bold: true, alignment: "center" },
-      { text: "GIÁ LẺ", bold: true, alignment: "center" },
+      { text: "GIÁ HỘP/TÚI", bold: true, alignment: "center" },
       { text: "GIÁ THÙNG", bold: true, alignment: "center" },
     ],
   ];
   let lastCategory: string | null = null;
+  let categoryIndex = 0;
   let stt = 1;
   for (const p of sorted) {
     if (p.category_sheet !== lastCategory) {
-      tableBody.push([{ text: `${p.category_sheet}:`, bold: true, colSpan: 5, fillColor: "#f2f2f2" }, {}, {}, {}, {}]);
+      categoryIndex++;
+      tableBody.push([
+        { text: `${toRoman(categoryIndex)}. ${p.category_sheet}:`, bold: true, italics: true, decoration: "underline", colSpan: 5 },
+        {},
+        {},
+        {},
+        {},
+      ]);
       lastCategory = p.category_sheet;
     }
     tableBody.push([
@@ -107,14 +132,20 @@ export async function buildQuotePdf(items: Product[], info: QuoteInfo): Promise<
     stt++;
   }
 
+  const logo = fs.existsSync(LOGO_PATH)
+    ? { image: LOGO_PATH, fit: [130, 45] as [number, number], alignment: "right" as const }
+    : null;
+
   const content: any[] = [
+    {
+      columns: [
+        { width: "*", stack: COMPANY_INFO.map((line, i) => ({ text: line, bold: i === 0, fontSize: i === 0 ? 11 : 10 })) },
+        ...(logo ? [{ width: 130, ...logo }] : []),
+      ],
+      margin: [0, 0, 0, 14],
+    },
     { text: "BẢNG BÁO GIÁ", bold: true, fontSize: 16, alignment: "center", margin: [0, 0, 0, 4] },
-    { text: formatDateLine(info.date), fontSize: 12, alignment: "center", margin: [0, 0, 0, 2] },
-    { text: "Bảng báo giá có hiệu lực trong tháng", italics: true, fontSize: 11, alignment: "center", margin: [0, 0, 0, 10] },
-    { text: `Khách hàng: ${info.customerName ?? ""}`, bold: true, margin: [0, 0, 0, 2] },
-    { text: `Địa chỉ: ${info.address ?? ""}`, bold: true, margin: [0, 0, 0, 2] },
-    { text: `Điện thoại: ${info.phone ?? ""}`, bold: true, margin: [0, 0, 0, 2] },
-    { text: `Ghi chú: ${info.note ?? ""}`, bold: true, margin: [0, 0, 0, 10] },
+    { text: formatDateLine(info.date), fontSize: 12, alignment: "center", margin: [0, 0, 0, 10] },
   ];
 
   if (sorted.length === 0) {
@@ -124,6 +155,7 @@ export async function buildQuotePdf(items: Product[], info: QuoteInfo): Promise<
       table: { headerRows: 1, widths: ["7%", "35%", "24%", "17%", "17%"], body: tableBody },
       layout: tableBorder,
     });
+    content.push({ text: "Ghi chú: Giá đã bao gồm VAT.", bold: true, italics: true, alignment: "right", margin: [0, 10, 0, 0] });
   }
 
   const docDefinition = {

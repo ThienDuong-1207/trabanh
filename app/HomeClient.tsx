@@ -2763,10 +2763,6 @@ function withCurrent(options: (string | number)[], current: string): string[] {
 }
 
 type QuoteFormFields = {
-  customerName: string;
-  address: string;
-  phone: string;
-  note: string;
   date: string; // yyyy-mm-dd
 };
 
@@ -2782,10 +2778,6 @@ function QuoteForm({
   onSubmit: (fields: QuoteFormFields) => void;
 }) {
   const [form, setForm] = useState<QuoteFormFields>({
-    customerName: "",
-    address: "",
-    phone: "",
-    note: "",
     date: new Date().toISOString().slice(0, 10),
   });
 
@@ -2801,18 +2793,6 @@ function QuoteForm({
 
         <div className="field-group">
           <div className="field-grid">
-            <Field label="Khách hàng">
-              <input value={form.customerName} onChange={(e) => set("customerName", e.target.value)} />
-            </Field>
-            <Field label="Địa chỉ">
-              <input value={form.address} onChange={(e) => set("address", e.target.value)} />
-            </Field>
-            <Field label="Điện thoại">
-              <input value={form.phone} onChange={(e) => set("phone", e.target.value)} />
-            </Field>
-            <Field label="Ghi chú">
-              <input value={form.note} onChange={(e) => set("note", e.target.value)} />
-            </Field>
             <Field label="Ngày báo giá">
               <input type="date" value={form.date} onChange={(e) => set("date", e.target.value)} />
             </Field>
