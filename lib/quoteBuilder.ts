@@ -1,8 +1,17 @@
 import fs from "fs";
 import path from "path";
 import pdfmake from "./pdfFonts";
-import { CATEGORY_ORDER, Product } from "./types";
+import { Product } from "./types";
 import { extractUnitFromQuyCach } from "./suggestionLists";
+
+// Thứ tự nhóm hàng RIÊNG cho bảng báo giá — khác CATEGORY_ORDER dùng chung
+// toàn hệ thống (dropdown thêm/sửa sản phẩm, import...). Theo yêu cầu: Sữa
+// đặc/Sữa tươi/Kem đông lạnh lên đầu, các nhóm còn lại giữ nguyên thứ tự cũ,
+// Công cụ dụng cụ luôn ở cuối cùng.
+const QUOTE_CATEGORY_ORDER = [
+  "Sữa đặc", "Sữa tươi", "Kem đông lạnh", "Trà", "Syrup", "Bột",
+  "Trân châu", "Mứt", "Đồ lon", "Mặt hàng khác", "Công cụ dụng cụ",
+];
 
 // Chuyển sang dạng bảng giá niêm yết chung (không phải báo giá riêng theo
 // từng khách) — theo mẫu thiết kế thật của tiệm, không còn thu thập tên/địa
@@ -78,27 +87,30 @@ function nameCell(p: Product) {
 
 function sortForQuote(items: Product[]): Product[] {
   return [...items].sort((a, b) => {
-    const catDiff = CATEGORY_ORDER.indexOf(a.category_sheet) - CATEGORY_ORDER.indexOf(b.category_sheet);
+    const catDiff = QUOTE_CATEGORY_ORDER.indexOf(a.category_sheet) - QUOTE_CATEGORY_ORDER.indexOf(b.category_sheet);
     if (catDiff !== 0) return catDiff;
     return a.ten_hang_hoa.localeCompare(b.ten_hang_hoa, "vi");
   });
 }
 
-// Giảm padding trên/dưới mỗi ô so với mặc định của pdfmake (paddingTop/Bottom
-// mặc định = 2) — cùng với giảm cỡ chữ trong bảng, giúp mỗi hàng thấp lại
-// đáng kể để 1 trang in được nhiều sản phẩm hơn. Giữ nguyên padding trái/phải
-// (mặc định 4) để chữ không dính sát viền ô.
+// Giảm padding mọi phía so với mặc định của pdfmake (trái/phải mặc định 4,
+// trên/dưới mặc định 2) — cùng với giảm cỡ chữ trong bảng, giúp mỗi hàng
+// thấp lại đáng kể để 1 trang in được nhiều sản phẩm hơn. Giảm cả trái/phải
+// (không chỉ trên/dưới như trước) vì các cột giá đã thu hẹp tới mức tiêu đề
+// "GIÁ THÙNG" xém bị vỡ dòng ở padding mặc định.
 const tableBorder = {
   hLineWidth: () => 0.75,
   vLineWidth: () => 0.75,
   hLineColor: () => "#000000",
   vLineColor: () => "#000000",
+  paddingLeft: () => 2,
+  paddingRight: () => 2,
   paddingTop: () => 1,
   paddingBottom: () => 1,
 };
 
 const TABLE_FONT_SIZE = 9.5;
-const TABLE_HEADER_FONT_SIZE = 10;
+const TABLE_HEADER_FONT_SIZE = 9;
 
 export async function buildQuotePdf(items: Product[], info: QuoteInfo): Promise<Buffer> {
   const sorted = sortForQuote(items);
@@ -118,7 +130,7 @@ export async function buildQuotePdf(items: Product[], info: QuoteInfo): Promise<
       { text: "STT", bold: true, alignment: "center", fillColor: HEADER_FILL, fontSize: TABLE_HEADER_FONT_SIZE },
       { text: "TÊN SẢN PHẨM", bold: true, alignment: "center", fillColor: HEADER_FILL, fontSize: TABLE_HEADER_FONT_SIZE },
       { text: "QUY CÁCH", bold: true, alignment: "center", fillColor: HEADER_FILL, fontSize: TABLE_HEADER_FONT_SIZE },
-      { text: "GIÁ HỘP/TÚI", bold: true, alignment: "center", fillColor: HEADER_FILL, fontSize: TABLE_HEADER_FONT_SIZE },
+      { text: "GIÁ LẺ", bold: true, alignment: "center", fillColor: HEADER_FILL, fontSize: TABLE_HEADER_FONT_SIZE },
       { text: "GIÁ THÙNG", bold: true, alignment: "center", fillColor: HEADER_FILL, fontSize: TABLE_HEADER_FONT_SIZE },
     ],
   ];
@@ -175,7 +187,7 @@ export async function buildQuotePdf(items: Product[], info: QuoteInfo): Promise<
     content.push({ text: "Không có sản phẩm nào trong danh sách đã chọn." });
   } else {
     content.push({
-      table: { headerRows: 1, widths: ["6%", "41%", "20%", "16.5%", "16.5%"], body: tableBody },
+      table: { headerRows: 1, widths: ["6%", "55%", "17%", "11%", "11%"], body: tableBody },
       layout: tableBorder,
     });
     content.push({ text: "Ghi chú: Giá đã bao gồm VAT.", bold: true, italics: true, alignment: "right", margin: [0, 10, 0, 0] });
