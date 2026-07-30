@@ -24,12 +24,13 @@ export type Product = {
   updated_at: string;
   last_exported_at: string | null;
   is_draft: boolean;
+  created_at: string | null; // null = sản phẩm cũ, thêm trước khi có cột này
 };
 
 // Shape sent from the product create/edit form: same editable fields as
 // Product, minus server-assigned ones, with `brand` as a plain name instead
 // of `brand_id` (the API resolves-or-creates the brand row by name).
-export type ProductInput = Omit<Product, "id" | "brand_id" | "brand" | "updated_at" | "last_exported_at" | "is_draft"> & {
+export type ProductInput = Omit<Product, "id" | "brand_id" | "brand" | "updated_at" | "last_exported_at" | "is_draft" | "created_at"> & {
   brand: string | null;
 };
 

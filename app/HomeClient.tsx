@@ -169,10 +169,22 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
     if (!error) setPriceRequests((data ?? []) as PriceChangeRequest[]);
   }, []);
 
+  const [priceChangesThisMonth, setPriceChangesThisMonth] = useState(0);
+  const loadPriceChangesThisMonth = useCallback(async () => {
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+    const { count, error } = await supabase
+      .from("price_history")
+      .select("id", { count: "exact", head: true })
+      .gte("changed_at", monthStart);
+    if (!error) setPriceChangesThisMonth(count ?? 0);
+  }, []);
+
   useEffect(() => {
     loadProducts();
     loadBrandNames();
     loadPriceRequests();
+    loadPriceChangesThisMonth();
   }, []);
 
   // Gõ được mượt ngay lập tức trong ô tìm kiếm, nhưng chỉ lọc lại danh sách
@@ -200,6 +212,19 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
       ),
     [products]
   );
+
+  // Thống kê tháng cho thanh KPI đầu trang "Quản lý hàng hóa". monthStart
+  // tính 1 lần mỗi khi products đổi (đủ dùng — không cần theo dõi realtime
+  // qua nửa đêm giao tháng).
+  const monthlyStats = useMemo(() => {
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const monthLabel = String(now.getMonth() + 1).padStart(2, "0");
+    const newThisMonth = products.filter((p) => p.created_at && new Date(p.created_at) >= monthStart).length;
+    const missingPrice = products.filter((p) => !p.gia_ban).length;
+    const draftCount = products.filter((p) => p.is_draft).length;
+    return { monthLabel, newThisMonth, missingPrice, draftCount };
+  }, [products]);
 
   // Everything except the tab (Tất cả / Chờ xuất file) filter — used both to
   // build `visible` and to count each tab accurately for the CURRENT
@@ -768,12 +793,28 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
         </div>
         <div className="stat-kpis">
           <div className="stat-kpi">
-            <div className="stat-kpi-label">Tổng sản phẩm</div>
+            <div className="stat-kpi-label">Tổng sản phẩm tháng {monthlyStats.monthLabel}</div>
             <div className="stat-kpi-value">{products.length}</div>
           </div>
+          <div className="stat-kpi">
+            <div className="stat-kpi-label">Sản phẩm mới tháng {monthlyStats.monthLabel}</div>
+            <div className="stat-kpi-value">{monthlyStats.newThisMonth}</div>
+          </div>
+          <div className="stat-kpi">
+            <div className="stat-kpi-label">Thay đổi giá tháng {monthlyStats.monthLabel}</div>
+            <div className="stat-kpi-value">{priceChangesThisMonth}</div>
+          </div>
           <div className="stat-kpi stat-kpi-warm">
-            <div className="stat-kpi-label">Chờ xuất</div>
-            <div className="stat-kpi-value">{pendingIds.size}</div>
+            <div className="stat-kpi-label">Đề xuất chờ duyệt</div>
+            <div className="stat-kpi-value">{priceRequests.length}</div>
+          </div>
+          <div className="stat-kpi stat-kpi-warm">
+            <div className="stat-kpi-label">Chưa có giá bán</div>
+            <div className="stat-kpi-value">{monthlyStats.missingPrice}</div>
+          </div>
+          <div className="stat-kpi stat-kpi-warm">
+            <div className="stat-kpi-label">Nháp chưa hoàn thiện</div>
+            <div className="stat-kpi-value">{monthlyStats.draftCount}</div>
           </div>
         </div>
       </header>

@@ -46,6 +46,16 @@ alter table products add column if not exists gia_hop numeric;     -- Gia Hop
 -- gio luu that su theo yeu cau.
 alter table products add column if not exists nha_cung_cap text;
 
+-- Ngay tao san pham that su (khong phai updated_at, von bi ghi de moi lan sua).
+-- Khong dat default now() o day: ALTER TABLE ADD COLUMN voi default lay gio
+-- hien tai se stamp CUNG 1 gio chay migration cho toan bo hang cu co san, lam
+-- sai lech thong ke "san pham moi trong thang" ngay hom chay. De null cho
+-- hang cu (khong biet chinh xac ngay tao), code ung dung tu dat gia tri khi
+-- them san pham moi (ca form tay lan nhap Excel/Google Sheet).
+alter table products add column if not exists created_at timestamptz;
+
+create index if not exists idx_products_created_at on products (created_at);
+
 -- Speeds up the "pending export" query (updated_at > last_exported_at)
 create index if not exists idx_products_pending
   on products (updated_at, last_exported_at);

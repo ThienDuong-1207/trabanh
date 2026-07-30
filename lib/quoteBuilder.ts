@@ -68,12 +68,12 @@ function nameCell(p: Product) {
   if (p.gia_hop && hopUnit) {
     return {
       stack: [
-        { text: p.ten_hang_hoa },
-        { text: `- Giá ${hopUnit}: ${formatPrice(p.gia_hop)}đ`, italics: true, fontSize: 9, color: "#555555", margin: [0, 2, 0, 0] },
+        { text: p.ten_hang_hoa, fontSize: TABLE_FONT_SIZE },
+        { text: `- Giá ${hopUnit}: ${formatPrice(p.gia_hop)}đ`, italics: true, fontSize: TABLE_FONT_SIZE - 1.5, color: "#555555", margin: [0, 2, 0, 0] },
       ],
     };
   }
-  return { text: p.ten_hang_hoa, alignment: "left" };
+  return { text: p.ten_hang_hoa, alignment: "left", fontSize: TABLE_FONT_SIZE };
 }
 
 function sortForQuote(items: Product[]): Product[] {
@@ -84,12 +84,21 @@ function sortForQuote(items: Product[]): Product[] {
   });
 }
 
+// Giảm padding trên/dưới mỗi ô so với mặc định của pdfmake (paddingTop/Bottom
+// mặc định = 2) — cùng với giảm cỡ chữ trong bảng, giúp mỗi hàng thấp lại
+// đáng kể để 1 trang in được nhiều sản phẩm hơn. Giữ nguyên padding trái/phải
+// (mặc định 4) để chữ không dính sát viền ô.
 const tableBorder = {
   hLineWidth: () => 0.75,
   vLineWidth: () => 0.75,
   hLineColor: () => "#000000",
   vLineColor: () => "#000000",
+  paddingTop: () => 1,
+  paddingBottom: () => 1,
 };
+
+const TABLE_FONT_SIZE = 9.5;
+const TABLE_HEADER_FONT_SIZE = 10;
 
 export async function buildQuotePdf(items: Product[], info: QuoteInfo): Promise<Buffer> {
   const sorted = sortForQuote(items);
@@ -106,11 +115,11 @@ export async function buildQuotePdf(items: Product[], info: QuoteInfo): Promise<
 
   const tableBody: any[] = [
     [
-      { text: "STT", bold: true, alignment: "center", fillColor: HEADER_FILL },
-      { text: "TÊN SẢN PHẨM", bold: true, alignment: "center", fillColor: HEADER_FILL },
-      { text: "QUY CÁCH", bold: true, alignment: "center", fillColor: HEADER_FILL },
-      { text: "GIÁ HỘP/TÚI", bold: true, alignment: "center", fillColor: HEADER_FILL },
-      { text: "GIÁ THÙNG", bold: true, alignment: "center", fillColor: HEADER_FILL },
+      { text: "STT", bold: true, alignment: "center", fillColor: HEADER_FILL, fontSize: TABLE_HEADER_FONT_SIZE },
+      { text: "TÊN SẢN PHẨM", bold: true, alignment: "center", fillColor: HEADER_FILL, fontSize: TABLE_HEADER_FONT_SIZE },
+      { text: "QUY CÁCH", bold: true, alignment: "center", fillColor: HEADER_FILL, fontSize: TABLE_HEADER_FONT_SIZE },
+      { text: "GIÁ HỘP/TÚI", bold: true, alignment: "center", fillColor: HEADER_FILL, fontSize: TABLE_HEADER_FONT_SIZE },
+      { text: "GIÁ THÙNG", bold: true, alignment: "center", fillColor: HEADER_FILL, fontSize: TABLE_HEADER_FONT_SIZE },
     ],
   ];
   let lastCategory: string | null = null;
@@ -120,7 +129,15 @@ export async function buildQuotePdf(items: Product[], info: QuoteInfo): Promise<
     if (p.category_sheet !== lastCategory) {
       categoryIndex++;
       tableBody.push([
-        { text: `${toRoman(categoryIndex)}. ${p.category_sheet}:`, bold: true, italics: true, decoration: "underline", colSpan: 5, fillColor: CATEGORY_FILL },
+        {
+          text: `${toRoman(categoryIndex)}. ${p.category_sheet}:`,
+          bold: true,
+          italics: true,
+          decoration: "underline",
+          colSpan: 5,
+          fillColor: CATEGORY_FILL,
+          fontSize: TABLE_FONT_SIZE,
+        },
         {},
         {},
         {},
@@ -129,11 +146,11 @@ export async function buildQuotePdf(items: Product[], info: QuoteInfo): Promise<
       lastCategory = p.category_sheet;
     }
     tableBody.push([
-      { text: String(stt), alignment: "center" },
+      { text: String(stt), alignment: "center", fontSize: TABLE_FONT_SIZE },
       nameCell(p),
-      { text: formatQuyCach(p), alignment: "left" },
-      { text: formatPrice(p.gia_ban), alignment: "right" },
-      { text: formatPrice(p.gia_thung), alignment: "right" },
+      { text: formatQuyCach(p), alignment: "left", fontSize: TABLE_FONT_SIZE },
+      { text: formatPrice(p.gia_ban), alignment: "right", fontSize: TABLE_FONT_SIZE },
+      { text: formatPrice(p.gia_thung), alignment: "right", fontSize: TABLE_FONT_SIZE },
     ]);
     stt++;
   }
@@ -158,7 +175,7 @@ export async function buildQuotePdf(items: Product[], info: QuoteInfo): Promise<
     content.push({ text: "Không có sản phẩm nào trong danh sách đã chọn." });
   } else {
     content.push({
-      table: { headerRows: 1, widths: ["7%", "35%", "24%", "17%", "17%"], body: tableBody },
+      table: { headerRows: 1, widths: ["6%", "41%", "20%", "16.5%", "16.5%"], body: tableBody },
       layout: tableBorder,
     });
     content.push({ text: "Ghi chú: Giá đã bao gồm VAT.", bold: true, italics: true, alignment: "right", margin: [0, 10, 0, 0] });

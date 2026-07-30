@@ -37,6 +37,7 @@ export async function POST(req: NextRequest) {
           ten_hang_hoa: fields.ten_hang_hoa,
           category_sheet: fields.category_sheet,
           is_draft: true,
+          created_at: new Date().toISOString(),
         })
         .select("*, brand:brands(name)")
         .single();
@@ -65,7 +66,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Thiếu mã nội bộ / tên hàng hóa / nhóm hàng" }, { status: 400 });
     }
     const brand_id = await resolveBrandId(supabase, brand);
-    const { data, error } = await supabase.from("products").insert({ ...fields, brand_id }).select("*, brand:brands(name)").single();
+    const { data, error } = await supabase
+      .from("products")
+      .insert({ ...fields, brand_id, created_at: new Date().toISOString() })
+      .select("*, brand:brands(name)")
+      .single();
     if (error) throw new Error(friendlyDbError(error) ?? error.message);
 
     await logActivity({

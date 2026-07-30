@@ -218,11 +218,25 @@ export async function upsertProductRows(rows: ProductRow[], mode: ImportMode): P
     productRows = productRows.filter((r) => !existingSet.has(r.ma_noi_bo as string));
   }
 
+  // Chỉ stamp created_at cho sản phẩm THẬT SỰ mới — tách thành 2 lượt upsert
+  // riêng (không trộn chung 1 mảng) vì PostgREST dùng chung 1 danh sách cột
+  // cho toàn bộ batch; nếu trộn, các dòng cập nhật (vốn không có created_at)
+  // sẽ bị đưa created_at=null vào rồi ghi đè mất ngày tạo gốc khi upsert.
+  const newRows = productRows
+    .filter((r) => !existingSet.has(r.ma_noi_bo as string))
+    .map((r) => ({ ...r, created_at: new Date().toISOString() }));
+  const existingRows = productRows.filter((r) => existingSet.has(r.ma_noi_bo as string));
+
   const BATCH = 200;
-  for (let i = 0; i < productRows.length; i += BATCH) {
-    const chunk = productRows.slice(i, i + BATCH);
-    const { error } = await supabase.from("products").upsert(chunk, { onConflict: "ma_noi_bo" });
-    if (error) throw new Error(`Nhập sản phẩm thất bại (dòng ${i + 1}-${i + chunk.length}): ${error.message}`);
+  for (const [label, group] of [
+    ["sản phẩm mới", newRows],
+    ["sản phẩm cập nhật", existingRows],
+  ] as const) {
+    for (let i = 0; i < group.length; i += BATCH) {
+      const chunk = group.slice(i, i + BATCH);
+      const { error } = await supabase.from("products").upsert(chunk, { onConflict: "ma_noi_bo" });
+      if (error) throw new Error(`Nhập sản phẩm thất bại (${label}, dòng ${i + 1}-${i + chunk.length}): ${error.message}`);
+    }
   }
 
   return { newCount, existingCount, brandsUpserted: brandNames.length };
