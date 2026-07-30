@@ -1941,18 +1941,20 @@ function DashboardView({ products, pendingCount }: { products: Product[]; pendin
 
         <div className="panel">
           <h3>Sản phẩm mới trong tháng</h3>
-          {newProductsThisMonth.length === 0 && (
-            <p style={{ color: "var(--muted)", fontSize: 12.5 }}>Chưa có sản phẩm mới trong tháng này.</p>
-          )}
-          {newProductsThisMonth.map((p) => (
-            <div className="activity-row" key={p.id}>
-              <div className="activity-dot" />
-              <div>
-                {p.ten_hang_hoa}
-                <div className="t">{relativeTimeVi(p.created_at as string)}</div>
+          <div className="panel-scroll">
+            {newProductsThisMonth.length === 0 && (
+              <p style={{ color: "var(--muted)", fontSize: 12.5 }}>Chưa có sản phẩm mới trong tháng này.</p>
+            )}
+            {newProductsThisMonth.map((p) => (
+              <div className="activity-row" key={p.id}>
+                <div className="activity-dot" />
+                <div>
+                  {p.ten_hang_hoa}
+                  <div className="t">{relativeTimeVi(p.created_at as string)}</div>
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
 
         <div className="panel panel-wide">
