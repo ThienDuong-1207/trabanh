@@ -39,29 +39,31 @@ function sortForInventory(items: Product[]): Product[] {
   });
 }
 
-const HEADER_FONT_SIZE = 8;
-const DATA_FONT_SIZE = 7.5;
+const HEADER_FONT_SIZE = 7.5;
+const DATA_FONT_SIZE = 7;
 
 // Padding trên/dưới CHỈ nới rộng cho hàng dữ liệu (ô trống viết tay) — hàng
 // tiêu đề/tiêu đề nhóm hàng chỉ là chữ in sẵn, không cần chỗ viết nên giữ
 // mỏng để không tốn giấy. Đây là lý do chiều cao hàng dữ liệu không thể giảm
 // thêm chỉ bằng cách hạ cỡ chữ — ô cần đủ cao để viết tay 1 con số bằng bút.
+// paddingTop/Bottom=4 (đã giảm từ 6) là mức tối thiểu còn đủ chỗ viết tay 1
+// chữ số — thu nhỏ thêm sẽ ảnh hưởng thật đến việc viết tay, không chỉ giấy.
 const tableLayout = {
   hLineWidth: () => 0.5,
   vLineWidth: () => 0.5,
   hLineColor: () => "#000000",
   vLineColor: () => "#000000",
-  paddingLeft: () => 3,
-  paddingRight: () => 3,
+  paddingLeft: () => 2,
+  paddingRight: () => 2,
   paddingTop: (i: number, node: any) => {
     const cell = node.table.body[i]?.[0];
     const isHeaderOrCategory = i === 0 || Boolean(cell && cell.colSpan);
-    return isHeaderOrCategory ? 2 : 6;
+    return isHeaderOrCategory ? 1.5 : 4;
   },
   paddingBottom: (i: number, node: any) => {
     const cell = node.table.body[i]?.[0];
     const isHeaderOrCategory = i === 0 || Boolean(cell && cell.colSpan);
-    return isHeaderOrCategory ? 2 : 6;
+    return isHeaderOrCategory ? 1.5 : 4;
   },
 };
 
@@ -126,7 +128,7 @@ export async function buildInventoryCheckPdf(items: Product[], startDateStr: str
   const docDefinition = {
     pageSize: "A4",
     pageOrientation: "landscape" as const,
-    pageMargins: [24, 24, 24, 24] as [number, number, number, number],
+    pageMargins: [18, 16, 18, 16] as [number, number, number, number],
     defaultStyle: { font: "Roboto", fontSize: DATA_FONT_SIZE },
     content,
   };
