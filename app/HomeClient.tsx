@@ -1914,29 +1914,31 @@ function DashboardView({ products, pendingCount }: { products: Product[]; pendin
 
         <div className="panel">
           <h3>Thay đổi giá gần đây</h3>
-          {historyLoading && <p style={{ color: "var(--muted)", fontSize: 12.5 }}>Đang tải...</p>}
-          {!historyLoading && recentPriceChanges.length === 0 && (
-            <p style={{ color: "var(--muted)", fontSize: 12.5 }}>Chưa có lịch sử thay đổi giá.</p>
-          )}
-          {recentPriceChanges.map((h) => {
-            const banChanged = h.gia_ban_old !== h.gia_ban_new;
-            const thungChanged = h.gia_thung_old !== h.gia_thung_new;
-            return (
-              <div className="activity-row" key={h.id}>
-                <div className="activity-dot" />
-                <div>
-                  {h.product?.ten_hang_hoa ?? "(sản phẩm đã xóa)"}
-                  <div className="t">
-                    {banChanged && `Giá lẻ ${formatVnd(h.gia_ban_old)}→${formatVnd(h.gia_ban_new)}`}
-                    {banChanged && thungChanged && " · "}
-                    {thungChanged && `Giá thùng ${formatVnd(h.gia_thung_old)}→${formatVnd(h.gia_thung_new)}`}
-                    {" · "}
-                    {relativeTimeVi(h.changed_at)}
+          <div className="panel-scroll">
+            {historyLoading && <p style={{ color: "var(--muted)", fontSize: 12.5 }}>Đang tải...</p>}
+            {!historyLoading && recentPriceChanges.length === 0 && (
+              <p style={{ color: "var(--muted)", fontSize: 12.5 }}>Chưa có lịch sử thay đổi giá.</p>
+            )}
+            {recentPriceChanges.map((h) => {
+              const banChanged = h.gia_ban_old !== h.gia_ban_new;
+              const thungChanged = h.gia_thung_old !== h.gia_thung_new;
+              return (
+                <div className="activity-row" key={h.id}>
+                  <div className="activity-dot" />
+                  <div>
+                    {h.product?.ten_hang_hoa ?? "(sản phẩm đã xóa)"}
+                    <div className="t">
+                      {banChanged && `Giá lẻ ${formatVnd(h.gia_ban_old)}→${formatVnd(h.gia_ban_new)}`}
+                      {banChanged && thungChanged && " · "}
+                      {thungChanged && `Giá thùng ${formatVnd(h.gia_thung_old)}→${formatVnd(h.gia_thung_new)}`}
+                      {" · "}
+                      {relativeTimeVi(h.changed_at)}
+                    </div>
                   </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
 
         <div className="panel">

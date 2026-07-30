@@ -161,14 +161,16 @@ button, input, select { font: inherit; color: inherit; }
 .kpi-card .delta { font-size: var(--text-meta); color: var(--success); margin-top: 4px; font-weight: 600; }
 .kpi-card .delta.warm { color: var(--warm-ink); }
 
-.panels { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; align-items: start; }
-.panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 16px 18px; box-shadow: var(--shadow-1); }
-.panel h3 { font-size: var(--text-body-sm); font-weight: 650; margin: 0 0 14px; }
+.panels { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; align-items: stretch; }
+.panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 16px 18px; box-shadow: var(--shadow-1); display: flex; flex-direction: column; }
+.panel h3 { font-size: var(--text-body-sm); font-weight: 650; margin: 0 0 14px; flex: 0 0 auto; }
 .panel-wide { grid-column: 1 / -1; }
-/* Giới hạn chiều cao + cuộn riêng cho danh sách bên trong panel — tránh danh
-   sách dài (vd nhiều sản phẩm mới trong 1 tháng) kéo dãn cả layout trang;
-   tiêu đề h3 vẫn đứng yên bên ngoài, chỉ phần danh sách bên trong cuộn. */
-.panel-scroll { max-height: 360px; overflow-y: auto; }
+/* Đồng bộ chiều cao 3 panel đầu hàng — "Sản phẩm theo nhóm hàng" luôn có
+   đúng 11 dòng cố định (theo CATEGORY_ORDER) nên tự nhiên cao nhất, làm
+   chuẩn cho cả hàng nhờ align-items: stretch ở trên. 2 panel còn lại chỉ
+   cuộn nội bộ khi nội dung dài hơn mức đó — không chỉnh cứng 1 số px cụ thể
+   (dễ vỡ khi đổi cỡ chữ/nội dung), chiều cao tự khớp theo panel cao nhất. */
+.panel-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
 
 .month-chart { display: flex; align-items: flex-end; gap: 8px; height: 140px; }
 .month-bar { flex: 1 1 0; display: flex; flex-direction: column; align-items: center; height: 100%; min-width: 0; }
