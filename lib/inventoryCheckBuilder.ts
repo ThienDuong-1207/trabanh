@@ -81,11 +81,19 @@ export async function buildInventoryCheckPdf(items: Product[], startDateStr: str
     ],
   ];
 
+  // So le màu xám rất nhạt giữa các hàng liền nhau — bảng có 12 cột trống kề
+  // nhau nên mắt rất dễ lạc dòng khi kéo ngang; #F4F4F4 (~4% đen) vẫn hiện rõ
+  // khi in đen trắng, không tốn nhiều mực. Đếm lại từ đầu ở mỗi nhóm hàng để
+  // hàng đầu tiên sau tiêu đề nhóm luôn thống nhất không tô màu.
+  const STRIPE_FILL = "#F4F4F4";
+
   let lastCategory: string | null = null;
   let categoryIndex = 0;
+  let rowInCategory = 0;
   for (const p of sorted) {
     if (p.category_sheet !== lastCategory) {
       categoryIndex++;
+      rowInCategory = 0;
       const emptyCells = Array.from({ length: NUM_DAY_COLS }, () => ({}));
       tableBody.push([
         {
@@ -100,10 +108,12 @@ export async function buildInventoryCheckPdf(items: Product[], startDateStr: str
       ]);
       lastCategory = p.category_sheet;
     }
+    const fillColor = rowInCategory % 2 === 1 ? STRIPE_FILL : undefined;
     tableBody.push([
-      { text: p.ten_hang_hoa, fontSize: DATA_FONT_SIZE, alignment: "left" },
-      ...Array.from({ length: NUM_DAY_COLS }, () => ({ text: "", fontSize: DATA_FONT_SIZE })),
+      { text: p.ten_hang_hoa, fontSize: DATA_FONT_SIZE, alignment: "left", fillColor },
+      ...Array.from({ length: NUM_DAY_COLS }, () => ({ text: "", fontSize: DATA_FONT_SIZE, fillColor })),
     ]);
+    rowInCategory++;
   }
 
   const content: any[] = [
