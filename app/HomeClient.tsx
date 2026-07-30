@@ -119,6 +119,8 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
   const [exportingRollLabel, setExportingRollLabel] = useState(false);
   const [quoteModalOpen, setQuoteModalOpen] = useState(false);
   const [exportingQuote, setExportingQuote] = useState(false);
+  const [inventoryModalOpen, setInventoryModalOpen] = useState(false);
+  const [exportingInventory, setExportingInventory] = useState(false);
   const [exportingAll, setExportingAll] = useState<"category" | "brand" | "word" | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [dismissing, setDismissing] = useState(false);
@@ -574,6 +576,30 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
     }
   }
 
+  async function doExportInventoryCheck(fields: InventoryCheckFormFields) {
+    setExportingInventory(true);
+    try {
+      const res = await fetch("/api/export-inventory-check", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: Array.from(selected), startDate: fields.startDate }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error || (await res.text()));
+      }
+      const blob = await res.blob();
+      const days = getWorkingDaysClient(fields.startDate, 12);
+      const fmt = (d: Date) => `${String(d.getDate()).padStart(2, "0")}-${String(d.getMonth() + 1).padStart(2, "0")}-${d.getFullYear()}`;
+      downloadBlob(blob, `Phiếu kiểm kho_${fmt(days[0])}_${fmt(days[days.length - 1])}.pdf`);
+      setInventoryModalOpen(false);
+    } catch (e: any) {
+      alert("Xuất phiếu kiểm kho thất bại: " + e.message);
+    } finally {
+      setExportingInventory(false);
+    }
+  }
+
   async function dismissPending() {
     if (selected.size === 0) {
       alert("Chọn ít nhất 1 sản phẩm để bỏ chờ xuất file.");
@@ -1019,6 +1045,15 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
                     <SheetIcon />
                     Xuất tem cuộn 5x3cm
                   </button>
+                  <button
+                    onClick={() => {
+                      setExportMenuOpen(false);
+                      setInventoryModalOpen(true);
+                    }}
+                  >
+                    <DocIcon />
+                    Phiếu kiểm kho (PDF)
+                  </button>
                 </div>
               )}
             </div>
@@ -1243,6 +1278,15 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
           submitting={exportingQuote}
           onCancel={() => setQuoteModalOpen(false)}
           onSubmit={doExportQuote}
+        />
+      )}
+
+      {inventoryModalOpen && (
+        <InventoryCheckForm
+          selectedCount={selected.size}
+          submitting={exportingInventory}
+          onCancel={() => setInventoryModalOpen(false)}
+          onSubmit={doExportInventoryCheck}
         />
       )}
 
@@ -2757,6 +2801,21 @@ function InventoryView() {
   );
 }
 
+// Trùng lặp có chủ đích với lib/inventoryCheckBuilder.ts (không import thẳng
+// từ đó — file đó có import pdfmake/pdfFonts phía server, đưa vào bundle
+// client sẽ vỡ vì dùng process.cwd()/fs). Chỉ cần hàm thuần này để tính ngày
+// kết thúc cho tên file tải về, nên chấp nhận lặp code thay vì tách thêm 1
+// file dùng chung chỉ cho 1 hàm nhỏ.
+function getWorkingDaysClient(startDateStr: string, count: number): Date[] {
+  const days: Date[] = [];
+  let cur = new Date(startDateStr + "T00:00:00");
+  while (days.length < count) {
+    if (cur.getDay() !== 0) days.push(new Date(cur));
+    cur = new Date(cur.getFullYear(), cur.getMonth(), cur.getDate() + 1);
+  }
+  return days;
+}
+
 function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -3015,6 +3074,63 @@ function QuoteForm({
           <div className="field-grid">
             <Field label="Ngày báo giá">
               <input type="date" value={form.date} onChange={(e) => set("date", e.target.value)} />
+            </Field>
+          </div>
+        </div>
+
+        <div className="modal-actions">
+          <button className="btn" onClick={onCancel} disabled={submitting}>
+            Hủy
+          </button>
+          <button className="btn btn-primary" disabled={submitting} onClick={() => onSubmit(form)}>
+            {submitting ? "Đang xuất..." : "Xuất PDF"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+type InventoryCheckFormFields = {
+  startDate: string; // yyyy-mm-dd
+};
+
+// Mặc định chọn sẵn thứ Hai gần nhất (hôm nay nếu hôm nay đã là thứ Hai) —
+// đúng khuyến nghị "nên bắt đầu từ thứ Hai" trong đề xuất, người dùng vẫn có
+// thể tự đổi ngày khác nếu muốn.
+function nextMonday(): string {
+  const d = new Date();
+  const day = d.getDay(); // 0 = CN, 1 = T2, ...
+  const diff = day === 1 ? 0 : day === 0 ? 1 : 8 - day;
+  d.setDate(d.getDate() + diff);
+  return d.toISOString().slice(0, 10);
+}
+
+function InventoryCheckForm({
+  selectedCount,
+  submitting,
+  onCancel,
+  onSubmit,
+}: {
+  selectedCount: number;
+  submitting: boolean;
+  onCancel: () => void;
+  onSubmit: (fields: InventoryCheckFormFields) => void;
+}) {
+  const [form, setForm] = useState<InventoryCheckFormFields>({ startDate: nextMonday() });
+
+  return (
+    <div className="modal-backdrop" onClick={(e) => e.target === e.currentTarget && onCancel()}>
+      <div className="modal">
+        <h2>Xuất phiếu kiểm kho (PDF)</h2>
+        <p className="modal-sub">
+          {selectedCount} sản phẩm đã chọn sẽ đưa vào phiếu — 12 ngày kiểm kho (Thứ 2 - Thứ 7, bỏ qua Chủ nhật) tính từ ngày bắt đầu.
+        </p>
+
+        <div className="field-group">
+          <div className="field-grid">
+            <Field label="Ngày bắt đầu (nên là Thứ 2)">
+              <input type="date" value={form.startDate} onChange={(e) => setForm({ startDate: e.target.value })} />
             </Field>
           </div>
         </div>
