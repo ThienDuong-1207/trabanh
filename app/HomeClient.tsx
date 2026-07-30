@@ -1901,15 +1901,17 @@ function DashboardView({ products, pendingCount }: { products: Product[]; pendin
       <div className="panels">
         <div className="panel">
           <h3>Sản phẩm theo nhóm hàng</h3>
-          {byCategory.map((c) => (
-            <div className="bar-row" key={c.name}>
-              <div className="cat-name">{c.name}</div>
-              <div className="bar-track">
-                <div className="bar-fill" style={{ width: `${(c.count / maxCount) * 100}%` }} />
+          <div className="panel-scroll">
+            {byCategory.map((c) => (
+              <div className="bar-row" key={c.name}>
+                <div className="cat-name">{c.name}</div>
+                <div className="bar-track">
+                  <div className="bar-fill" style={{ width: `${(c.count / maxCount) * 100}%` }} />
+                </div>
+                <div className="n">{c.count}</div>
               </div>
-              <div className="n">{c.count}</div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
 
         <div className="panel">
