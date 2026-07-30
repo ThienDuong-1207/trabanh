@@ -1818,16 +1818,16 @@ function DashboardView({ products, pendingCount }: { products: Product[]; pendin
 
   const recentPriceChanges = useMemo(() => historyRows.slice(0, 8), [historyRows]);
 
-  const topChangedProducts = useMemo(() => {
-    const counts = new Map<string, { name: string; count: number }>();
-    for (const h of historyRows) {
-      const cur = counts.get(h.product_id);
-      if (cur) cur.count++;
-      else counts.set(h.product_id, { name: h.product?.ten_hang_hoa ?? "(sản phẩm đã xóa)", count: 1 });
-    }
-    return [...counts.values()].sort((a, b) => b.count - a.count).slice(0, 10);
-  }, [historyRows]);
-  const maxChangedCount = Math.max(1, ...topChangedProducts.map((c) => c.count));
+  // Sản phẩm mới trong tháng — dùng created_at (thêm cho mục đích này), sản
+  // phẩm cũ trước khi có cột này sẽ có created_at null nên tự động không lọt
+  // vào đây, đúng ý nghĩa "mới thêm" chứ không phải "toàn bộ danh mục".
+  const newProductsThisMonth = useMemo(() => {
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    return products
+      .filter((p) => p.created_at && new Date(p.created_at) >= monthStart)
+      .sort((a, b) => new Date(b.created_at as string).getTime() - new Date(a.created_at as string).getTime());
+  }, [products]);
 
   // Luôn dựng đủ 12 tháng gần nhất (kể cả tháng chưa có thay đổi giá nào =
   // cột rỗng) để trục thời gian nhất quán, không co giãn theo dữ liệu có sẵn.
@@ -1940,17 +1940,17 @@ function DashboardView({ products, pendingCount }: { products: Product[]; pendin
         </div>
 
         <div className="panel">
-          <h3>Top 10 sản phẩm hay đổi giá nhất</h3>
-          {!historyLoading && topChangedProducts.length === 0 && (
-            <p style={{ color: "var(--muted)", fontSize: 12.5 }}>Chưa có dữ liệu.</p>
+          <h3>Sản phẩm mới trong tháng</h3>
+          {newProductsThisMonth.length === 0 && (
+            <p style={{ color: "var(--muted)", fontSize: 12.5 }}>Chưa có sản phẩm mới trong tháng này.</p>
           )}
-          {topChangedProducts.map((c) => (
-            <div className="bar-row bar-row-wide" key={c.name}>
-              <div className="cat-name" title={c.name}>{c.name}</div>
-              <div className="bar-track">
-                <div className="bar-fill" style={{ width: `${(c.count / maxChangedCount) * 100}%` }} />
+          {newProductsThisMonth.map((p) => (
+            <div className="activity-row" key={p.id}>
+              <div className="activity-dot" />
+              <div>
+                {p.ten_hang_hoa}
+                <div className="t">{relativeTimeVi(p.created_at as string)}</div>
               </div>
-              <div className="n">{c.count}</div>
             </div>
           ))}
         </div>
