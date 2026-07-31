@@ -20,13 +20,12 @@ export type QuoteInfo = {
   date?: string | null; // yyyy-mm-dd
 };
 
-// Thông tin công ty cố định cho phần đầu trang (letterhead) — lấy nguyên văn
-// từ mẫu thiết kế thật của tiệm ("bao_gia_tra_banh_sheet1_logo_note_only.pdf").
+// Thông tin công ty cố định cho phần đầu trang (letterhead).
 const COMPANY_INFO = [
-  "CN TIỆM TRÀ BÁNH SỐ 1 - CÔNG TY CỔ PHẦN HỌC VIỆN TRÀ VIỆT NAM",
-  "MST: 0317447929-001",
+  "TIỆM TRÀ BÁNH (CN TÂN CẢNG)",
   "Số 5 Ung Văn Khiêm, phường Thạnh Mỹ Tây, TP Hồ Chí Minh, Việt Nam",
-  "Hotline: 0906.363.395",
+  "Số điện thoại: 0906.363.395 (ZALO) - 0902.331.361",
+  "Website: nguyenlieuphachetrabanh.com",
 ];
 
 const LOGO_PATH = path.join(process.cwd(), "public", "templates", "logo.png");
@@ -43,7 +42,7 @@ function formatPrice(n: number | null) {
 
 function formatDateLine(dateStr?: string | null) {
   const d = dateStr ? new Date(dateStr + "T00:00:00") : new Date();
-  return `Ngày ${d.getDate()} tháng ${d.getMonth() + 1} năm ${d.getFullYear()}`;
+  return `Cập nhật đến ngày ${d.getDate()} tháng ${d.getMonth() + 1} năm ${d.getFullYear()}`;
 }
 
 // dvt_cap_2 chỉ lưu tên đơn vị sạch (vd "Hộp"), số lượng nằm riêng ở
@@ -179,7 +178,7 @@ export async function buildQuotePdf(items: Product[], info: QuoteInfo): Promise<
       ],
       margin: [0, 0, 0, 14],
     },
-    { text: "BẢNG BÁO GIÁ", bold: true, fontSize: 16, alignment: "center", margin: [0, 0, 0, 4] },
+    { text: "BẢNG GIÁ", bold: true, fontSize: 16, alignment: "center", margin: [0, 0, 0, 4] },
     { text: formatDateLine(info.date), fontSize: 12, alignment: "center", margin: [0, 0, 0, 10] },
   ];
 
@@ -190,7 +189,17 @@ export async function buildQuotePdf(items: Product[], info: QuoteInfo): Promise<
       table: { headerRows: 1, widths: ["6%", "55%", "17%", "11%", "11%"], body: tableBody },
       layout: tableBorder,
     });
-    content.push({ text: "Ghi chú: Giá đã bao gồm VAT.", bold: true, italics: true, alignment: "right", margin: [0, 10, 0, 0] });
+    content.push({
+      text:
+        "Ghi chú:\n" +
+        "- Giá đã bao gồm VAT\n" +
+        "- Bảng giá có giá trị tại thời điểm báo giá (cho đến khi có thông báo mới)\n" +
+        "- Giá bán lẻ áp dụng tại Tiệm Trà&Bánh",
+      bold: true,
+      italics: true,
+      alignment: "left",
+      margin: [0, 10, 0, 0],
+    });
   }
 
   const docDefinition = {
@@ -198,6 +207,12 @@ export async function buildQuotePdf(items: Product[], info: QuoteInfo): Promise<
     pageMargins: [40, 40, 40, 40],
     defaultStyle: { font: "Roboto", fontSize: 11 },
     content,
+    footer: (currentPage: number, pageCount: number) => ({
+      text: `${currentPage}/${pageCount}`,
+      alignment: "center" as const,
+      fontSize: 9,
+      margin: [0, 4, 0, 0] as [number, number, number, number],
+    }),
   };
 
   const doc = pdfmake.createPdf(docDefinition);
