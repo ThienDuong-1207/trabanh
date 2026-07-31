@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useReactTable, getCoreRowModel, type ColumnDef, type ColumnSizingState, type VisibilityState } from "@tanstack/react-table";
 import { supabase } from "@/lib/supabaseClient";
 import {
@@ -875,19 +875,24 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
           <WarningIcon />
           Thiếu thông tin
         </label>
-        <label className="toggle-pill toggle-pill-warm">
-          <input
-            type="checkbox"
-            checked={compactView}
-            onChange={(e) => {
-              const hide = e.target.checked;
-              setColumnVisibility((prev) => {
-                const next = { ...prev };
-                for (const id of COMPACT_HIDDEN_COLUMN_IDS) next[id] = !hide;
-                return next;
-              });
-            }}
-          />
+        <label className={`switch-field${compactView ? " has-checked" : ""}`}>
+          <span className="switch">
+            <input
+              type="checkbox"
+              checked={compactView}
+              onChange={(e) => {
+                const hide = e.target.checked;
+                setColumnVisibility((prev) => {
+                  const next = { ...prev };
+                  for (const id of COMPACT_HIDDEN_COLUMN_IDS) next[id] = !hide;
+                  return next;
+                });
+              }}
+            />
+            <span className="switch-track">
+              <span className="switch-knob" />
+            </span>
+          </span>
           Update giá
         </label>
 
@@ -961,17 +966,13 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
 
       <div className="view-row">
         <div className="view-row-left">
-          <div className="segmented">
-            <button className={tab === "all" ? "active" : ""} onClick={() => setTab("all")}>
-              Tất cả ({filteredByCriteria.length})
-            </button>
-            <button className={tab === "pending" ? "active" : ""} onClick={() => setTab("pending")}>
-              Chờ xuất file ({pendingInFilter})
-            </button>
-            <button className={tab === "draft" ? "active" : ""} onClick={() => setTab("draft")}>
-              Chưa hoàn chỉnh ({draftInFilter})
-            </button>
-          </div>
+          <Segmented
+            items={[
+              { key: "all", label: `Tất cả (${filteredByCriteria.length})`, active: tab === "all", onClick: () => setTab("all") },
+              { key: "pending", label: `Chờ xuất file (${pendingInFilter})`, active: tab === "pending", onClick: () => setTab("pending") },
+              { key: "draft", label: `Chưa hoàn chỉnh (${draftInFilter})`, active: tab === "draft", onClick: () => setTab("draft") },
+            ]}
+          />
           <button className="btn btn-neutral" onClick={selectAllVisible}>
             Chọn tất cả đang hiện
           </button>
@@ -2745,15 +2746,18 @@ function ActivityLogView({ role }: { role: Role }) {
         </div>
       </div>
 
-      <div className="segmented" style={{ marginBottom: 14 }}>
-        <button className={view === "all" ? "active" : ""} onClick={() => setView("all")}>
-          Tất cả hoạt động
-        </button>
-        <button className={view === "price" ? "active" : ""} onClick={() => setView("price")}>
-          Lịch sử giá ({priceEntries.length}
-          {priceHasMore ? "+" : ""})
-        </button>
-      </div>
+      <Segmented
+        style={{ marginBottom: 14 }}
+        items={[
+          { key: "all", label: "Tất cả hoạt động", active: view === "all", onClick: () => setView("all") },
+          {
+            key: "price",
+            label: `Lịch sử giá (${priceEntries.length}${priceHasMore ? "+" : ""})`,
+            active: view === "price",
+            onClick: () => setView("price"),
+          },
+        ]}
+      />
 
       {view === "all" && (
         <>
@@ -3044,6 +3048,35 @@ function InlineTextCell({
         }
       }}
     />
+  );
+}
+
+type SegmentedItem = { key: string; label: React.ReactNode; active: boolean; onClick: () => void };
+
+function Segmented({ items, style }: { items: SegmentedItem[]; style?: React.CSSProperties }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [thumbStyle, setThumbStyle] = useState<React.CSSProperties>({ opacity: 0 });
+  const activeKey = items.find((it) => it.active)?.key;
+
+  useLayoutEffect(() => {
+    const container = containerRef.current;
+    const activeIndex = items.findIndex((it) => it.active);
+    if (!container || activeIndex === -1) return;
+    const btn = container.querySelectorAll("button")[activeIndex] as HTMLButtonElement | undefined;
+    if (!btn) return;
+    setThumbStyle({ opacity: 1, width: btn.offsetWidth, transform: `translateX(${btn.offsetLeft}px)` });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeKey, items.length, items.map((it) => String(it.label)).join("|")]);
+
+  return (
+    <div className="segmented" style={style} ref={containerRef}>
+      <div className="segmented-thumb" style={thumbStyle} />
+      {items.map((it) => (
+        <button key={it.key} type="button" className={it.active ? "active" : ""} onClick={it.onClick}>
+          {it.label}
+        </button>
+      ))}
+    </div>
   );
 }
 
