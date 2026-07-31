@@ -137,7 +137,7 @@ export async function buildInventoryCheckPdf(items: Product[], startDateStr: str
 
   const docDefinition = {
     pageSize: "A4",
-    pageOrientation: "landscape" as const,
+    pageOrientation: "portrait" as const,
     pageMargins: [18, 16, 18, 16] as [number, number, number, number],
     defaultStyle: { font: "Roboto", fontSize: DATA_FONT_SIZE },
     content,
