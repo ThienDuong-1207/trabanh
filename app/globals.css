@@ -414,12 +414,12 @@ button, input, select { font: inherit; color: inherit; }
 .table-scroll { overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; min-width: 760px; }
 /* Header dạng nhãn nhẹ (kiểu group-list header trên macOS/iOS) — chữ hoa
-   nhỏ, màu phụ, nền hòa vào bề mặt thay vì 1 dải màu đặc chiếm chú ý, để
-   dữ liệu ở thân bảng mới là thứ nổi bật nhất. */
+   nhỏ, nhưng dùng nền/màu teal thương hiệu (giống dòng phân nhóm bên dưới)
+   thay vì xám trung tính, để vẫn tách bạch rõ với thân bảng. */
 thead th {
   text-align: left; font-size: var(--text-micro); font-weight: 650;
   text-transform: uppercase; letter-spacing: 0.04em;
-  background: var(--surface-sunken); color: var(--muted); padding: 11px 14px; white-space: nowrap;
+  background: var(--primary-wash); color: var(--primary-ink); padding: 11px 14px; white-space: nowrap;
   position: sticky; top: 0; z-index: 2;
   border-bottom: 1px solid var(--border);
 }
@@ -453,7 +453,7 @@ tbody tr.is-selected-elsewhere:hover { background: var(--primary-wash); }
    giá" (compact) — không cần override riêng nữa. */
 .product-table { width: auto; table-layout: fixed; }
 .product-table th { position: relative; }
-.product-table thead th.col-check, .product-table thead th.col-name { z-index: 3; background: var(--surface-sunken); }
+.product-table thead th.col-check, .product-table thead th.col-name { z-index: 3; background: var(--primary-wash); }
 .product-table tbody tr:hover .col-check, .product-table tbody tr:hover .col-name { background: var(--surface-sunken); }
 .product-table tbody tr.is-pending .col-check, .product-table tbody tr.is-pending .col-name { background: var(--warm-wash); }
 .product-table tbody tr.is-selected-elsewhere .col-check, .product-table tbody tr.is-selected-elsewhere .col-name { background: var(--primary-wash); }
