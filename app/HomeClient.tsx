@@ -24,6 +24,11 @@ export type Role = "sales" | "accountant" | "admin";
 // Tạm ẩn nav "Quản lý tồn kho" theo yêu cầu — đổi thành true để hiện lại.
 const SHOW_INVENTORY_NAV = false;
 
+// Lựa chọn thêm trong bộ lọc "Nhóm hàng" — mọi sản phẩm trừ Công cụ dụng cụ
+// (Sales/Kế toán ít khi cần xem lẫn dụng cụ pha chế khi lọc "Tất cả").
+const CATEGORY_ALL_EXCEPT_TOOLS = "Tất cả (trừ CCDC)";
+const TOOLS_CATEGORY_SHEET = "Công cụ dụng cụ";
+
 const ROLE_LABEL: Record<Role, string> = {
   sales: "Sales",
   accountant: "Kế toán",
@@ -236,7 +241,8 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
   // are active.
   const filteredByCriteria = useMemo(() => {
     let list = products;
-    if (category !== "Tất cả") list = list.filter((p) => p.category_sheet === category);
+    if (category === CATEGORY_ALL_EXCEPT_TOOLS) list = list.filter((p) => p.category_sheet !== TOOLS_CATEGORY_SHEET);
+    else if (category !== "Tất cả") list = list.filter((p) => p.category_sheet === category);
     if (brandFilter !== "Tất cả") list = list.filter((p) => p.brand?.name === brandFilter);
     if (missingOnly) list = list.filter(isMissingInfo);
     if (search.trim()) {
@@ -853,6 +859,7 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
         </div>
         <select value={category} onChange={(e) => setCategory(e.target.value)}>
           <option>Tất cả</option>
+          <option>{CATEGORY_ALL_EXCEPT_TOOLS}</option>
           {CATEGORY_ORDER.map((c) => (
             <option key={c}>{c}</option>
           ))}
