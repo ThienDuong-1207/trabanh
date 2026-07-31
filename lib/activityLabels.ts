@@ -12,4 +12,5 @@ export const ACTION_LABELS: Record<string, string> = {
   "user.reset_password": "Đặt lại mật khẩu",
   "user.update_role": "Đổi vai trò",
   "user.delete": "Xóa tài khoản",
+  "price_history.cleanup": "Dọn lịch sử giá cũ",
 };

@@ -1321,7 +1321,7 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
           />
         )}
         {activeView === "users" && role === "admin" && <UserManagementView currentUserId={userId} />}
-        {activeView === "activitylog" && <ActivityLogView />}
+        {activeView === "activitylog" && <ActivityLogView role={role} />}
       </main>
     </div>
   );
@@ -2592,9 +2592,13 @@ function UserManagementView({ currentUserId }: { currentUserId: string }) {
 
 const ACTIVITY_PAGE_SIZE = 100;
 
-function ActivityLogView() {
+function ActivityLogView({ role }: { role: Role }) {
   const [view, setView] = useState<"all" | "price">("all");
   const [expanded, setExpanded] = useState(false);
+  const [exportFrom, setExportFrom] = useState("");
+  const [exportTo, setExportTo] = useState("");
+  const [exportingPriceHistory, setExportingPriceHistory] = useState(false);
+  const [cleaningUp, setCleaningUp] = useState(false);
 
   // Mỗi tab tự tải + phân trang riêng, thay vì lọc "Lịch sử giá" ra từ 1 danh
   // sách "Tất cả hoạt động" giới hạn cứng 200 dòng như trước — cách cũ khiến
@@ -2656,6 +2660,81 @@ function ActivityLogView() {
   }, [loadAllPage, loadPricePage]);
 
   const priceColCount = expanded ? 8 : 6;
+
+  // Lấy từ bảng lịch sử giá gốc (price_history) — đầy đủ mọi lần đổi giá,
+  // không chỉ các lần duyệt đề xuất như bảng đang hiển thị trên tab này.
+  async function doExportPriceHistory() {
+    setExportingPriceHistory(true);
+    try {
+      const res = await fetch("/api/export-price-history", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ from: exportFrom || undefined, to: exportTo || undefined }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error || (await res.text()));
+      }
+      const blob = await res.blob();
+      const today = new Date().toISOString().slice(0, 10).split("-").reverse().join("-");
+      const suffix = exportFrom || exportTo ? ` (${exportFrom || "..."} - ${exportTo || "..."})` : "";
+      downloadBlob(blob, `Lich_su_gia_${today}${suffix}.xlsx`);
+    } catch (e: any) {
+      alert("Xuất Excel thất bại: " + e.message);
+    } finally {
+      setExportingPriceHistory(false);
+    }
+  }
+
+  // Xuất trước, xóa sau — chỉ xóa khi file lưu trữ đã tải về thành công VÀ
+  // Admin xác nhận lần cuối biết chính xác số dòng sẽ mất. Không có cơ chế
+  // tự động chạy ngầm định kỳ.
+  async function doCleanupOldPriceHistory() {
+    setCleaningUp(true);
+    try {
+      const cutoff = new Date();
+      cutoff.setFullYear(cutoff.getFullYear() - 1);
+      const cutoffIso = cutoff.toISOString();
+
+      const res = await fetch("/api/export-price-history", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ to: cutoffIso }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error || (await res.text()));
+      }
+      const rowCount = Number(res.headers.get("X-Row-Count") ?? "0");
+      if (rowCount === 0) {
+        alert("Không có dòng lịch sử giá nào cũ hơn 1 năm — không cần dọn.");
+        return;
+      }
+      const blob = await res.blob();
+      const today = new Date().toISOString().slice(0, 10).split("-").reverse().join("-");
+      downloadBlob(blob, `Lich_su_gia_luu_tru_truoc_${today}.xlsx`);
+
+      if (!confirm(`Đã tải xong file lưu trữ (${rowCount} dòng). Xóa ${rowCount} dòng lịch sử giá cũ hơn 1 năm khỏi hệ thống?`)) {
+        return;
+      }
+
+      const delRes = await fetch("/api/price-history/cleanup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ to: cutoffIso }),
+      });
+      if (!delRes.ok) {
+        const data = await delRes.json().catch(() => null);
+        throw new Error(data?.error || (await delRes.text()));
+      }
+      const { deletedCount } = await delRes.json();
+      alert(`Đã xóa ${deletedCount} dòng lịch sử giá cũ hơn 1 năm.`);
+    } catch (e: any) {
+      alert("Dọn dữ liệu thất bại: " + e.message);
+    } finally {
+      setCleaningUp(false);
+    }
+  }
 
   return (
     <div className="app">
@@ -2728,11 +2807,27 @@ function ActivityLogView() {
 
       {view === "price" && (
         <>
-          <div className="view-row" style={{ marginTop: 0, justifyContent: "flex-end" }}>
+          <div className="view-row" style={{ marginTop: 0, justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <input type="date" value={exportFrom} onChange={(e) => setExportFrom(e.target.value)} title="Từ ngày" />
+              <span style={{ color: "var(--muted)" }}>–</span>
+              <input type="date" value={exportTo} onChange={(e) => setExportTo(e.target.value)} title="Đến ngày" />
+              <button className="btn btn-quiet" disabled={exportingPriceHistory} onClick={doExportPriceHistory}>
+                {exportingPriceHistory ? "Đang xuất..." : "Xuất Excel"}
+              </button>
+              {role === "admin" && (
+                <button className="btn btn-quiet" disabled={cleaningUp} onClick={doCleanupOldPriceHistory}>
+                  {cleaningUp ? "Đang xử lý..." : "Xuất & dọn dữ liệu cũ hơn 1 năm"}
+                </button>
+              )}
+            </div>
             <button className="btn btn-quiet" onClick={() => setExpanded((v) => !v)}>
               {expanded ? "Thu gọn" : "Mở rộng"}
             </button>
           </div>
+          <p style={{ color: "var(--muted)", fontSize: 12.5, margin: "0 0 10px" }}>
+            File Excel xuất ra lấy đầy đủ mọi lần đổi giá (kể cả từ nhập Excel hàng loạt) — nhiều hơn bảng đang hiển thị bên dưới, vốn chỉ gồm các lần duyệt đề xuất giá.
+          </p>
           <div className="table-card">
             <div className="table-scroll">
               <table>
