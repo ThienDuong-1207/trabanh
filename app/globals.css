@@ -32,6 +32,10 @@
   --danger-ink: #b0221a;
   --danger-wash: #ffece9;
   --focus: #1d6e86;
+  /* Xanh đậm cố định cho header bảng — không đổi theo theme (giống cách 1
+     màu thương hiệu neo cố định), để header luôn nổi bật rõ trên cả nền
+     sáng lẫn tối, tách bạch hẳn với thân bảng. */
+  --header-bg: #0f4f62;
   --radius-sm: 9px;
   --radius-md: 14px;
   --radius-lg: 20px;
@@ -413,13 +417,11 @@ button, input, select { font: inherit; color: inherit; }
 .table-card { margin-top: 18px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); overflow: hidden; box-shadow: var(--shadow-1); }
 .table-scroll { overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; min-width: 760px; }
-/* Header dạng nhãn nhẹ (kiểu group-list header trên macOS/iOS) — chữ hoa
-   nhỏ, nhưng dùng nền/màu teal thương hiệu (giống dòng phân nhóm bên dưới)
-   thay vì xám trung tính, để vẫn tách bạch rõ với thân bảng. */
+/* Header xanh đậm, chữ trắng — nổi bật rõ trên thân bảng thay vì hòa lẫn. */
 thead th {
   text-align: left; font-size: var(--text-micro); font-weight: 650;
   text-transform: uppercase; letter-spacing: 0.04em;
-  background: var(--primary-wash); color: var(--primary-ink); padding: 11px 14px; white-space: nowrap;
+  background: var(--header-bg); color: #fff; padding: 11px 14px; white-space: nowrap;
   position: sticky; top: 0; z-index: 2;
   border-bottom: 1px solid var(--border);
 }
@@ -453,7 +455,7 @@ tbody tr.is-selected-elsewhere:hover { background: var(--primary-wash); }
    giá" (compact) — không cần override riêng nữa. */
 .product-table { width: auto; table-layout: fixed; }
 .product-table th { position: relative; }
-.product-table thead th.col-check, .product-table thead th.col-name { z-index: 3; background: var(--primary-wash); }
+.product-table thead th.col-check, .product-table thead th.col-name { z-index: 3; background: var(--header-bg); }
 .product-table tbody tr:hover .col-check, .product-table tbody tr:hover .col-name { background: var(--surface-sunken); }
 .product-table tbody tr.is-pending .col-check, .product-table tbody tr.is-pending .col-name { background: var(--warm-wash); }
 .product-table tbody tr.is-selected-elsewhere .col-check, .product-table tbody tr.is-selected-elsewhere .col-name { background: var(--primary-wash); }
