@@ -13,4 +13,5 @@ export const ACTION_LABELS: Record<string, string> = {
   "user.update_role": "Đổi vai trò",
   "user.delete": "Xóa tài khoản",
   "price_history.cleanup": "Dọn lịch sử giá cũ",
+  "product.import": "Nhập file Excel",
 };

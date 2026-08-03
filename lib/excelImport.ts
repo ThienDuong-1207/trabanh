@@ -41,10 +41,25 @@ export const NUMERIC_FIELDS = new Set(["gia_ban", "gia_thung", "ty_le", "ty_le_c
 
 export type ImportMode = "new-only" | "update-all";
 
+export type NewProductLogEntry = { ma_noi_bo: string; ten_hang_hoa: string | null };
+export type PriceChangeLogEntry = {
+  ma_noi_bo: string;
+  ten_hang_hoa: string | null;
+  gia_ban_cu: number | null;
+  gia_ban_moi: number | null;
+  gia_thung_cu: number | null;
+  gia_thung_moi: number | null;
+};
+
 export type UpsertSummary = {
   newCount: number;
   existingCount: number;
   brandsUpserted: number;
+  // Dùng để ghi Nhật ký hoạt động ở tầng route (app/api/import-products) —
+  // chỉ tính sản phẩm mới + đổi giá đúng theo yêu cầu, không theo dõi các
+  // trường khác (tên hàng hóa, ĐVT...) dù import cũng có thể đổi chúng.
+  newProducts: NewProductLogEntry[];
+  priceChanges: PriceChangeLogEntry[];
 };
 
 export type ImportSummary = UpsertSummary & { skippedSheets: string[]; skippedIncomplete: number };
@@ -197,22 +212,35 @@ export async function upsertProductRows(rows: ProductRow[], mode: ImportMode): P
   );
 
   // Find which of the file's Mã nội bộ values already exist, batched to stay
-  // well under any reasonable IN-clause size.
-  const existingSet = new Set<string>();
+  // well under any reasonable IN-clause size. Also fetch giá cũ ngay trong
+  // cùng lượt tra cứu này (không tốn thêm round-trip) để có thể so giá
+  // cũ/mới cho việc ghi Nhật ký hoạt động ở tầng route.
+  const existingByCode = new Map<string, { ten_hang_hoa: string | null; gia_ban: number | null; gia_thung: number | null }>();
   const allCodes = productRows.map((r) => r.ma_noi_bo as string);
   const LOOKUP_BATCH = 200;
   for (let i = 0; i < allCodes.length; i += LOOKUP_BATCH) {
     const chunk = allCodes.slice(i, i + LOOKUP_BATCH);
     const { data: existing, error: existingError } = await supabase
       .from("products")
-      .select("ma_noi_bo")
+      .select("ma_noi_bo, ten_hang_hoa, gia_ban, gia_thung")
       .in("ma_noi_bo", chunk);
     if (existingError) throw new Error(`Kiểm tra sản phẩm đã tồn tại thất bại: ${existingError.message}`);
-    for (const row of existing ?? []) existingSet.add(row.ma_noi_bo as string);
+    for (const row of existing ?? []) {
+      existingByCode.set(row.ma_noi_bo as string, {
+        ten_hang_hoa: (row.ten_hang_hoa as string | null) ?? null,
+        gia_ban: (row.gia_ban as number | null) ?? null,
+        gia_thung: (row.gia_thung as number | null) ?? null,
+      });
+    }
   }
+  const existingSet = new Set(existingByCode.keys());
 
   const newCount = productRows.filter((r) => !existingSet.has(r.ma_noi_bo as string)).length;
   const existingCount = productRows.length - newCount;
+
+  const newProducts: NewProductLogEntry[] = productRows
+    .filter((r) => !existingSet.has(r.ma_noi_bo as string))
+    .map((r) => ({ ma_noi_bo: r.ma_noi_bo as string, ten_hang_hoa: (r.ten_hang_hoa as string | null) ?? null }));
 
   if (mode === "new-only") {
     productRows = productRows.filter((r) => !existingSet.has(r.ma_noi_bo as string));
@@ -227,6 +255,18 @@ export async function upsertProductRows(rows: ProductRow[], mode: ImportMode): P
     .map((r) => ({ ...r, created_at: new Date().toISOString() }));
   const existingRows = productRows.filter((r) => existingSet.has(r.ma_noi_bo as string));
 
+  // Tính từ existingRows (đã áp filter theo mode) — ở mode "new-only",
+  // existingRows luôn rỗng vì không dòng nào bị ghi đè, nên priceChanges
+  // tự động rỗng theo, đúng thực tế là không có giá nào thực sự đổi.
+  const priceChanges: PriceChangeLogEntry[] = existingRows
+    .map((r) => {
+      const old = existingByCode.get(r.ma_noi_bo as string)!;
+      const gia_ban_moi = (r.gia_ban as number | null) ?? null;
+      const gia_thung_moi = (r.gia_thung as number | null) ?? null;
+      return { ma_noi_bo: r.ma_noi_bo as string, ten_hang_hoa: (r.ten_hang_hoa as string | null) ?? null, gia_ban_cu: old.gia_ban, gia_ban_moi, gia_thung_cu: old.gia_thung, gia_thung_moi };
+    })
+    .filter((c) => c.gia_ban_cu !== c.gia_ban_moi || c.gia_thung_cu !== c.gia_thung_moi);
+
   const BATCH = 200;
   for (const [label, group] of [
     ["sản phẩm mới", newRows],
@@ -239,5 +279,5 @@ export async function upsertProductRows(rows: ProductRow[], mode: ImportMode): P
     }
   }
 
-  return { newCount, existingCount, brandsUpserted: brandNames.length };
+  return { newCount, existingCount, brandsUpserted: brandNames.length, newProducts, priceChanges };
 }
