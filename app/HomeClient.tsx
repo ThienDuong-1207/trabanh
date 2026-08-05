@@ -1081,7 +1081,7 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
 
       <div className="table-card">
         <div className="table-scroll">
-          <table className="product-table">
+          <table className="product-table" style={{ width: productTable.getTotalSize() }}>
             <colgroup>
               <col style={{ width: productTable.getColumn("select")?.getSize() }} />
               <col style={{ width: productTable.getColumn("ten_hang_hoa")?.getSize() }} />
