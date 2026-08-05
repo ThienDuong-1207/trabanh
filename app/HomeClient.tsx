@@ -2727,18 +2727,19 @@ function ActivityLogView({ role }: { role: Role }) {
     else setAllLoadingMore(false);
   }, []);
 
-  // "Lịch sử giá" chỉ lấy đúng các lần duyệt (price_request.approve) — đây là
-  // hành động duy nhất còn ghi giá thật vào products kể từ khi mọi role đều
-  // sửa giá qua đề xuất, không ai ghi thẳng DB nữa. Thay thế hẳn panel
-  // "Lịch sử thay đổi giá" trước đây ở Dashboard (nguồn price_history không
-  // có tên người thực hiện, còn ở đây thì có).
+  // "Lịch sử giá" lấy cả 2 nguồn ghi giá thật vào products: duyệt đề xuất
+  // (price_request.approve, 1 dòng = 1 sản phẩm) VÀ nhập Excel hàng loạt
+  // (product.import, 1 dòng có thể gồm NHIỀU sản phẩm đổi giá cùng lúc — coi
+  // priceDisplayRows bên dưới, nơi "bung" từng sản phẩm ra 1 dòng hiển thị
+  // riêng). Trước đây chỉ lấy price_request.approve, khiến giá đổi do nhập
+  // Excel bị lọt mất khỏi tab này dù đã ghi đúng trong DB.
   const loadPricePage = useCallback(async (offset: number, replace: boolean) => {
     if (replace) setPriceLoading(true);
     else setPriceLoadingMore(true);
     const { data, error } = await supabase
       .from("activity_log")
       .select("*")
-      .eq("action", "price_request.approve")
+      .in("action", ["price_request.approve", "product.import"])
       .order("created_at", { ascending: false })
       .range(offset, offset + ACTIVITY_PAGE_SIZE - 1);
     if (!error) {
@@ -2755,7 +2756,62 @@ function ActivityLogView({ role }: { role: Role }) {
     loadPricePage(0, true);
   }, [loadAllPage, loadPricePage]);
 
-  const priceColCount = expanded ? 8 : 6;
+  // Bung mỗi dòng activity_log thành 1+ dòng hiển thị: price_request.approve
+  // đã là 1 sản phẩm/dòng sẵn; product.import có thể gồm nhiều sản phẩm đổi
+  // giá trong 1 lần nhập, tách riêng từng sản phẩm ra 1 dòng để hiển thị
+  // đúng mức "1 dòng = 1 lần đổi giá 1 sản phẩm" nhất quán trong cả bảng.
+  type PriceDisplayRow = {
+    key: string;
+    targetLabel: string;
+    giaBanOld: number | null;
+    giaBanNew: number | null;
+    giaThungOld: number | null;
+    giaThungNew: number | null;
+    proposedByName: string | null;
+    actorName: string | null;
+    createdAt: string;
+    source: "approve" | "import";
+  };
+  const priceDisplayRows = useMemo(() => {
+    const out: PriceDisplayRow[] = [];
+    for (const e of priceEntries) {
+      if (e.action === "product.import") {
+        const detail = e.detail as { priceChanges?: { items?: Record<string, unknown>[] } } | null;
+        const items = detail?.priceChanges?.items ?? [];
+        items.forEach((item, i) => {
+          out.push({
+            key: `${e.id}-${i}`,
+            targetLabel: (item.ten_hang_hoa as string) || (item.ma_noi_bo as string) || "—",
+            giaBanOld: item.gia_ban_cu as number | null,
+            giaBanNew: item.gia_ban_moi as number | null,
+            giaThungOld: item.gia_thung_cu as number | null,
+            giaThungNew: item.gia_thung_moi as number | null,
+            proposedByName: null,
+            actorName: e.actor_name,
+            createdAt: e.created_at,
+            source: "import",
+          });
+        });
+      } else {
+        const d = (e.detail ?? {}) as Record<string, number | string | null>;
+        out.push({
+          key: e.id,
+          targetLabel: e.target_label ?? "—",
+          giaBanOld: d.gia_ban_old as number | null,
+          giaBanNew: d.gia_ban_new as number | null,
+          giaThungOld: d.gia_thung_old as number | null,
+          giaThungNew: d.gia_thung_new as number | null,
+          proposedByName: (d.proposed_by_name as string) ?? null,
+          actorName: e.actor_name,
+          createdAt: e.created_at,
+          source: "approve",
+        });
+      }
+    }
+    return out;
+  }, [priceEntries]);
+
+  const priceColCount = expanded ? 9 : 7;
 
   // Lấy từ bảng lịch sử giá gốc (price_history) — đầy đủ mọi lần đổi giá,
   // không chỉ các lần duyệt đề xuất như bảng đang hiển thị trên tab này.
@@ -2847,7 +2903,7 @@ function ActivityLogView({ role }: { role: Role }) {
           { key: "all", label: "Tất cả hoạt động", active: view === "all", onClick: () => setView("all") },
           {
             key: "price",
-            label: `Lịch sử giá (${priceEntries.length}${priceHasMore ? "+" : ""})`,
+            label: `Lịch sử giá (${priceDisplayRows.length}${priceHasMore ? "+" : ""})`,
             active: view === "price",
             onClick: () => setView("price"),
           },
@@ -2925,7 +2981,7 @@ function ActivityLogView({ role }: { role: Role }) {
             </button>
           </div>
           <p style={{ color: "var(--muted)", fontSize: 12.5, margin: "0 0 10px" }}>
-            File Excel xuất ra lấy đầy đủ mọi lần đổi giá (kể cả từ nhập Excel hàng loạt) — nhiều hơn bảng đang hiển thị bên dưới, vốn chỉ gồm các lần duyệt đề xuất giá.
+            Gồm cả các lần duyệt đề xuất giá lẫn nhập Excel hàng loạt. File Excel xuất ra vẫn đầy đủ nhất (thêm cả các lần đồng bộ tự động từ Google Sheet — không có người thao tác nên không hiện ở đây).
           </p>
           <div className="table-card">
             <div className="table-scroll">
@@ -2937,8 +2993,9 @@ function ActivityLogView({ role }: { role: Role }) {
                     <th className="num">Giá lẻ mới</th>
                     <th className="num">Giá thùng cũ</th>
                     <th className="num">Giá thùng mới</th>
+                    <th>Nguồn</th>
                     {expanded && <th>Người đề xuất</th>}
-                    {expanded && <th>Người duyệt</th>}
+                    {expanded && <th>Người thực hiện</th>}
                     <th>Thời điểm</th>
                   </tr>
                 </thead>
@@ -2950,28 +3007,31 @@ function ActivityLogView({ role }: { role: Role }) {
                       </td>
                     </tr>
                   )}
-                  {!priceLoading && priceEntries.length === 0 && (
+                  {!priceLoading && priceDisplayRows.length === 0 && (
                     <tr>
                       <td colSpan={priceColCount} style={{ textAlign: "center", color: "var(--muted)" }}>
                         Chưa có lịch sử giá nào.
                       </td>
                     </tr>
                   )}
-                  {priceEntries.map((e) => {
-                    const d = (e.detail ?? {}) as Record<string, number | string | null>;
-                    return (
-                      <tr key={e.id}>
-                        <td className="col-name">{e.target_label ?? "—"}</td>
-                        <td className="num">{formatVnd(d.gia_ban_old as number | null)}</td>
-                        <td className="num">{formatVnd(d.gia_ban_new as number | null)}</td>
-                        <td className="num">{formatVnd(d.gia_thung_old as number | null)}</td>
-                        <td className="num">{formatVnd(d.gia_thung_new as number | null)}</td>
-                        {expanded && <td>{(d.proposed_by_name as string) ?? "—"}</td>}
-                        {expanded && <td>{e.actor_name ?? "—"}</td>}
-                        <td>{formatDate(e.created_at)}</td>
-                      </tr>
-                    );
-                  })}
+                  {priceDisplayRows.map((r) => (
+                    <tr key={r.key}>
+                      <td className="col-name">{r.targetLabel}</td>
+                      <td className="num">{formatVnd(r.giaBanOld)}</td>
+                      <td className="num">{formatVnd(r.giaBanNew)}</td>
+                      <td className="num">{formatVnd(r.giaThungOld)}</td>
+                      <td className="num">{formatVnd(r.giaThungNew)}</td>
+                      <td>
+                        <span className={`pill ${r.source === "import" ? "pill-warm" : "pill-primary"}`}>
+                          <span className="dot" />
+                          {r.source === "import" ? "Nhập Excel" : "Duyệt đề xuất"}
+                        </span>
+                      </td>
+                      {expanded && <td>{r.proposedByName ?? "—"}</td>}
+                      {expanded && <td>{r.actorName ?? "—"}</td>}
+                      <td>{formatDate(r.createdAt)}</td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
