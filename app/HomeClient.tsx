@@ -38,27 +38,29 @@ const ROLE_LABEL: Record<Role, string> = {
 // Chỉ dùng TanStack Table để quản lý ĐỘ RỘNG (kéo giãn) từng cột của bảng
 // sản phẩm — không dùng cơ chế render cell/row của nó, toàn bộ JSX từng ô
 // (sửa inline, phân quyền theo role...) vẫn viết tay như cũ trong ProductRow.
-// Kích thước mặc định lấy đúng theo các giá trị min-width đã tinh chỉnh
-// trước đó (đủ cho tên dài/mã vạch 13 số).
+// Kích thước mặc định đo lại từ dữ liệu thật (canvas measureText đúng font
+// app đang dùng, lấy mốc p95 + nhãn cột) thay vì áng chừng — vài cột trước
+// đây dư quá nhiều (Mã nội bộ, Đơn vị cấp 2...) trong khi Tên hóa đơn lại
+// hẹp hơn hẳn nội dung thật (có dòng dài gần 200 ký tự).
 const PRODUCT_COLUMNS: ColumnDef<Product, unknown>[] = [
   { id: "select", size: 36, enableResizing: false },
   { id: "ten_hang_hoa", size: 220, minSize: 160 },
-  { id: "category_sheet", size: 110, minSize: 90 },
-  { id: "ma_noi_bo", size: 180, minSize: 140 },
-  { id: "ten_hoa_don", size: 180, minSize: 140 },
+  { id: "category_sheet", size: 180, minSize: 140 },
+  { id: "ma_noi_bo", size: 130, minSize: 110 },
+  { id: "ten_hoa_don", size: 260, minSize: 160 },
   { id: "dvt", size: 90, minSize: 70 },
-  { id: "gia_ban", size: 110, minSize: 90 },
+  { id: "gia_ban", size: 130, minSize: 110 },
   { id: "gia_hop", size: 130, minSize: 100 },
-  { id: "gia_thung", size: 110, minSize: 90 },
-  { id: "quy_cach", size: 150, minSize: 110 },
+  { id: "gia_thung", size: 130, minSize: 110 },
+  { id: "quy_cach", size: 190, minSize: 150 },
   { id: "ty_le", size: 110, minSize: 90 },
-  { id: "dvt_cap_2", size: 140, minSize: 110 },
-  { id: "ty_le_cap_2", size: 140, minSize: 110 },
-  { id: "brand", size: 150, minSize: 110 },
-  { id: "nha_cung_cap", size: 150, minSize: 110 },
+  { id: "dvt_cap_2", size: 120, minSize: 90 },
+  { id: "ty_le_cap_2", size: 120, minSize: 90 },
+  { id: "brand", size: 220, minSize: 160 },
+  { id: "nha_cung_cap", size: 160, minSize: 130 },
   { id: "ma_hang_hoa", size: 160, minSize: 120 },
-  { id: "ma_vach", size: 180, minSize: 140 },
-  { id: "ma_thung", size: 180, minSize: 140 },
+  { id: "ma_vach", size: 170, minSize: 110 },
+  { id: "ma_thung", size: 170, minSize: 120 },
   { id: "status", size: 130, minSize: 100 },
   { id: "actions", size: 120, enableResizing: false },
 ];
@@ -86,6 +88,36 @@ const COMPACT_HIDDEN_COLUMN_IDS = [
 ];
 
 const COLUMN_SIZING_STORAGE_KEY = "product-table-column-sizing";
+
+// Nhãn cột — dùng lại trong tính năng "tự vừa cột" (bấm đúp tay kéo) để đo
+// độ rộng chữ thật của TIÊU ĐỀ cột, không chỉ dữ liệu — vì tiêu đề không tự
+// xuống dòng (trừ 2 cột trong HEADER_WRAP_COLUMN_IDS bên dưới) nên vẫn là
+// ràng buộc thật, có thể còn rộng hơn cả dữ liệu (vd "Mã hàng NCC").
+const COLUMN_HEADER_LABELS: Record<string, string> = {
+  ten_hang_hoa: "Tên hàng hóa",
+  category_sheet: "Nhóm hàng",
+  ma_noi_bo: "Mã nội bộ",
+  ten_hoa_don: "Tên hóa đơn",
+  dvt: "ĐVT",
+  gia_ban: "Giá bán lẻ",
+  gia_hop: "Giá Hộp",
+  gia_thung: "Giá thùng",
+  quy_cach: "Quy cách thùng",
+  ty_le: "Tỷ lệ quy đổi",
+  dvt_cap_2: "Đơn vị cấp 2 (Hộp)",
+  ty_le_cap_2: "Tỷ lệ quy đổi cấp 2",
+  brand: "Thương hiệu",
+  nha_cung_cap: "Nhà cung cấp",
+  ma_hang_hoa: "Mã hàng NCC",
+  ma_vach: "Mã vạch",
+  ma_thung: "Mã thùng",
+  status: "Trạng thái",
+};
+// 2 cột có tiêu đề dài nhưng được phép xuống 2 dòng (.col-header-wrap trong
+// CSS) — không tính độ rộng tiêu đề vào công thức tự vừa cột, chỉ tính theo
+// dữ liệu thật (thường trống), nếu không sẽ mất tác dụng thu hẹp của việc
+// cho xuống dòng.
+const HEADER_WRAP_COLUMN_IDS = new Set(["dvt_cap_2", "ty_le_cap_2"]);
 
 function loadStoredColumnSizing(): ColumnSizingState {
   if (typeof window === "undefined") return {};
@@ -280,6 +312,7 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
 
   // Kéo giãn cột bảng sản phẩm (Giai đoạn 2) — chỉ dùng TanStack Table cho
   // phần trạng thái độ rộng cột; JSX từng ô vẫn do ProductRow tự vẽ như cũ.
+  const tableScrollRef = useRef<HTMLDivElement>(null);
   const [columnSizing, setColumnSizing] = useState<ColumnSizingState>(loadStoredColumnSizing);
   useEffect(() => {
     try {
@@ -303,6 +336,62 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
   });
   const [productHeaderRow] = productTable.getHeaderGroups();
   const nameColumnStickyLeft = productTable.getColumn("ten_hang_hoa")?.getStart("left") ?? 36;
+
+  // Tự vừa cột (bấm đúp tay kéo, giống Excel) — đo độ rộng chữ THẬT bằng
+  // canvas (đúng font đang render, không cần dựng thử DOM) của mọi ô đang
+  // hiển thị trong cột (trang hiện tại) + nhãn cột, rồi set độ rộng vừa
+  // khít. Chặn trần 460px để 1 dòng dữ liệu dị biệt không kéo giãn cả bảng.
+  const measureCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  function measureTextWidth(text: string, font: string): number {
+    if (!text) return 0;
+    if (!measureCanvasRef.current) measureCanvasRef.current = document.createElement("canvas");
+    const ctx = measureCanvasRef.current.getContext("2d");
+    if (!ctx) return 0;
+    ctx.font = font;
+    return ctx.measureText(text).width;
+  }
+  const CELL_AUTOFIT_BUFFER = 56; // đệm ô (padding) + đệm input/select bên trong + khoảng chừa
+  const SELECT_ARROW_BUFFER = 24; // <select> cần thêm chỗ cho mũi tên xổ xuống, không tính chung với input/text
+  const HEADER_AUTOFIT_BUFFER = 40;
+  function autoFitColumn(columnId: string) {
+    const scrollEl = tableScrollRef.current;
+    if (!scrollEl) return;
+    const cells = scrollEl.querySelectorAll(`tbody [data-col-id="${columnId}"]`);
+    let maxContentWidth = 0;
+    let hasSelect = false;
+    cells.forEach((cell) => {
+      const select = cell.querySelector("select");
+      const input = cell.querySelector("input");
+      let text = "";
+      let el: Element = cell;
+      if (select) {
+        text = select.options[select.selectedIndex]?.text ?? "";
+        el = select;
+        hasSelect = true;
+      } else if (input) {
+        text = (input as HTMLInputElement).value;
+        el = input;
+      } else {
+        text = cell.textContent ?? "";
+      }
+      const font = getComputedStyle(el).font;
+      const w = measureTextWidth(text, font);
+      if (w > maxContentWidth) maxContentWidth = w;
+    });
+    let target = maxContentWidth + CELL_AUTOFIT_BUFFER + (hasSelect ? SELECT_ARROW_BUFFER : 0);
+    if (!HEADER_WRAP_COLUMN_IDS.has(columnId)) {
+      const label = COLUMN_HEADER_LABELS[columnId];
+      if (label) {
+        const headerFont = '700 11.5px -apple-system, "Segoe UI", "SF Pro Text", Roboto, "Helvetica Neue", Arial, sans-serif';
+        const headerW = measureTextWidth(label.toUpperCase(), headerFont);
+        target = Math.max(target, headerW + HEADER_AUTOFIT_BUFFER);
+      }
+    }
+    const minSize = productTable.getColumn(columnId)?.columnDef.minSize ?? 60;
+    const next = Math.max(minSize, Math.min(460, Math.round(target)));
+    setColumnSizing((prev) => ({ ...prev, [columnId]: next }));
+  }
+
   function renderResizeHandle(columnId: string) {
     const header = productHeaderRow.headers.find((h) => h.id === columnId);
     if (!header || !header.column.getCanResize()) return null;
@@ -311,6 +400,11 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
         className={`col-resize-handle${header.column.getIsResizing() ? " is-resizing" : ""}`}
         onMouseDown={header.getResizeHandler()}
         onTouchStart={header.getResizeHandler()}
+        onDoubleClick={(e) => {
+          e.stopPropagation();
+          autoFitColumn(columnId);
+        }}
+        title="Kéo để chỉnh độ rộng — bấm đúp để tự vừa cột"
       />
     );
   }
@@ -1080,7 +1174,7 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
       </div>
 
       <div className="table-card">
-        <div className="table-scroll">
+        <div className="table-scroll" ref={tableScrollRef}>
           <table className="product-table" style={{ width: productTable.getTotalSize() }}>
             <colgroup>
               <col style={{ width: productTable.getColumn("select")?.getSize() }} />
@@ -1162,13 +1256,13 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
                   </th>
                 )}
                 {!compactView && (
-                  <th>
+                  <th className="col-header-wrap">
                     Đơn vị cấp 2 (Hộp)
                     {renderResizeHandle("dvt_cap_2")}
                   </th>
                 )}
                 {!compactView && (
-                  <th className="num">
+                  <th className="num col-header-wrap">
                     Tỷ lệ quy đổi cấp 2
                     {renderResizeHandle("ty_le_cap_2")}
                   </th>
@@ -1385,7 +1479,7 @@ const ProductRow = memo(function ProductRow({
       <td className="col-check">
         <input type="checkbox" checked={isSelected} onChange={() => onToggleSelect(p.id)} />
       </td>
-      <td className="col-name" style={{ left: nameColumnStickyLeft }}>
+      <td className="col-name" data-col-id="ten_hang_hoa" style={{ left: nameColumnStickyLeft }}>
         <InlineTextCell
           value={p.ten_hang_hoa}
           onSave={(v) => onUpdateField(p, "ten_hang_hoa", v)}
@@ -1397,7 +1491,7 @@ const ProductRow = memo(function ProductRow({
         {p.is_draft && <span className="pill pill-warm draft-badge">Nháp</span>}
       </td>
       {!compactView && (
-        <td className="col-group" data-label="Nhóm hàng">
+        <td className="col-group" data-label="Nhóm hàng" data-col-id="category_sheet">
           {isAdmin ? (
             <select value={p.category_sheet} onChange={(e) => onUpdateField(p, "category_sheet", e.target.value)} disabled={isSaving}>
               {CATEGORY_ORDER.map((c) => (
@@ -1410,7 +1504,7 @@ const ProductRow = memo(function ProductRow({
         </td>
       )}
       {!compactView && (
-        <td className="code-cell col-code" data-label="Mã nội bộ">
+        <td className="code-cell col-code" data-label="Mã nội bộ" data-col-id="ma_noi_bo">
           <InlineTextCell
             value={p.ma_noi_bo}
             onSave={(v) => onUpdateField(p, "ma_noi_bo", v)}
@@ -1420,17 +1514,18 @@ const ProductRow = memo(function ProductRow({
         </td>
       )}
       {!compactView && (
-        <td className="col-invoice" data-label="Tên hóa đơn">
+        <td className="col-invoice" data-label="Tên hóa đơn" data-col-id="ten_hoa_don">
           <InlineTextCell
             value={p.ten_hoa_don}
             onSave={(v) => onUpdateField(p, "ten_hoa_don", v)}
             saving={isSaving}
             disabled={role === "sales"}
+            clickToEdit
           />
         </td>
       )}
       {!compactView && (
-        <td className="col-dvt" data-label="ĐVT">
+        <td className="col-dvt" data-label="ĐVT" data-col-id="dvt">
           {isAdmin ? (
             <select value={p.dvt ?? ""} onChange={(e) => onUpdateField(p, "dvt", e.target.value)} disabled={isSaving}>
               <option value="">—</option>
@@ -1443,7 +1538,7 @@ const ProductRow = memo(function ProductRow({
           )}
         </td>
       )}
-      <td className="num" data-label="Giá bán lẻ">
+      <td className="num" data-label="Giá bán lẻ" data-col-id="gia_ban">
         <PriceInput
           value={pendingRequest?.proposed_gia_ban != null ? pendingRequest.proposed_gia_ban : p.gia_ban}
           onSave={(v) => onProposePrice(p, "gia_ban", v)}
@@ -1451,11 +1546,11 @@ const ProductRow = memo(function ProductRow({
         />
       </td>
       {!compactView && (
-        <td className="num" data-label="Giá Hộp">
+        <td className="num" data-label="Giá Hộp" data-col-id="gia_hop">
           <PriceInput value={p.gia_hop} onSave={(v) => onUpdateField(p, "gia_hop", v === "" ? null : Number(v.replace(/[^\d]/g, "")))} saving={isSaving} />
         </td>
       )}
-      <td className="num" data-label="Giá thùng">
+      <td className="num" data-label="Giá thùng" data-col-id="gia_thung">
         <PriceInput
           value={pendingRequest?.proposed_gia_thung != null ? pendingRequest.proposed_gia_thung : p.gia_thung}
           onSave={(v) => onProposePrice(p, "gia_thung", v)}
@@ -1463,7 +1558,7 @@ const ProductRow = memo(function ProductRow({
         />
       </td>
       {!compactView && (
-        <td className="col-spec" data-label="Quy cách thùng">
+        <td className="col-spec" data-label="Quy cách thùng" data-col-id="quy_cach">
           {isAdmin ? (
             <select value={p.quy_cach ?? ""} onChange={(e) => onUpdateField(p, "quy_cach", e.target.value)} disabled={isSaving}>
               <option value="">—</option>
@@ -1477,7 +1572,7 @@ const ProductRow = memo(function ProductRow({
         </td>
       )}
       {!compactView && (
-        <td className="num" data-label="Tỷ lệ quy đổi">
+        <td className="num" data-label="Tỷ lệ quy đổi" data-col-id="ty_le">
           {isAdmin ? (
             <select value={p.ty_le?.toString() ?? ""} onChange={(e) => onUpdateField(p, "ty_le", e.target.value)} disabled={isSaving}>
               <option value="">—</option>
@@ -1491,7 +1586,7 @@ const ProductRow = memo(function ProductRow({
         </td>
       )}
       {!compactView && (
-        <td data-label="Đơn vị cấp 2 (Hộp)">
+        <td data-label="Đơn vị cấp 2 (Hộp)" data-col-id="dvt_cap_2">
           {isAdmin ? (
             <select value={p.dvt_cap_2 ?? ""} onChange={(e) => onUpdateField(p, "dvt_cap_2", e.target.value)} disabled={isSaving}>
               <option value="">—</option>
@@ -1505,7 +1600,7 @@ const ProductRow = memo(function ProductRow({
         </td>
       )}
       {!compactView && (
-        <td className="num" data-label="Tỷ lệ quy đổi cấp 2">
+        <td className="num" data-label="Tỷ lệ quy đổi cấp 2" data-col-id="ty_le_cap_2">
           {isAdmin ? (
             <select value={p.ty_le_cap_2?.toString() ?? ""} onChange={(e) => onUpdateField(p, "ty_le_cap_2", e.target.value)} disabled={isSaving}>
               <option value="">—</option>
@@ -1519,7 +1614,7 @@ const ProductRow = memo(function ProductRow({
         </td>
       )}
       {!compactView && (
-        <td className="col-brand" data-label="Thương hiệu">
+        <td className="col-brand" data-label="Thương hiệu" data-col-id="brand">
           {isAdmin ? (
             <select value={brandNames.includes(p.brand?.name ?? "") ? p.brand?.name : ""} onChange={(e) => selectBrand(e.target.value)} disabled={isSaving}>
               <option value="">—</option>
@@ -1534,27 +1629,27 @@ const ProductRow = memo(function ProductRow({
         </td>
       )}
       {!compactView && (
-        <td data-label="Nhà cung cấp">
+        <td data-label="Nhà cung cấp" data-col-id="nha_cung_cap">
           <InlineTextCell value={p.nha_cung_cap} onSave={(v) => onUpdateField(p, "nha_cung_cap", v)} saving={isSaving} disabled={!isAdmin} />
         </td>
       )}
       {!compactView && (
-        <td className="code-cell col-code" data-label="Mã hàng NCC">
+        <td className="code-cell col-code" data-label="Mã hàng NCC" data-col-id="ma_hang_hoa">
           <InlineTextCell value={p.ma_hang_hoa} onSave={(v) => onUpdateField(p, "ma_hang_hoa", v)} saving={isSaving} disabled={!isAdmin} />
         </td>
       )}
       {!compactView && (
-        <td className="code-cell col-code" data-label="Mã vạch">
+        <td className="code-cell col-code" data-label="Mã vạch" data-col-id="ma_vach">
           <InlineTextCell value={p.ma_vach} onSave={(v) => onUpdateField(p, "ma_vach", v)} saving={isSaving} disabled={!isAdmin} />
         </td>
       )}
       {!compactView && (
-        <td className="code-cell col-code" data-label="Mã thùng">
+        <td className="code-cell col-code" data-label="Mã thùng" data-col-id="ma_thung">
           <InlineTextCell value={p.ma_thung} onSave={(v) => onUpdateField(p, "ma_thung", v)} saving={isSaving} disabled={!isAdmin} />
         </td>
       )}
       {!compactView && (
-        <td className="col-status" data-label="Trạng thái">
+        <td className="col-status" data-label="Trạng thái" data-col-id="status">
           <StatusPill product={p} isPending={isPending} />
         </td>
       )}
