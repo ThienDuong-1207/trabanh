@@ -306,7 +306,7 @@ button, input, select { font: inherit; color: inherit; }
 /* ---- Header ---- */
 .app-header {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: 16px;
   padding-bottom: 24px;
@@ -314,6 +314,11 @@ button, input, select { font: inherit; color: inherit; }
 }
 .app-header h1 { font-size: 20px; font-weight: 650; letter-spacing: -0.01em; margin: 0; }
 .app-header-title { display: flex; align-items: center; gap: 10px; }
+.app-header-title-group { display: flex; flex-direction: column; gap: 4px; }
+/* Gộp "Tổng sản phẩm / Sản phẩm mới / Thay đổi giá" vào ngay dưới tiêu đề
+   thay vì 3 thẻ riêng — nhường chiều cao đó lại cho bảng dữ liệu bên dưới,
+   chỉ giữ dạng thẻ cho nhóm 3 số liệu thật sự cần chú ý (stat-kpi-warm). */
+.app-header-meta { margin: 0; color: var(--muted); font-size: var(--text-body-sm); font-variant-numeric: tabular-nums; }
 
 .stat-kpis { display: flex; gap: 10px; font-variant-numeric: tabular-nums; }
 .stat-kpi {

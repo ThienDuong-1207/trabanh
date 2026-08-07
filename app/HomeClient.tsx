@@ -914,23 +914,16 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
         {activeView === "hanghoa" && (
     <div className="app app-full table-page">
       <header className="app-header">
-        <div className="app-header-title">
-          <h1>Quản lý giá sản phẩm — Tiệm Trà Bánh</h1>
-          <NotificationBell userId={userId} onNavigate={setActiveView} />
+        <div className="app-header-title-group">
+          <div className="app-header-title">
+            <h1>Quản lý giá sản phẩm — Tiệm Trà Bánh</h1>
+            <NotificationBell userId={userId} onNavigate={setActiveView} />
+          </div>
+          <p className="app-header-meta">
+            {products.length} sản phẩm · {monthlyStats.newThisMonth} mới · {priceChangesThisMonth} đổi giá (tháng {monthlyStats.monthLabel})
+          </p>
         </div>
         <div className="stat-kpis">
-          <div className="stat-kpi">
-            <div className="stat-kpi-label">Tổng sản phẩm tháng {monthlyStats.monthLabel}</div>
-            <div className="stat-kpi-value">{products.length}</div>
-          </div>
-          <div className="stat-kpi">
-            <div className="stat-kpi-label">Sản phẩm mới tháng {monthlyStats.monthLabel}</div>
-            <div className="stat-kpi-value">{monthlyStats.newThisMonth}</div>
-          </div>
-          <div className="stat-kpi">
-            <div className="stat-kpi-label">Thay đổi giá tháng {monthlyStats.monthLabel}</div>
-            <div className="stat-kpi-value">{priceChangesThisMonth}</div>
-          </div>
           <div className="stat-kpi stat-kpi-warm">
             <div className="stat-kpi-label">Đề xuất chờ duyệt</div>
             <div className="stat-kpi-value">{priceRequests.length}</div>
