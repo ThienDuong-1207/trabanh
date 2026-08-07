@@ -919,23 +919,9 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
             <h1>Quản lý giá sản phẩm — Tiệm Trà Bánh</h1>
             <NotificationBell userId={userId} onNavigate={setActiveView} />
           </div>
-          <p className="app-header-meta">
+          <p className="app-header-meta app-header-meta-accent">
             {products.length} sản phẩm · {monthlyStats.newThisMonth} mới · {priceChangesThisMonth} đổi giá (tháng {monthlyStats.monthLabel})
           </p>
-        </div>
-        <div className="stat-kpis">
-          <div className="stat-kpi stat-kpi-warm">
-            <div className="stat-kpi-label">Đề xuất chờ duyệt</div>
-            <div className="stat-kpi-value">{priceRequests.length}</div>
-          </div>
-          <div className="stat-kpi stat-kpi-warm">
-            <div className="stat-kpi-label">Chưa có giá bán</div>
-            <div className="stat-kpi-value">{monthlyStats.missingPrice}</div>
-          </div>
-          <div className="stat-kpi stat-kpi-warm">
-            <div className="stat-kpi-label">Nháp chưa hoàn thiện</div>
-            <div className="stat-kpi-value">{monthlyStats.draftCount}</div>
-          </div>
         </div>
       </header>
 

@@ -317,8 +317,10 @@ button, input, select { font: inherit; color: inherit; }
 .app-header-title-group { display: flex; flex-direction: column; gap: 4px; }
 /* Gộp "Tổng sản phẩm / Sản phẩm mới / Thay đổi giá" vào ngay dưới tiêu đề
    thay vì 3 thẻ riêng — nhường chiều cao đó lại cho bảng dữ liệu bên dưới,
-   chỉ giữ dạng thẻ cho nhóm 3 số liệu thật sự cần chú ý (stat-kpi-warm). */
+   không còn dùng dạng thẻ cho nhóm số liệu "cần chú ý" nữa — đã bỏ hẳn theo
+   yêu cầu, nhường tối đa chỗ cho bảng dữ liệu. */
 .app-header-meta { margin: 0; color: var(--muted); font-size: var(--text-body-sm); font-variant-numeric: tabular-nums; }
+.app-header-meta-accent { color: var(--primary-ink); font-weight: 650; }
 
 .stat-kpis { display: flex; gap: 10px; font-variant-numeric: tabular-nums; }
 .stat-kpi {
