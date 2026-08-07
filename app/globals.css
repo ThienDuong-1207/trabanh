@@ -275,7 +275,13 @@ button, input, select { font: inherit; color: inherit; }
    cao tự nhiên, chỉ .table-card bên dưới giãn lấp phần còn lại và tự cuộn
    riêng (cả dọc lẫn ngang) bên trong, nên thanh cuộn ngang luôn nằm trong
    tầm nhìn thay vì trôi xuống cuối trang dài. */
-.table-page { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+/* padding-bottom 80px của .app hợp lý cho trang cuộn tự nhiên (đệm cuối
+   trang) — nhưng ở đây .table-page chiếm trọn chiều cao còn lại, phần đệm
+   đó lại trực tiếp cắt bớt chỗ dành cho bảng, khiến ít dòng hiện ra hơn hẳn
+   mức màn hình thật sự cho phép (đã đo bằng dữ liệu thật: ~90px trắng thừa
+   ở đáy, đúng bằng phần chênh 80px→20px này). Giảm còn 1 khoảng đệm nhỏ vừa
+   đủ, không cắt vào phần bảng. */
+.table-page { display: flex; flex-direction: column; height: 100%; min-height: 0; padding-bottom: 20px; }
 .table-page > .table-card { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
 .table-page > .table-card > .table-scroll { flex: 1 1 auto; min-height: 0; overflow: auto; }
 
