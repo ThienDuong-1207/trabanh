@@ -120,7 +120,14 @@ body {
 button, input, select { font: inherit; color: inherit; }
 
 /* ---- App shell (sidebar + content) ---- */
-.shell { display: flex; min-height: 100vh; }
+/* Khung cố định đúng bằng màn hình (thay vì cả trang cuộn theo body) — để
+   các trang có bảng rộng (.table-page bên dưới) có thể giữ phần tiêu đề/
+   KPI/thanh công cụ đứng yên, chỉ vùng bảng cuộn riêng bên trong, thanh
+   cuộn ngang nhờ vậy luôn nằm trong tầm nhìn thay vì trôi xuống tận cuối
+   trang. Chỉ áp dụng ở màn hình rộng — xem @media 860px bên dưới, nơi mọi
+   quy tắc height/overflow ở đây được trả về cách cuộn cả trang bình thường
+   cho di động. */
+.shell { display: flex; height: 100vh; overflow: hidden; }
 
 .sidebar {
   width: 240px; flex: 0 0 240px;
@@ -169,7 +176,7 @@ button, input, select { font: inherit; color: inherit; }
 .sidebar-account-role { font-size: var(--text-micro); color: var(--faint); margin-top: 1px; }
 .sidebar-signout { margin-top: 8px; width: 100%; justify-content: center; }
 
-.main { flex: 1 1 auto; min-width: 0; }
+.main { flex: 1 1 auto; min-width: 0; overflow: hidden; }
 
 .view-header { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 18px; flex-wrap: wrap; }
 .view-header h1 { font-size: 19px; font-weight: 650; letter-spacing: -0.01em; margin: 0 0 3px; }
@@ -253,10 +260,42 @@ button, input, select { font: inherit; color: inherit; }
   .panels { grid-template-columns: 1fr; }
 }
 
-.app { max-width: 1200px; margin: 0 auto; padding: 24px 20px 80px; }
+/* .app giờ là vùng cuộn thật (thay cho body/window trước đây) — .main đã
+   overflow:hidden ở trên, nên .app phải tự cuộn để nội dung dài hơn màn
+   hình vẫn xem được bình thường. Với các trang có .table-page (bên dưới),
+   .table-page lấp đầy đúng 100% chiều cao này nên .app sẽ không cần tự
+   cuộn nữa — phần cuộn chuyển hẳn vào bên trong .table-scroll của trang đó. */
+.app { max-width: 1200px; margin: 0 auto; padding: 24px 20px 80px; height: 100%; overflow-y: auto; }
 /* Quản lý hàng hóa dùng hết chiều ngang màn hình thay vì bó vào 1200px —
    bảng sản phẩm nhiều cột kiểu Excel cần không gian rộng. */
 .app-full { max-width: none; }
+
+/* Trang có bảng rộng (Quản lý hàng hóa, Chờ duyệt giá, Nhật ký hoạt động,
+   Quản lý người dùng) — tiêu đề/KPI/thanh công cụ ở trên giữ nguyên chiều
+   cao tự nhiên, chỉ .table-card bên dưới giãn lấp phần còn lại và tự cuộn
+   riêng (cả dọc lẫn ngang) bên trong, nên thanh cuộn ngang luôn nằm trong
+   tầm nhìn thay vì trôi xuống cuối trang dài. */
+.table-page { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.table-page > .table-card { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.table-page > .table-card > .table-scroll { flex: 1 1 auto; min-height: 0; overflow: auto; }
+
+/* Trả lại cách cuộn cả trang bình thường trên di động — khung cố định đúng
+   bằng màn hình chỉ hợp lý khi màn hình đủ rộng để thấy nhiều cột cùng lúc;
+   ở đây bảng đã tự chuyển sang dạng thẻ xếp dọc (xem @media 600px bên
+   dưới), không có cuộn ngang nên không cần khung cố định nữa. Đặt SAU các
+   rule gốc ở trên (không gộp chung vào @media 860px đầu file) để thắng
+   đúng theo thứ tự cascade — cùng độ đặc thù thì luật khai báo sau thắng. */
+@media (max-width: 860px) {
+  .shell { height: auto; overflow: visible; }
+  .main { overflow: visible; }
+  .app { height: auto; overflow-y: visible; }
+  .table-page { height: auto; }
+  .table-page > .table-card { flex: none; }
+  /* Chỉ trả lại cuộn dọc bình thường — vẫn giữ overflow-x:auto (từ .table-
+     scroll gốc) vì giữa 600–860px bảng chưa sập thành thẻ, vẫn cần cuộn
+     ngang để xem hết cột. */
+  .table-page > .table-card > .table-scroll { overflow-y: visible; }
+}
 
 /* ---- Header ---- */
 .app-header {
@@ -458,7 +497,14 @@ tbody tr.is-selected-elsewhere:hover { background: var(--primary-wash); }
    thay vì tự tính lại. Áp dụng chung cho cả bảng đầy đủ lẫn chế độ "Update
    giá" (compact) — không cần override riêng nữa. */
 .product-table { width: auto; table-layout: fixed; }
-.product-table th { position: relative; }
+/* KHÔNG đặt position:relative riêng cho th ở đây — thead th (globals.css,
+   dùng chung mọi bảng) đã có position:sticky sẵn, bản thân sticky cũng là
+   1 loại "positioned element" hợp lệ để .col-resize-handle (position:
+   absolute) định vị theo, không cần thêm gì nữa. Từng có 1 rule ".product-
+   table th { position: relative }" ở đây — độ đặc thù (specificity) của nó
+   cao hơn "thead th" nên ĐÈ MẤT sticky, khiến toàn bộ cột (trừ 2 cột ghim
+   trái vốn có rule sticky riêng đặc thù hơn) không dính lại khi cuộn dọc —
+   lỗi có sẵn từ trước, chỉ vô tình lộ rõ khi bảng có khung cuộn riêng. */
 .product-table thead th.col-check, .product-table thead th.col-name { z-index: 3; background: var(--header-bg); }
 .product-table tbody tr:hover .col-check, .product-table tbody tr:hover .col-name { background: var(--surface-sunken); }
 .product-table tbody tr.is-pending .col-check, .product-table tbody tr.is-pending .col-name { background: var(--warm-wash); }

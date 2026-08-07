@@ -912,7 +912,7 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
       />
       <main className="main">
         {activeView === "hanghoa" && (
-    <div className="app app-full">
+    <div className="app app-full table-page">
       <header className="app-header">
         <div className="app-header-title">
           <h1>Quản lý giá sản phẩm — Tiệm Trà Bánh</h1>
@@ -2227,7 +2227,7 @@ function PriceRequestsView({
   }, [historyRefreshToken, loadHistoryPage]);
 
   return (
-    <div className="app">
+    <div className="app table-page">
       <div className="view-header">
         <div>
           <h1>Chờ duyệt giá</h1>
@@ -2522,7 +2522,7 @@ function UserManagementView({ currentUserId }: { currentUserId: string }) {
   }
 
   return (
-    <div className="app">
+    <div className="app table-page">
       <div className="view-header">
         <div>
           <h1>Quản lý người dùng</h1>
@@ -2889,7 +2889,7 @@ function ActivityLogView({ role }: { role: Role }) {
   }
 
   return (
-    <div className="app">
+    <div className="app table-page">
       <div className="view-header">
         <div>
           <h1>Nhật ký hoạt động</h1>
