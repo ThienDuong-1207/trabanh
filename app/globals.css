@@ -757,6 +757,20 @@ label.field input:disabled { opacity: 0.6; }
   .segmented { max-width: 100%; overflow-x: auto; }
   .selection-bar { flex-wrap: wrap; }
 
+  /* Menu sổ xuống (.menu — "Nhập & xuất"...) và bảng thông báo đều neo theo
+     nút bấm (right:0 / left:0 + độ rộng cố định) — ở màn hình hẹp, nút bấm
+     có thể nằm gần mép trái/phải, khiến bảng bị đẩy tràn hẳn ra ngoài màn
+     hình (đã kiểm chứng thực tế: có lúc tràn hơn 250px, gần như không đọc
+     được). Đổi sang kiểu "trượt lên từ đáy" (bottom sheet), neo cố định
+     theo mép trái/phải MÀN HÌNH thay vì theo nút bấm — không bao giờ tràn
+     nữa dù nút ở bất kỳ đâu, giống cách drawer menu bên trái đã làm. */
+  .menu, .notification-panel {
+    position: fixed;
+    left: 12px; right: 12px; bottom: 12px; top: auto;
+    width: auto; max-width: none; max-height: 70vh;
+    overflow-y: auto;
+  }
+
   /* Bảng sản phẩm (.product-table) — sập thành danh sách thẻ dọc thay vì
      bảng cuộn ngang, dễ chạm/sửa bằng ngón tay hơn nhiều. Vẫn dùng đúng các
      ô sửa-inline/phân quyền hiện có (InlineTextCell, PriceInput, select...)
