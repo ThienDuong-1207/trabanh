@@ -903,7 +903,6 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
           setActiveView(v);
           setMobileNavOpen(false);
         }}
-        pendingCount={pendingIds.size}
         priceRequestCount={priceRequests.filter((r) => r.status === "pending").length}
         displayName={displayName}
         role={role}
@@ -1660,7 +1659,6 @@ const ProductRow = memo(function ProductRow({
 function Sidebar({
   activeView,
   onChange,
-  pendingCount,
   priceRequestCount,
   displayName,
   role,
@@ -1669,7 +1667,6 @@ function Sidebar({
 }: {
   activeView: View;
   onChange: (v: View) => void;
-  pendingCount: number;
   priceRequestCount: number;
   displayName: string;
   role: Role;
@@ -1714,7 +1711,6 @@ function Sidebar({
         <button className={`nav-item${activeView === "baocao" ? " active" : ""}`} onClick={() => onChange("baocao")}>
           <ChartIcon />
           Báo cáo
-          {pendingCount > 0 && <span className="pill pill-warm badge">{pendingCount}</span>}
         </button>
         {role === "admin" && (
           <button className={`nav-item${activeView === "users" ? " active" : ""}`} onClick={() => onChange("users")}>
