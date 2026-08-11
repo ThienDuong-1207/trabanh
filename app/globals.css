@@ -127,7 +127,7 @@ button, input, select { font: inherit; color: inherit; }
    trang. Chỉ áp dụng ở màn hình rộng — xem @media 860px bên dưới, nơi mọi
    quy tắc height/overflow ở đây được trả về cách cuộn cả trang bình thường
    cho di động. */
-.shell { display: flex; height: 100vh; overflow: hidden; }
+.shell { display: flex; height: 100vh; }
 
 .sidebar {
   width: 240px; flex: 0 0 240px;
@@ -176,7 +176,7 @@ button, input, select { font: inherit; color: inherit; }
 .sidebar-account-role { font-size: var(--text-micro); color: var(--faint); margin-top: 1px; }
 .sidebar-signout { margin-top: 8px; width: 100%; justify-content: center; }
 
-.main { flex: 1 1 auto; min-width: 0; overflow: hidden; }
+.main { flex: 1 1 auto; min-width: 0; }
 
 .view-header { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 18px; flex-wrap: wrap; }
 .view-header h1 { font-size: 19px; font-weight: 650; letter-spacing: -0.01em; margin: 0 0 3px; }
@@ -281,7 +281,14 @@ button, input, select { font: inherit; color: inherit; }
    mức màn hình thật sự cho phép (đã đo bằng dữ liệu thật: ~90px trắng thừa
    ở đáy, đúng bằng phần chênh 80px→20px này). Giảm còn 1 khoảng đệm nhỏ vừa
    đủ, không cắt vào phần bảng. */
-.table-page { display: flex; flex-direction: column; height: 100%; min-height: 0; padding-bottom: 20px; }
+/* overflow:visible (khác .app phía trên) — .table-page tự nó không bao giờ
+   cần cuộn (chiều cao 100% vừa khít, .table-card bên trong mới là nơi cuộn
+   thật), nhưng NẾU để nguyên overflow-y:auto kế thừa từ .app thì theo đúng
+   quy tắc CSS, overflow-x cũng bị ép thành auto theo — vô tình cắt mất mọi
+   menu sổ xuống (vd "Nhập & xuất") vượt ra ngoài khung này ở màn hình thấp.
+   Đặt lại visible ở đây (cùng phần tử với .app, luật khai báo sau thắng) để
+   trả lại đúng hành vi cũ, không ảnh hưởng gì đến việc cuộn bảng bên trong. */
+.table-page { display: flex; flex-direction: column; height: 100%; min-height: 0; padding-bottom: 20px; overflow: visible; }
 .table-page > .table-card { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
 .table-page > .table-card > .table-scroll { flex: 1 1 auto; min-height: 0; overflow: auto; }
 
