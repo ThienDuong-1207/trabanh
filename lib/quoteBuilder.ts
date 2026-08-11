@@ -25,7 +25,7 @@ const COMPANY_INFO = [
   "TIỆM TRÀ BÁNH (CN TÂN CẢNG)",
   "Số 5 Ung Văn Khiêm, phường Thạnh Mỹ Tây, TP Hồ Chí Minh, Việt Nam",
   "Số điện thoại: 0906.363.395 (ZALO) - 0902.331.361",
-  "Website: nguyenlieuphachetrabanh.com",
+  "Website: trabanh.com",
 ];
 
 const LOGO_PATH = path.join(process.cwd(), "public", "templates", "logo.png");
