@@ -288,7 +288,11 @@ button, input, select { font: inherit; color: inherit; }
    menu sổ xuống (vd "Nhập & xuất") vượt ra ngoài khung này ở màn hình thấp.
    Đặt lại visible ở đây (cùng phần tử với .app, luật khai báo sau thắng) để
    trả lại đúng hành vi cũ, không ảnh hưởng gì đến việc cuộn bảng bên trong. */
-.table-page { display: flex; flex-direction: column; height: 100%; min-height: 0; padding-bottom: 20px; overflow: visible; }
+/* padding-top riêng (thay vì kế thừa 24px từ .app) — các trang bảng dữ liệu
+   (Quản lý hàng hóa, Chờ duyệt giá, Nhật ký, Người dùng) ưu tiên tối đa chỗ
+   cho bảng hơn khoảng trắng đầu trang, nhất là trên màn hình 13-14 inch chỉ
+   còn ~600-750px chiều cao thật sau thanh trình duyệt. */
+.table-page { display: flex; flex-direction: column; height: 100%; min-height: 0; padding-top: 12px; padding-bottom: 20px; overflow: visible; }
 .table-page > .table-card { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
 .table-page > .table-card > .table-scroll { flex: 1 1 auto; min-height: 0; overflow: auto; }
 
@@ -316,7 +320,7 @@ button, input, select { font: inherit; color: inherit; }
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding-bottom: 24px;
+  padding-bottom: 12px;
   flex-wrap: wrap;
 }
 .app-header h1 { font-size: 20px; font-weight: 650; letter-spacing: -0.01em; margin: 0; }
@@ -343,7 +347,7 @@ button, input, select { font: inherit; color: inherit; }
 /* ---- Toolbar ---- */
 .toolbar {
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-  padding: 12px 14px;
+  padding: 8px 14px;
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md);
   box-shadow: var(--shadow-1);
 }
@@ -445,7 +449,7 @@ button, input, select { font: inherit; color: inherit; }
 .menu-divider { height: 1px; background: var(--border); margin: 5px 4px; }
 
 /* ---- Tabs + selection bar row ---- */
-.view-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 20px; flex-wrap: wrap; }
+.view-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px; flex-wrap: wrap; }
 .view-row-left { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 
 .segmented { position: relative; display: inline-flex; background: var(--surface-sunken); border-radius: var(--radius-sm); padding: 3px; gap: 2px; }
@@ -473,14 +477,16 @@ button, input, select { font: inherit; color: inherit; }
 .selection-bar b { font-variant-numeric: tabular-nums; }
 
 /* ---- Table ---- */
-.table-card { margin-top: 18px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); overflow: hidden; box-shadow: var(--shadow-1); }
+.table-card { margin-top: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); overflow: hidden; box-shadow: var(--shadow-1); }
 .table-scroll { overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; min-width: 760px; }
-/* Header xanh đậm, chữ trắng — nổi bật rõ trên thân bảng thay vì hòa lẫn. */
+/* Header xanh đậm, chữ trắng — nổi bật rõ trên thân bảng thay vì hòa lẫn.
+   line-height 1.25 (thay vì kế thừa 1.5 của body, vốn nghĩ cho văn xuôi) —
+   bảng dữ liệu cần dòng sát hơn để tối đa số dòng nhìn thấy cùng lúc. */
 thead th {
   text-align: left; font-size: var(--text-micro); font-weight: 650;
-  text-transform: uppercase; letter-spacing: 0.04em;
-  background: var(--header-bg); color: #fff; padding: 11px 14px; white-space: nowrap;
+  text-transform: uppercase; letter-spacing: 0.04em; line-height: 1.25;
+  background: var(--header-bg); color: #fff; padding: 7px 14px; white-space: nowrap;
   position: sticky; top: 0; z-index: 2;
   border-bottom: 1px solid var(--border);
 }
@@ -489,7 +495,10 @@ th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
    dòng thay vì buộc cả cột phải rộng ra chỉ để vừa 1 dòng chữ — 2 cột này
    dữ liệu gần như luôn trống nên không cần rộng, chỉ nhãn cột dài thôi. */
 th.col-header-wrap { white-space: normal; line-height: 1.25; }
-tbody td { padding: 10px 14px; border-bottom: 1px solid var(--border); font-size: var(--text-body-sm); vertical-align: middle; }
+/* line-height 1.3 (không phải 1.5 kế thừa từ body) — lý do tương tự thead
+   th ở trên. Đây là đòn bẩy lớn nhất cho mật độ hàng vì nhân theo SỐ DÒNG
+   hiện có, không phải chi phí 1 lần như phần header/toolbar phía trên. */
+tbody td { padding: 6px 14px; border-bottom: 1px solid var(--border); font-size: var(--text-body-sm); line-height: 1.3; vertical-align: middle; }
 tbody tr:last-child td { border-bottom: none; }
 tbody tr:hover { background: var(--surface-sunken); }
 tbody tr.is-pending { background: var(--warm-wash); }
@@ -568,7 +577,7 @@ tbody tr.is-selected-elsewhere:hover { background: var(--primary-wash); }
 .draft-badge { margin-left: 6px; vertical-align: middle; padding: 1px 7px; }
 
 .price-input {
-  width: 96px; padding: 5px 8px; text-align: right; border: 1px solid transparent; border-radius: var(--radius-sm);
+  width: 96px; padding: 3px 8px; text-align: right; border: 1px solid transparent; border-radius: var(--radius-sm);
   background: transparent; color: var(--ink); font-variant-numeric: tabular-nums; font-size: var(--text-body-sm);
 }
 .price-input:hover { border-color: var(--border-strong); background: var(--surface); }
@@ -579,7 +588,7 @@ tbody tr.is-selected-elsewhere:hover { background: var(--primary-wash); }
    trong bảng — cùng kiểu trong suốt-tới-khi-hover với ô giá, chỉ khác căn
    trái vì là chữ chứ không phải số. */
 .inline-cell-input, .product-table td select {
-  width: 100%; padding: 5px 8px; border: 1px solid transparent; border-radius: var(--radius-sm);
+  width: 100%; padding: 3px 8px; border: 1px solid transparent; border-radius: var(--radius-sm);
   background: transparent; color: var(--ink); font-size: var(--text-body-sm);
 }
 .inline-cell-input:hover, .product-table td select:hover { border-color: var(--border-strong); background: var(--surface); }
@@ -591,7 +600,7 @@ tbody tr.is-selected-elsewhere:hover { background: var(--primary-wash); }
 /* Chế độ "bấm để sửa" (Tên hàng hóa) — hiện chữ thường, xuống dòng tự nhiên
    khi dài, thay vì ô nhập 1 dòng luôn bị cắt chữ dù cột rộng bao nhiêu. */
 .inline-cell-text {
-  display: inline-block; width: 100%; padding: 4px 6px; border-radius: var(--radius-sm);
+  display: inline-block; width: 100%; padding: 3px 6px; border-radius: var(--radius-sm);
   white-space: normal; word-break: break-word; cursor: pointer; border: 1px solid transparent;
 }
 .inline-cell-text:hover { background: var(--surface); border-color: var(--border-strong); }
@@ -608,7 +617,7 @@ tbody tr.is-selected-elsewhere:hover { background: var(--primary-wash); }
 .new-product-row .col-check svg { color: var(--faint); }
 .new-product-row input,
 .new-product-row select {
-  width: 100%; padding: 5px 8px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+  width: 100%; padding: 3px 8px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
   background: var(--surface); color: var(--ink); font-size: var(--text-body-sm);
 }
 .new-product-row input::placeholder { color: var(--faint); }
@@ -624,7 +633,7 @@ tbody tr.is-selected-elsewhere:hover { background: var(--primary-wash); }
 
 .row-actions { display: flex; gap: 2px; justify-content: flex-end; }
 .icon-btn {
-  width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center;
   border: none; background: transparent; border-radius: var(--radius-sm); color: var(--muted); cursor: pointer;
   transition: background-color 150ms ease-out, color 150ms ease-out;
 }
