@@ -382,30 +382,36 @@ button, input, select { font: inherit; color: inherit; }
 .toggle-pill.active { background: var(--warm-wash); border-color: transparent; color: var(--warm-ink); font-weight: 600; }
 
 /* Công tắc trượt kiểu iOS thật (rãnh + núm tròn di chuyển), khác với
-   .toggle-pill (chip lọc dạng nút bấm) ở trên. Luôn nổi bật màu cam (không
-   chỉ khi bật) — theo yêu cầu, vì đây là lối tắt hay dùng nhất trong ngày
-   (chế độ sửa giá nhanh) nên cần dễ tìm thấy giữa các control còn lại của
-   thanh công cụ, kể cả lúc đang tắt. */
+   .toggle-pill (chip lọc dạng nút bấm) ở trên. Nền cam đặc + chữ trắng
+   (đồng bộ kiểu với .icon-btn — luôn nổi bật, không chỉ khi bật/hover) vì
+   đây là lối tắt hay dùng nhất trong ngày (chế độ sửa giá nhanh), cần dễ
+   tìm thấy giữa các control còn lại của thanh công cụ. Đậm hơn (--warm-ink)
+   khi hover hoặc đang bật, để vẫn phân biệt được 2 trạng thái dù nền đã
+   luôn là màu cam. */
 .switch-field {
-  display: inline-flex; align-items: center; gap: 5px; cursor: pointer; user-select: none;
-  font-size: var(--text-body-sm); color: var(--warm-ink); font-weight: 600; white-space: nowrap;
-  padding: 4px 8px; border-radius: var(--radius-sm); background: var(--warm-wash); border: 1px solid transparent;
-  transition: border-color 150ms ease-out;
+  display: inline-flex; align-items: center; gap: 6px; cursor: pointer; user-select: none;
+  font-size: var(--text-body-sm); color: #fff; font-weight: 600; white-space: nowrap;
+  padding: 5px 10px; border-radius: var(--radius-sm); background: var(--warm);
+  transition: background-color 150ms ease-out;
 }
-.switch-field.has-checked { border-color: var(--warm); }
+.switch-field:hover { background: var(--warm-ink); }
+.switch-field.has-checked { background: var(--warm-ink); }
 .switch { position: relative; display: inline-flex; flex-shrink: 0; width: 27px; height: 16px; }
 .switch input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
+/* Rãnh/núm dùng riêng 1 cặp màu trắng (không phải cam) vì cả nút giờ đã nền
+   cam đặc — rãnh cam-trên-cam sẽ vô hình. Núm trắng = tắt (mờ, chưa bật),
+   rãnh đặc trắng + núm cam = bật (nổi bật rõ ràng, đảo màu với nút cha). */
 .switch-track {
-  position: absolute; inset: 0; border-radius: 999px; background: var(--border-strong);
+  position: absolute; inset: 0; border-radius: 999px; background: rgba(255, 255, 255, 0.3);
   transition: background-color 150ms ease-out;
 }
 .switch-knob {
   position: absolute; top: 1px; left: 1px; width: 13px; height: 13px; border-radius: 50%;
   background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
-  transition: transform 200ms cubic-bezier(0.32, 0.72, 0, 1);
+  transition: transform 200ms cubic-bezier(0.32, 0.72, 0, 1), background-color 150ms ease-out;
 }
-.switch input:checked ~ .switch-track { background: var(--warm); }
-.switch input:checked ~ .switch-track .switch-knob { transform: translateX(12px); }
+.switch input:checked ~ .switch-track { background: #fff; }
+.switch input:checked ~ .switch-track .switch-knob { background: var(--warm-ink); transform: translateX(12px); }
 .switch input:focus-visible ~ .switch-track { outline: 2px solid var(--focus); outline-offset: 2px; }
 
 /* Vạch phân chia mảnh: cụm tìm kiếm/lọc bên trái, cụm hành động (Thêm/Nhập-
