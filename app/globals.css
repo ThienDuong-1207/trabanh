@@ -36,18 +36,20 @@
      màu thương hiệu neo cố định), để header luôn nổi bật rõ trên cả nền
      sáng lẫn tối, tách bạch hẳn với thân bảng. */
   --header-bg: #0f4f62;
-  --radius-sm: 9px;
-  --radius-md: 14px;
-  --radius-lg: 20px;
+  --radius-sm: 6px;
+  --radius-md: 9px;
+  --radius-lg: 13px;
   /* Bóng đổ 2 lớp (nét sát viền + lan tỏa mềm) thay vì 1 lớp mờ duy nhất —
      tạo cảm giác mặt phẳng "nhấc lên" khỏi nền thay vì chỉ có viền kẻ. */
   --shadow-1: 0 1px 1px rgba(20, 24, 30, 0.03), 0 4px 14px rgba(20, 24, 30, 0.06);
   --shadow-2: 0 20px 50px rgba(20, 24, 30, 0.16), 0 2px 10px rgba(20, 24, 30, 0.08);
   /* Type scale cho chữ nhỏ — gộp các mốc lẻ (11/12/13px) từng bị lệch rải
-     rác về đúng 3 bước rõ ràng, để không còn font-size tự chọn tùy chỗ. */
-  --text-micro: 11.5px;   /* nhãn viết hoa, mốc thời gian phụ */
-  --text-meta: 12.5px;    /* chữ phụ, pill, helper text */
-  --text-body-sm: 13.5px; /* chữ chính trong control/bảng (không đổi) */
+     rác về đúng 3 bước rõ ràng, để không còn font-size tự chọn tùy chỗ.
+     Đã co đều theo tỷ lệ zoom 67% (yêu cầu ngày 14/08) — xem ghi chú ở
+     phần "Co giãn 67%" cuối file gốc trước khi sửa nếu cần khôi phục. */
+  --text-micro: 7.7px;    /* nhãn viết hoa, mốc thời gian phụ */
+  --text-meta: 8.4px;     /* chữ phụ, pill, helper text */
+  --text-body-sm: 9px;    /* chữ chính trong control/bảng */
 }
 
 :root[data-theme="dark"] {
@@ -112,7 +114,7 @@ body {
   background: var(--bg);
   color: var(--ink);
   font-family: -apple-system, "Segoe UI", "SF Pro Text", Roboto, "Helvetica Neue", Arial, sans-serif;
-  font-size: 14px;
+  font-size: 9.4px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
 }
@@ -130,7 +132,7 @@ button, input, select { font: inherit; color: inherit; }
 .shell { display: flex; height: 100vh; }
 
 .sidebar {
-  width: 240px; flex: 0 0 240px;
+  width: 161px; flex: 0 0 161px;
   background: var(--sidebar-bg); border-right: 1px solid var(--border);
   display: flex; flex-direction: column;
   position: sticky; top: 0; height: 100vh; overflow-y: auto;
@@ -149,15 +151,15 @@ button, input, select { font: inherit; color: inherit; }
     -webkit-backdrop-filter: blur(20px) saturate(180%);
   }
 }
-.brand { padding: 16px 16px 14px; }
-.brand-logo { width: 100%; max-width: 208px; height: auto; display: block; border-radius: var(--radius-sm); box-shadow: var(--shadow-1); }
-.brand-text-under { font-size: var(--text-micro); font-weight: 600; color: var(--faint); margin-top: 9px; }
+.brand { padding: 11px 11px 9px; }
+.brand-logo { width: 100%; max-width: 139px; height: auto; display: block; border-radius: var(--radius-sm); box-shadow: var(--shadow-1); }
+.brand-text-under { font-size: var(--text-micro); font-weight: 600; color: var(--faint); margin-top: 6px; }
 
-.nav { padding: 6px 10px; display: flex; flex-direction: column; gap: 2px; }
-.nav-label { font-size: var(--text-micro); font-weight: 650; letter-spacing: 0.05em; text-transform: uppercase; color: var(--faint); padding: 10px 10px 6px; }
+.nav { padding: 4px 7px; display: flex; flex-direction: column; gap: 1px; }
+.nav-label { font-size: var(--text-micro); font-weight: 650; letter-spacing: 0.05em; text-transform: uppercase; color: var(--faint); padding: 7px 7px 4px; }
 .nav-item {
-  display: flex; align-items: center; gap: 10px; width: 100%; position: relative;
-  padding: 9px 10px; border-radius: var(--radius-sm); border: none; background: none;
+  display: flex; align-items: center; gap: 7px; width: 100%; position: relative;
+  padding: 6px 7px; border-radius: var(--radius-sm); border: none; background: none;
   color: var(--muted); font-size: var(--text-body-sm); font-weight: 500; text-align: left; cursor: pointer;
   transition: background-color 150ms ease-out, color 150ms ease-out;
 }
@@ -167,63 +169,63 @@ button, input, select { font: inherit; color: inherit; }
 .nav-item.active { background: var(--primary-wash); color: var(--primary-ink); font-weight: 650; }
 .nav-item.active svg { color: var(--primary-ink); }
 .nav-item.active::before {
-  content: ""; position: absolute; left: -10px; top: 8px; bottom: 8px; width: 3px;
-  background: var(--primary); border-radius: 0 3px 3px 0;
+  content: ""; position: absolute; left: -7px; top: 5px; bottom: 5px; width: 2px;
+  background: var(--primary); border-radius: 0 2px 2px 0;
 }
 .nav-item .badge { margin-left: auto; }
-.sidebar-foot { margin-top: auto; padding: 12px 16px 16px; border-top: 1px solid var(--border); font-size: var(--text-micro); color: var(--faint); }
+.sidebar-foot { margin-top: auto; padding: 8px 11px 11px; border-top: 1px solid var(--border); font-size: var(--text-micro); color: var(--faint); }
 .sidebar-account-name { font-size: var(--text-body-sm); font-weight: 650; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sidebar-account-role { font-size: var(--text-micro); color: var(--faint); margin-top: 1px; }
-.sidebar-signout { margin-top: 8px; width: 100%; justify-content: center; }
+.sidebar-signout { margin-top: 5px; width: 100%; justify-content: center; }
 
 .main { flex: 1 1 auto; min-width: 0; }
 
-.view-header { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 18px; flex-wrap: wrap; }
-.view-header h1 { font-size: 19px; font-weight: 650; letter-spacing: -0.01em; margin: 0 0 3px; }
+.view-header { display: flex; align-items: baseline; justify-content: space-between; gap: 11px; margin-bottom: 12px; flex-wrap: wrap; }
+.view-header h1 { font-size: 13px; font-weight: 650; letter-spacing: -0.01em; margin: 0 0 2px; }
 .view-header p { margin: 0; color: var(--muted); font-size: var(--text-body-sm); }
 
 /* ---- Dashboard (Báo cáo) ---- */
-.kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 20px; }
-.kpi-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 16px 18px; box-shadow: var(--shadow-1); }
-.kpi-card .label { font-size: var(--text-meta); color: var(--muted); margin-bottom: 6px; }
-.kpi-card .value { font-size: 24px; font-weight: 700; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
+.kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(134px, 1fr)); gap: 8px; margin-bottom: 13px; }
+.kpi-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 11px 12px; box-shadow: var(--shadow-1); }
+.kpi-card .label { font-size: var(--text-meta); color: var(--muted); margin-bottom: 4px; }
+.kpi-card .value { font-size: 16px; font-weight: 700; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
 .kpi-card .value.accent { color: var(--warm-ink); }
-.kpi-card .delta { font-size: var(--text-meta); color: var(--success); margin-top: 4px; font-weight: 600; }
+.kpi-card .delta { font-size: var(--text-meta); color: var(--success); margin-top: 3px; font-weight: 600; }
 .kpi-card .delta.warm { color: var(--warm-ink); }
 
-.panels { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; align-items: start; }
-.panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 16px 18px; box-shadow: var(--shadow-1); display: flex; flex-direction: column; }
-.panel h3 { font-size: var(--text-body-sm); font-weight: 650; margin: 0 0 14px; flex: 0 0 auto; }
+.panels { display: grid; grid-template-columns: repeat(3, 1fr); gap: 11px; align-items: start; }
+.panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 11px 12px; box-shadow: var(--shadow-1); display: flex; flex-direction: column; }
+.panel h3 { font-size: var(--text-body-sm); font-weight: 650; margin: 0 0 9px; flex: 0 0 auto; }
 .panel-wide { grid-column: 1 / -1; }
 /* Chiều cao CỐ ĐỊNH (không giãn theo nội dung) cho cả 3 panel đầu hàng —
-   310px khớp đúng chiều cao thật của "Sản phẩm theo nhóm hàng" (11 dòng cố
-   định theo CATEGORY_ORDER, đã đo trực tiếp). Panel nào nội dung dài hơn thì
-   tự cuộn bên trong, không đẩy giãn cả panel. */
-.panel-scroll { height: 310px; overflow-y: auto; }
+   208px khớp đúng chiều cao thật của "Sản phẩm theo nhóm hàng" (11 dòng cố
+   định theo CATEGORY_ORDER, đã đo trực tiếp, co theo tỷ lệ 67%). Panel nào
+   nội dung dài hơn thì tự cuộn bên trong, không đẩy giãn cả panel. */
+.panel-scroll { height: 208px; overflow-y: auto; }
 
-.month-chart { display: flex; align-items: flex-end; gap: 8px; height: 140px; }
+.month-chart { display: flex; align-items: flex-end; gap: 5px; height: 94px; }
 .month-bar { flex: 1 1 0; display: flex; flex-direction: column; align-items: center; height: 100%; min-width: 0; }
 .month-bar-track { flex: 1 1 auto; width: 100%; display: flex; align-items: flex-end; }
-.month-bar-fill { width: 100%; min-height: 2px; border-radius: 3px 3px 0 0; background: var(--primary); }
-.month-bar-label { font-size: var(--text-micro); color: var(--muted); margin-top: 6px; }
+.month-bar-fill { width: 100%; min-height: 2px; border-radius: 2px 2px 0 0; background: var(--primary); }
+.month-bar-label { font-size: var(--text-micro); color: var(--muted); margin-top: 4px; }
 .month-bar-count { font-size: var(--text-micro); color: var(--faint); font-variant-numeric: tabular-nums; }
 
-.bar-row { display: grid; grid-template-columns: 108px 1fr 40px; align-items: center; gap: 10px; margin-bottom: 10px; font-size: var(--text-meta); }
+.bar-row { display: grid; grid-template-columns: 72px 1fr 27px; align-items: center; gap: 7px; margin-bottom: 7px; font-size: var(--text-meta); }
 .bar-row:last-child { margin-bottom: 0; }
 .bar-row .cat-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.bar-track { height: 8px; border-radius: 999px; background: var(--surface-sunken); overflow: hidden; }
+.bar-track { height: 5px; border-radius: 999px; background: var(--surface-sunken); overflow: hidden; }
 .bar-fill { height: 100%; border-radius: 999px; background: var(--primary); }
 .bar-row .n { text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); }
 
-.activity-row { display: flex; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--border); font-size: var(--text-meta); }
+.activity-row { display: flex; gap: 7px; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: var(--text-meta); }
 .activity-row:last-child { border-bottom: none; }
-.activity-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--primary); margin-top: 6px; flex-shrink: 0; }
+.activity-dot { width: 4px; height: 4px; border-radius: 50%; background: var(--primary); margin-top: 4px; flex-shrink: 0; }
 .activity-row .t { color: var(--faint); font-size: var(--text-micro); white-space: nowrap; }
 
 .note {
-  margin-top: 22px; padding: 12px 14px; border-radius: var(--radius-md);
+  margin-top: 15px; padding: 8px 9px; border-radius: var(--radius-md);
   background: var(--primary-wash); color: var(--primary-ink); font-size: var(--text-meta);
-  display: flex; gap: 8px; align-items: flex-start;
+  display: flex; gap: 5px; align-items: flex-start;
 }
 .note svg { flex-shrink: 0; margin-top: 1px; }
 
@@ -232,7 +234,7 @@ button, input, select { font: inherit; color: inherit; }
    bấm ra ngoài là đóng menu, giống cách chuông thông báo đã làm. */
 .sidebar-mobile-toggle {
   display: none; align-items: center; justify-content: center; margin-left: auto;
-  width: 36px; height: 36px; border-radius: var(--radius-sm); flex-shrink: 0;
+  width: 24px; height: 24px; border-radius: var(--radius-sm); flex-shrink: 0;
   border: 1px solid var(--border); background: var(--surface); color: var(--ink); cursor: pointer;
 }
 .sidebar-backdrop { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.35); z-index: 49; }
@@ -250,7 +252,7 @@ button, input, select { font: inherit; color: inherit; }
   .sidebar.mobile-open .nav {
     display: flex; flex-direction: column; position: fixed; top: 0; left: 0; bottom: 0;
     width: 78vw; max-width: 300px; background: var(--sidebar-bg); z-index: 50;
-    overflow-y: auto; box-shadow: var(--shadow-2); padding-top: 12px;
+    overflow-y: auto; box-shadow: var(--shadow-2); padding-top: 8px;
     backdrop-filter: blur(20px) saturate(180%); -webkit-backdrop-filter: blur(20px) saturate(180%);
   }
   .sidebar.mobile-open .sidebar-foot {
@@ -265,7 +267,7 @@ button, input, select { font: inherit; color: inherit; }
    hình vẫn xem được bình thường. Với các trang có .table-page (bên dưới),
    .table-page lấp đầy đúng 100% chiều cao này nên .app sẽ không cần tự
    cuộn nữa — phần cuộn chuyển hẳn vào bên trong .table-scroll của trang đó. */
-.app { max-width: 1200px; margin: 0 auto; padding: 24px 20px 80px; height: 100%; overflow-y: auto; }
+.app { max-width: 804px; margin: 0 auto; padding: 16px 13px 54px; height: 100%; overflow-y: auto; }
 /* Quản lý hàng hóa dùng hết chiều ngang màn hình thay vì bó vào 1200px —
    bảng sản phẩm nhiều cột kiểu Excel cần không gian rộng. */
 .app-full { max-width: none; }
@@ -275,12 +277,11 @@ button, input, select { font: inherit; color: inherit; }
    cao tự nhiên, chỉ .table-card bên dưới giãn lấp phần còn lại và tự cuộn
    riêng (cả dọc lẫn ngang) bên trong, nên thanh cuộn ngang luôn nằm trong
    tầm nhìn thay vì trôi xuống cuối trang dài. */
-/* padding-bottom 80px của .app hợp lý cho trang cuộn tự nhiên (đệm cuối
-   trang) — nhưng ở đây .table-page chiếm trọn chiều cao còn lại, phần đệm
-   đó lại trực tiếp cắt bớt chỗ dành cho bảng, khiến ít dòng hiện ra hơn hẳn
-   mức màn hình thật sự cho phép (đã đo bằng dữ liệu thật: ~90px trắng thừa
-   ở đáy, đúng bằng phần chênh 80px→20px này). Giảm còn 1 khoảng đệm nhỏ vừa
-   đủ, không cắt vào phần bảng. */
+/* padding-bottom của .app hợp lý cho trang cuộn tự nhiên (đệm cuối trang)
+   — nhưng ở đây .table-page chiếm trọn chiều cao còn lại, phần đệm đó lại
+   trực tiếp cắt bớt chỗ dành cho bảng, khiến ít dòng hiện ra hơn hẳn mức
+   màn hình thật sự cho phép. Giảm còn 1 khoảng đệm nhỏ vừa đủ, không cắt
+   vào phần bảng. */
 /* overflow:visible (khác .app phía trên) — .table-page tự nó không bao giờ
    cần cuộn (chiều cao 100% vừa khít, .table-card bên trong mới là nơi cuộn
    thật), nhưng NẾU để nguyên overflow-y:auto kế thừa từ .app thì theo đúng
@@ -288,11 +289,11 @@ button, input, select { font: inherit; color: inherit; }
    menu sổ xuống (vd "Nhập & xuất") vượt ra ngoài khung này ở màn hình thấp.
    Đặt lại visible ở đây (cùng phần tử với .app, luật khai báo sau thắng) để
    trả lại đúng hành vi cũ, không ảnh hưởng gì đến việc cuộn bảng bên trong. */
-/* padding-top riêng (thay vì kế thừa 24px từ .app) — các trang bảng dữ liệu
+/* padding-top riêng (thay vì kế thừa từ .app) — các trang bảng dữ liệu
    (Quản lý hàng hóa, Chờ duyệt giá, Nhật ký, Người dùng) ưu tiên tối đa chỗ
    cho bảng hơn khoảng trắng đầu trang, nhất là trên màn hình 13-14 inch chỉ
    còn ~600-750px chiều cao thật sau thanh trình duyệt. */
-.table-page { display: flex; flex-direction: column; height: 100%; min-height: 0; padding-top: 12px; padding-bottom: 20px; overflow: visible; }
+.table-page { display: flex; flex-direction: column; height: 100%; min-height: 0; padding-top: 8px; padding-bottom: 13px; overflow: visible; }
 .table-page > .table-card { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
 .table-page > .table-card > .table-scroll { flex: 1 1 auto; min-height: 0; overflow: auto; }
 
@@ -319,50 +320,50 @@ button, input, select { font: inherit; color: inherit; }
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  padding-bottom: 12px;
+  gap: 11px;
+  padding-bottom: 8px;
   flex-wrap: wrap;
 }
-.app-header h1 { font-size: 20px; font-weight: 650; letter-spacing: -0.01em; margin: 0; }
+.app-header h1 { font-size: 13px; font-weight: 650; letter-spacing: -0.01em; margin: 0; }
 /* 1 dòng duy nhất (tiêu đề + số liệu + chuông) thay vì 2 dòng xếp chồng —
    nhường tối đa chiều cao cho bảng dữ liệu bên dưới. */
-.app-header-title { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.app-header-title { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .app-header-meta { margin: 0; color: var(--muted); font-size: var(--text-body-sm); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .app-header-meta-accent { color: var(--primary-ink); font-weight: 650; }
 
-.stat-kpis { display: flex; gap: 10px; font-variant-numeric: tabular-nums; }
+.stat-kpis { display: flex; gap: 7px; font-variant-numeric: tabular-nums; }
 .stat-kpi {
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md);
-  padding: 7px 16px; box-shadow: var(--shadow-1); min-width: 92px;
+  padding: 5px 11px; box-shadow: var(--shadow-1); min-width: 62px;
 }
 .stat-kpi-label { font-size: var(--text-micro); color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
-.stat-kpi-value { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; color: var(--ink); margin-top: 2px; }
+.stat-kpi-value { font-size: 13px; font-weight: 700; letter-spacing: -0.01em; color: var(--ink); margin-top: 1px; }
 .stat-kpi-warm { background: var(--warm-wash); border-color: transparent; }
 .stat-kpi-warm .stat-kpi-label { color: var(--warm-ink); opacity: 0.85; }
 .stat-kpi-warm .stat-kpi-value { color: var(--warm-ink); }
 
 /* ---- Toolbar ---- */
 .toolbar {
-  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-  padding: 8px 14px;
+  display: flex; align-items: center; gap: 7px; flex-wrap: wrap;
+  padding: 5px 9px;
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md);
   box-shadow: var(--shadow-1);
 }
-.search-field { position: relative; flex: 1 1 240px; min-width: 200px; }
-.search-field svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--faint); pointer-events: none; }
+.search-field { position: relative; flex: 1 1 161px; min-width: 134px; }
+.search-field svg { position: absolute; left: 7px; top: 50%; transform: translateY(-50%); color: var(--faint); pointer-events: none; }
 .search-field input { width: 100%; }
 
 .toolbar select,
 .search-field input {
   border-radius: var(--radius-sm); border: 1px solid var(--border);
   background: var(--surface-sunken); color: var(--ink); font-size: var(--text-body-sm);
-  padding: 8px 10px;
+  padding: 5px 7px;
 }
 /* Must come after the shared rule above (same specificity) so the icon
    never overlaps the field's own text — a previous version of this same
    left-padding declaration got silently clobbered by the shared rule since
    both matched with equal specificity and this one was declared first. */
-.search-field input { padding-left: 36px; }
+.search-field input { padding-left: 24px; }
 .toolbar select:focus-visible,
 .search-field input:focus-visible {
   outline: 2px solid var(--focus); outline-offset: 1px; background: var(--surface);
@@ -372,8 +373,8 @@ button, input, select { font: inherit; color: inherit; }
 .toolbar select.select-accent { border-color: var(--warm); color: var(--warm-ink); font-weight: 600; }
 
 .toggle-pill {
-  display: flex; align-items: center; gap: 6px;
-  padding: 7px 11px; border-radius: var(--radius-sm);
+  display: flex; align-items: center; gap: 4px;
+  padding: 5px 7px; border-radius: var(--radius-sm);
   border: 1px solid var(--border); background: var(--surface-sunken);
   color: var(--muted); font-size: var(--text-body-sm); cursor: pointer; user-select: none; white-space: nowrap;
 }
@@ -386,35 +387,35 @@ button, input, select { font: inherit; color: inherit; }
    (chế độ sửa giá nhanh) nên cần dễ tìm thấy giữa các control còn lại của
    thanh công cụ, kể cả lúc đang tắt. */
 .switch-field {
-  display: inline-flex; align-items: center; gap: 8px; cursor: pointer; user-select: none;
+  display: inline-flex; align-items: center; gap: 5px; cursor: pointer; user-select: none;
   font-size: var(--text-body-sm); color: var(--warm-ink); font-weight: 600; white-space: nowrap;
-  padding: 6px 12px; border-radius: var(--radius-sm); background: var(--warm-wash); border: 1px solid transparent;
+  padding: 4px 8px; border-radius: var(--radius-sm); background: var(--warm-wash); border: 1px solid transparent;
   transition: border-color 150ms ease-out;
 }
 .switch-field.has-checked { border-color: var(--warm); }
-.switch { position: relative; display: inline-flex; flex-shrink: 0; width: 40px; height: 24px; }
+.switch { position: relative; display: inline-flex; flex-shrink: 0; width: 27px; height: 16px; }
 .switch input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
 .switch-track {
   position: absolute; inset: 0; border-radius: 999px; background: var(--border-strong);
   transition: background-color 150ms ease-out;
 }
 .switch-knob {
-  position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; border-radius: 50%;
+  position: absolute; top: 1px; left: 1px; width: 13px; height: 13px; border-radius: 50%;
   background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
   transition: transform 200ms cubic-bezier(0.32, 0.72, 0, 1);
 }
 .switch input:checked ~ .switch-track { background: var(--warm); }
-.switch input:checked ~ .switch-track .switch-knob { transform: translateX(16px); }
+.switch input:checked ~ .switch-track .switch-knob { transform: translateX(12px); }
 .switch input:focus-visible ~ .switch-track { outline: 2px solid var(--focus); outline-offset: 2px; }
 
 /* Vạch phân chia mảnh: cụm tìm kiếm/lọc bên trái, cụm hành động (Thêm/Nhập-
    xuất) bên phải — trước đây chỉ cách nhau bằng khoảng trắng đẩy, không có
    ranh giới trực quan nào. */
-.toolbar-spacer { flex: 1 1 auto; min-width: 24px; border-left: 1px solid var(--border); margin: 4px 0; }
+.toolbar-spacer { flex: 1 1 auto; min-width: 16px; border-left: 1px solid var(--border); margin: 3px 0; }
 
 .btn {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 8px 16px; border-radius: 999px;
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 5px 11px; border-radius: 999px;
   border: 1px solid var(--border-strong); background: var(--surface); color: var(--ink);
   font-size: var(--text-body-sm); font-weight: 500; cursor: pointer; white-space: nowrap;
   transition: background-color 150ms ease-out, border-color 150ms ease-out, transform 150ms ease-out;
@@ -438,14 +439,14 @@ button, input, select { font: inherit; color: inherit; }
 
 .menu-wrap { position: relative; }
 .menu {
-  position: absolute; right: 0; top: calc(100% + 6px); min-width: 230px;
+  position: absolute; right: 0; top: calc(100% + 4px); min-width: 154px;
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md);
-  box-shadow: var(--shadow-2); padding: 6px; z-index: 30;
+  box-shadow: var(--shadow-2); padding: 4px; z-index: 30;
 }
 .menu button {
-  width: 100%; text-align: left; padding: 9px 10px; border-radius: var(--radius-sm);
+  width: 100%; text-align: left; padding: 6px 7px; border-radius: var(--radius-sm);
   border: none; background: none; color: var(--ink); font-size: var(--text-body-sm); cursor: pointer;
-  display: flex; align-items: center; gap: 9px;
+  display: flex; align-items: center; gap: 6px;
 }
 .menu button:hover { background: var(--surface-sunken); }
 .menu button:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -453,16 +454,16 @@ button, input, select { font: inherit; color: inherit; }
 .menu button.menu-item-accent { background: var(--primary-wash); color: var(--primary-ink); font-weight: 600; }
 .menu button.menu-item-accent svg { color: var(--primary-ink); }
 .menu button.menu-item-accent:hover { background: var(--primary-wash); filter: brightness(0.96); }
-.menu-divider { height: 1px; background: var(--border); margin: 5px 4px; }
+.menu-divider { height: 1px; background: var(--border); margin: 3px 3px; }
 
 /* ---- Tabs + selection bar row ---- */
-.view-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px; flex-wrap: wrap; }
-.view-row-left { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.view-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 7px; flex-wrap: wrap; }
+.view-row-left { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
 
-.segmented { position: relative; display: inline-flex; background: var(--surface-sunken); border-radius: var(--radius-sm); padding: 3px; gap: 2px; }
+.segmented { position: relative; display: inline-flex; background: var(--surface-sunken); border-radius: var(--radius-sm); padding: 2px; gap: 1px; }
 .segmented button {
   position: relative; z-index: 1;
-  border: none; background: transparent; padding: 7px 14px; border-radius: var(--radius-sm);
+  border: none; background: transparent; padding: 5px 9px; border-radius: var(--radius-sm);
   font-size: var(--text-body-sm); color: var(--muted); cursor: pointer; font-variant-numeric: tabular-nums;
   transition: color 150ms ease-out;
 }
@@ -471,29 +472,29 @@ button, input, select { font: inherit; color: inherit; }
    qua inline style (xem component Segmented trong HomeClient.tsx), CSS chỉ
    lo phần chuyển động mượt giữa 2 lần đo. */
 .segmented-thumb {
-  position: absolute; top: 3px; bottom: 3px; left: 0; z-index: 0;
+  position: absolute; top: 2px; bottom: 2px; left: 0; z-index: 0;
   background: var(--primary); border-radius: var(--radius-sm); box-shadow: var(--shadow-1);
   transition: transform 280ms cubic-bezier(0.32, 0.72, 0, 1), width 280ms cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 .selection-bar {
-  display: flex; align-items: center; gap: 10px; padding: 9px 14px;
+  display: flex; align-items: center; gap: 7px; padding: 6px 9px;
   background: var(--primary-wash); border-radius: var(--radius-md);
   color: var(--primary-ink); font-size: var(--text-body-sm);
 }
 .selection-bar b { font-variant-numeric: tabular-nums; }
 
 /* ---- Table ---- */
-.table-card { margin-top: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); overflow: hidden; box-shadow: var(--shadow-1); }
+.table-card { margin-top: 7px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); overflow: hidden; box-shadow: var(--shadow-1); }
 .table-scroll { overflow-x: auto; }
-table { width: 100%; border-collapse: collapse; min-width: 760px; }
+table { width: 100%; border-collapse: collapse; min-width: 509px; }
 /* Header xanh đậm, chữ trắng — nổi bật rõ trên thân bảng thay vì hòa lẫn.
    line-height 1.25 (thay vì kế thừa 1.5 của body, vốn nghĩ cho văn xuôi) —
    bảng dữ liệu cần dòng sát hơn để tối đa số dòng nhìn thấy cùng lúc. */
 thead th {
   text-align: left; font-size: var(--text-micro); font-weight: 650;
   text-transform: uppercase; letter-spacing: 0.04em; line-height: 1.25;
-  background: var(--header-bg); color: #fff; padding: 7px 14px; white-space: nowrap;
+  background: var(--header-bg); color: #fff; padding: 5px 9px; white-space: nowrap;
   position: sticky; top: 0; z-index: 2;
   border-bottom: 1px solid var(--border);
 }
@@ -505,14 +506,14 @@ th.col-header-wrap { white-space: normal; line-height: 1.25; }
 /* line-height 1.3 (không phải 1.5 kế thừa từ body) — lý do tương tự thead
    th ở trên. Đây là đòn bẩy lớn nhất cho mật độ hàng vì nhân theo SỐ DÒNG
    hiện có, không phải chi phí 1 lần như phần header/toolbar phía trên. */
-tbody td { padding: 6px 14px; border-bottom: 1px solid var(--border); font-size: var(--text-body-sm); line-height: 1.3; vertical-align: middle; }
+tbody td { padding: 4px 9px; border-bottom: 1px solid var(--border); font-size: var(--text-body-sm); line-height: 1.3; vertical-align: middle; }
 tbody tr:last-child td { border-bottom: none; }
 tbody tr:hover { background: var(--surface-sunken); }
 tbody tr.is-pending { background: var(--warm-wash); }
 tbody tr.is-selected-elsewhere { background: var(--primary-wash); }
 tbody tr.is-selected-elsewhere:hover { background: var(--primary-wash); }
 
-.section-divider-row td { padding: 7px 14px; }
+.section-divider-row td { padding: 5px 9px; }
 .section-divider {
   font-size: var(--text-micro); font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase;
   color: var(--primary-ink); background: var(--primary-wash);
@@ -556,7 +557,7 @@ tbody tr.is-selected-elsewhere:hover { background: var(--primary-wash); }
    Đã kiểm chứng bằng document.elementFromPoint(): với offset âm, điểm giữa
    tay kéo trả về đúng <th> bên cạnh chứ không phải tay kéo. */
 .col-resize-handle {
-  position: absolute; right: 0; top: 0; height: 100%; width: 10px; z-index: 4;
+  position: absolute; right: 0; top: 0; height: 100%; width: 7px; z-index: 4;
   cursor: col-resize; touch-action: none; user-select: none; background: transparent;
 }
 .col-resize-handle:hover, .col-resize-handle.is-resizing { background: var(--primary); opacity: 0.6; }
@@ -568,11 +569,11 @@ tbody tr.is-selected-elsewhere:hover { background: var(--primary-wash); }
    cho 4 định nghĩa rời rạc trước đây (.badge, .status-pill, .draft-badge,
    .chip.warm đều tự khai báo riêng padding/font-size khác nhau). */
 .pill {
-  display: inline-flex; align-items: center; gap: 5px;
-  padding: 3px 9px; border-radius: 999px; font-size: var(--text-meta); font-weight: 600;
+  display: inline-flex; align-items: center; gap: 3px;
+  padding: 2px 6px; border-radius: 999px; font-size: var(--text-meta); font-weight: 600;
   white-space: nowrap; font-variant-numeric: tabular-nums;
 }
-.pill .dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.pill .dot { width: 4px; height: 4px; border-radius: 50%; flex-shrink: 0; }
 .pill-primary { background: var(--primary-wash); color: var(--primary-ink); }
 .pill-primary .dot { background: var(--primary); }
 .pill-warm { background: var(--warm-wash); color: var(--warm-ink); }
@@ -581,10 +582,10 @@ tbody tr.is-selected-elsewhere:hover { background: var(--primary-wash); }
 .pill-success .dot { background: var(--success); }
 .pill-danger { background: var(--danger-wash); color: var(--danger-ink); }
 
-.draft-badge { margin-left: 6px; vertical-align: middle; padding: 1px 7px; }
+.draft-badge { margin-left: 4px; vertical-align: middle; padding: 1px 5px; }
 
 .price-input {
-  width: 96px; padding: 3px 8px; text-align: right; border: 1px solid transparent; border-radius: var(--radius-sm);
+  width: 64px; padding: 2px 5px; text-align: right; border: 1px solid transparent; border-radius: var(--radius-sm);
   background: transparent; color: var(--ink); font-variant-numeric: tabular-nums; font-size: var(--text-body-sm);
 }
 .price-input:hover { border-color: var(--border-strong); background: var(--surface); }
@@ -595,7 +596,7 @@ tbody tr.is-selected-elsewhere:hover { background: var(--primary-wash); }
    trong bảng — cùng kiểu trong suốt-tới-khi-hover với ô giá, chỉ khác căn
    trái vì là chữ chứ không phải số. */
 .inline-cell-input, .product-table td select {
-  width: 100%; padding: 3px 8px; border: 1px solid transparent; border-radius: var(--radius-sm);
+  width: 100%; padding: 2px 5px; border: 1px solid transparent; border-radius: var(--radius-sm);
   background: transparent; color: var(--ink); font-size: var(--text-body-sm);
 }
 .inline-cell-input:hover, .product-table td select:hover { border-color: var(--border-strong); background: var(--surface); }
@@ -607,7 +608,7 @@ tbody tr.is-selected-elsewhere:hover { background: var(--primary-wash); }
 /* Chế độ "bấm để sửa" (Tên hàng hóa) — hiện chữ thường, xuống dòng tự nhiên
    khi dài, thay vì ô nhập 1 dòng luôn bị cắt chữ dù cột rộng bao nhiêu. */
 .inline-cell-text {
-  display: inline-block; width: 100%; padding: 3px 6px; border-radius: var(--radius-sm);
+  display: inline-block; width: 100%; padding: 2px 4px; border-radius: var(--radius-sm);
   white-space: normal; word-break: break-word; cursor: pointer; border: 1px solid transparent;
 }
 .inline-cell-text:hover { background: var(--surface); border-color: var(--border-strong); }
@@ -624,7 +625,7 @@ tbody tr.is-selected-elsewhere:hover { background: var(--primary-wash); }
 .new-product-row .col-check svg { color: var(--faint); }
 .new-product-row input,
 .new-product-row select {
-  width: 100%; padding: 3px 8px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+  width: 100%; padding: 2px 5px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
   background: var(--surface); color: var(--ink); font-size: var(--text-body-sm);
 }
 .new-product-row input::placeholder { color: var(--faint); }
@@ -636,11 +637,11 @@ tbody tr.is-selected-elsewhere:hover { background: var(--primary-wash); }
 /* Nháy nhẹ sau khi thêm sản phẩm thành công, trước khi dòng trống lại. */
 .new-product-row.just-saved { background: var(--success-wash); }
 
-.btn-sm { padding: 4px 10px; font-size: var(--text-meta); }
+.btn-sm { padding: 3px 7px; font-size: var(--text-meta); }
 
-.row-actions { display: flex; gap: 2px; justify-content: flex-end; }
+.row-actions { display: flex; gap: 1px; justify-content: flex-end; }
 .icon-btn {
-  width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center;
+  width: 17px; height: 17px; display: inline-flex; align-items: center; justify-content: center;
   border: none; background: transparent; border-radius: var(--radius-sm); color: var(--muted); cursor: pointer;
   transition: background-color 150ms ease-out, color 150ms ease-out;
 }
@@ -648,37 +649,37 @@ tbody tr.is-selected-elsewhere:hover { background: var(--primary-wash); }
 .icon-btn:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
 .icon-btn.danger:hover { background: var(--danger-wash); color: var(--danger); }
 
-input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--primary); cursor: pointer; }
+input[type="checkbox"] { width: 11px; height: 11px; accent-color: var(--primary); cursor: pointer; }
 
-.empty-state, .loading-state { padding: 40px 20px; text-align: center; color: var(--muted); }
+.empty-state, .loading-state { padding: 27px 13px; text-align: center; color: var(--muted); }
 
 /* ---- Modal ---- */
 .modal-backdrop {
   position: fixed; inset: 0; background: rgba(20, 24, 30, 0.45);
   display: flex; align-items: flex-start; justify-content: center;
-  padding: 6vh 20px; overflow-y: auto; z-index: 50;
+  padding: 6vh 13px; overflow-y: auto; z-index: 50;
 }
-.modal { background: var(--surface); border-radius: var(--radius-lg); width: min(640px, 100%); box-shadow: var(--shadow-2); padding: 22px 24px 20px; }
-.modal h2 { margin: 0 0 4px; font-size: 17px; font-weight: 650; }
-.modal .modal-sub { margin: 0 0 18px; color: var(--muted); font-size: var(--text-body-sm); }
+.modal { background: var(--surface); border-radius: var(--radius-lg); width: min(429px, 100%); box-shadow: var(--shadow-2); padding: 15px 16px 13px; }
+.modal h2 { margin: 0 0 3px; font-size: 11px; font-weight: 650; }
+.modal .modal-sub { margin: 0 0 12px; color: var(--muted); font-size: var(--text-body-sm); }
 
-.field-group { margin-bottom: 18px; }
-.field-group h3 { font-size: var(--text-micro); font-weight: 650; letter-spacing: 0.04em; text-transform: uppercase; color: var(--faint); margin: 0 0 10px; }
-.field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 14px; }
+.field-group { margin-bottom: 12px; }
+.field-group h3 { font-size: var(--text-micro); font-weight: 650; letter-spacing: 0.04em; text-transform: uppercase; color: var(--faint); margin: 0 0 7px; }
+.field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 9px; }
 .field-grid.cols-3 { grid-template-columns: 1.4fr 1fr 1fr; }
 
-label.field { display: flex; flex-direction: column; gap: 5px; font-size: var(--text-meta); color: var(--muted); }
+label.field { display: flex; flex-direction: column; gap: 3px; font-size: var(--text-meta); color: var(--muted); }
 label.field input, label.field select {
-  padding: 8px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border);
+  padding: 5px 7px; border-radius: var(--radius-sm); border: 1px solid var(--border);
   background: var(--surface-sunken); color: var(--ink); font-size: var(--text-body-sm);
 }
 label.field input:focus-visible, label.field select:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; background: var(--surface); }
 label.field input:disabled { opacity: 0.6; }
 
-.modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; padding-top: 14px; border-top: 1px solid var(--border); }
+.modal-actions { display: flex; justify-content: flex-end; gap: 5px; margin-top: 4px; padding-top: 9px; border-top: 1px solid var(--border); }
 
 
-.pagination-bar { display: flex; align-items: center; justify-content: center; gap: 16px; margin-top: 6px; font-size: var(--text-meta); color: var(--muted); }
+.pagination-bar { display: flex; align-items: center; justify-content: center; gap: 11px; margin-top: 4px; font-size: var(--text-meta); color: var(--muted); }
 
 /* ---- Đăng nhập ---- */
 .login-shell {
@@ -689,7 +690,7 @@ label.field input:disabled { opacity: 0.6; }
 .login-image-panel img { width: 100%; height: 100%; object-fit: cover; object-position: center; display: block; }
 .login-content {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 22px; padding: 28px 24px;
+  gap: 15px; padding: 19px 16px;
 }
 
 @media (max-width: 860px) {
@@ -697,68 +698,68 @@ label.field input:disabled { opacity: 0.6; }
   .login-image-panel { height: clamp(120px, 32vh, 220px); }
 }
 .login-logo-badge {
-  width: 132px; height: 132px; padding: 16px; border-radius: 26px; object-fit: contain;
+  width: 88px; height: 88px; padding: 11px; border-radius: 17px; object-fit: contain;
   background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow-1);
 }
 .login-card {
-  width: 100%; max-width: 380px; background: var(--surface); border-radius: var(--radius-lg);
+  width: 100%; max-width: 255px; background: var(--surface); border-radius: var(--radius-lg);
   box-shadow: var(--shadow-2); overflow: hidden;
 }
-.login-card-accent { height: 5px; background: var(--primary); }
-.login-card-body { padding: 32px 28px 28px; display: flex; flex-direction: column; align-items: center; gap: 18px; }
-.login-title { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -0.02em; color: var(--ink); text-align: center; }
+.login-card-accent { height: 3px; background: var(--primary); }
+.login-card-body { padding: 21px 19px 19px; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.login-title { margin: 0; font-size: 15px; font-weight: 700; letter-spacing: -0.02em; color: var(--ink); text-align: center; }
 .login-subtitle { margin: 0; color: var(--muted); font-size: var(--text-body-sm); text-align: center; }
 .login-card-body > .btn { width: 100%; justify-content: center; }
 .login-card-body .btn { transition: transform 150ms ease-out, box-shadow 150ms ease-out, background-color 150ms ease-out, border-color 150ms ease-out; }
 .login-card-body .btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: var(--shadow-1); }
 .login-divider { color: var(--faint); font-size: var(--text-meta); text-transform: uppercase; letter-spacing: 0.06em; }
-.login-password-form { display: flex; flex-direction: column; gap: 10px; width: 100%; }
+.login-password-form { display: flex; flex-direction: column; gap: 7px; width: 100%; }
 .login-password-form input {
-  padding: 9px 11px; border-radius: var(--radius-sm); border: 1px solid var(--border);
+  padding: 6px 7px; border-radius: var(--radius-sm); border: 1px solid var(--border);
   background: var(--surface); color: var(--ink); font-size: var(--text-body-sm);
 }
 .login-password-form input:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
 .login-password-form .btn { width: 100%; justify-content: center; }
 .login-error { color: var(--danger-ink); font-size: var(--text-meta); margin: 0; }
 
-.password-checklist { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
-.password-checklist li { display: flex; align-items: center; gap: 7px; font-size: var(--text-meta); color: var(--faint); }
+.password-checklist { list-style: none; margin: 3px 0 0; padding: 0; display: flex; flex-direction: column; gap: 3px; }
+.password-checklist li { display: flex; align-items: center; gap: 5px; font-size: var(--text-meta); color: var(--faint); }
 .password-checklist li.ok { color: var(--success-ink); }
-.password-checklist .mark { width: 14px; text-align: center; font-weight: 650; }
+.password-checklist .mark { width: 9px; text-align: center; font-weight: 650; }
 
 .notification-bell { position: relative; }
 .notification-bell-trigger {
   display: flex; align-items: center; justify-content: center; position: relative;
-  width: 34px; height: 34px; border-radius: var(--radius-sm); border: 1px solid var(--border);
+  width: 23px; height: 23px; border-radius: var(--radius-sm); border: 1px solid var(--border);
   background: var(--surface); color: var(--muted); cursor: pointer;
 }
 .notification-bell-trigger:hover { background: var(--surface-sunken); color: var(--ink); }
-.notification-badge { position: absolute; top: -6px; right: -6px; margin-left: 0; }
+.notification-badge { position: absolute; top: -4px; right: -4px; margin-left: 0; }
 .notification-backdrop { position: fixed; inset: 0; z-index: 39; }
 .notification-panel {
-  position: absolute; top: calc(100% + 6px); left: 0; width: 320px; max-height: 380px;
+  position: absolute; top: calc(100% + 4px); left: 0; width: 214px; max-height: 255px;
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md);
   box-shadow: var(--shadow-2); z-index: 40; display: flex; flex-direction: column; overflow: hidden;
 }
 .notification-panel-head {
-  display: flex; align-items: center; justify-content: space-between; padding: 10px 12px;
+  display: flex; align-items: center; justify-content: space-between; padding: 7px 8px;
   border-bottom: 1px solid var(--border); font-size: var(--text-body-sm); font-weight: 650;
 }
 .notification-list { overflow-y: auto; }
-.notification-empty { padding: 20px 12px; text-align: center; color: var(--faint); font-size: var(--text-meta); }
+.notification-empty { padding: 13px 8px; text-align: center; color: var(--faint); font-size: var(--text-meta); }
 .notification-item {
-  display: block; width: 100%; text-align: left; padding: 10px 12px; border: none; border-bottom: 1px solid var(--border);
+  display: block; width: 100%; text-align: left; padding: 7px 8px; border: none; border-bottom: 1px solid var(--border);
   background: var(--surface); cursor: pointer;
 }
 .notification-item:last-child { border-bottom: none; }
 .notification-item:hover { background: var(--surface-sunken); }
 .notification-item.unread { background: var(--primary-wash); }
 .notification-message { font-size: var(--text-meta); color: var(--ink); line-height: 1.4; }
-.notification-time { font-size: var(--text-micro); color: var(--faint); margin-top: 3px; }
+.notification-time { font-size: var(--text-micro); color: var(--faint); margin-top: 2px; }
 
 @media (max-width: 720px) {
   .field-grid, .field-grid.cols-3 { grid-template-columns: 1fr; }
-  .app-header { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .app-header { flex-direction: column; align-items: flex-start; gap: 5px; }
 }
 
 /* Điện thoại (~600px trở xuống) — .app-header/.toolbar/.view-row đã tự xuống
@@ -781,7 +782,7 @@ label.field input:disabled { opacity: 0.6; }
      nữa dù nút ở bất kỳ đâu, giống cách drawer menu bên trái đã làm. */
   .menu, .notification-panel {
     position: fixed;
-    left: 12px; right: 12px; bottom: 12px; top: auto;
+    left: 8px; right: 8px; bottom: 8px; top: auto;
     width: auto; max-width: none; max-height: 70vh;
     overflow-y: auto;
   }
@@ -794,23 +795,23 @@ label.field input:disabled { opacity: 0.6; }
   .product-table thead { display: none; }
   .product-table, .product-table tbody { display: block; min-width: 0; }
   .product-table tr {
-    display: flex; flex-wrap: wrap; align-items: flex-start; gap: 2px 10px;
+    display: flex; flex-wrap: wrap; align-items: flex-start; gap: 1px 7px;
     background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md);
-    padding: 12px; margin-bottom: 10px; box-shadow: var(--shadow-1);
+    padding: 8px; margin-bottom: 7px; box-shadow: var(--shadow-1);
   }
   .product-table td {
-    flex: 1 1 100%; display: flex; align-items: center; gap: 8px;
-    padding: 4px 0; border: none; width: auto !important; text-align: left;
+    flex: 1 1 100%; display: flex; align-items: center; gap: 5px;
+    padding: 3px 0; border: none; width: auto !important; text-align: left;
     min-width: 0;
   }
   .product-table td::before {
-    content: attr(data-label); flex: 0 0 104px; font-weight: 600; font-size: var(--text-meta); color: var(--muted);
+    content: attr(data-label); flex: 0 0 70px; font-weight: 600; font-size: var(--text-meta); color: var(--muted);
     text-align: left;
   }
   .product-table td.col-check, .product-table td.col-name { position: static; }
   .product-table td.col-check { flex: 0 0 auto; order: -2; }
   .product-table td.col-name {
-    display: block; flex: 1 1 auto; order: -1; font-weight: 650; font-size: 15px;
+    display: block; flex: 1 1 auto; order: -1; font-weight: 650; font-size: 10px;
     min-width: 0; overflow-wrap: break-word; border-right: none;
   }
   .product-table td.col-check::before,
