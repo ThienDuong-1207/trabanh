@@ -170,6 +170,7 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
   const fileInputRef = useRef<HTMLInputElement>(null);
   const moreMenuRef = useRef<HTMLDivElement>(null);
   const exportMenuRef = useRef<HTMLDivElement>(null);
+  const selectAllCheckboxRef = useRef<HTMLInputElement>(null);
 
   const loadProducts = useCallback(async () => {
     setLoading(true);
@@ -576,6 +577,32 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
     setSelected((prev) => new Set([...prev, ...visible.map((p) => p.id)]));
   }
 
+  // Checkbox "chọn tất cả" giờ nằm ngay trong header bảng (thay cho nút
+  // riêng trước đây) — bỏ chọn qua đây CHỈ bỏ đúng các sản phẩm đang hiện
+  // (visible), không đụng tới sản phẩm đã chọn ở bộ lọc/danh mục khác, để
+  // giữ đúng hành vi cộng dồn (xem ghi chú selectAllVisible ở trên). Muốn bỏ
+  // chọn TOÀN BỘ (mọi bộ lọc) thì vẫn dùng nút "Bỏ chọn" riêng.
+  const allVisibleSelected = visible.length > 0 && visible.every((p) => selected.has(p.id));
+  const someVisibleSelected = visible.some((p) => selected.has(p.id));
+
+  function toggleSelectAllVisible() {
+    if (allVisibleSelected) {
+      setSelected((prev) => {
+        const next = new Set(prev);
+        for (const p of visible) next.delete(p.id);
+        return next;
+      });
+    } else {
+      selectAllVisible();
+    }
+  }
+
+  useEffect(() => {
+    if (selectAllCheckboxRef.current) {
+      selectAllCheckboxRef.current.indeterminate = someVisibleSelected && !allVisibleSelected;
+    }
+  }, [someVisibleSelected, allVisibleSelected]);
+
   async function doExport(kind: "misa" | "word" | "misa-update" | "vertical") {
     if (selected.size === 0) {
       alert("Chọn ít nhất 1 sản phẩm để xuất file.");
@@ -913,14 +940,12 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
         {activeView === "hanghoa" && (
     <div className="app app-full table-page">
       <header className="app-header">
-        <div className="app-header-title-group">
-          <div className="app-header-title">
-            <h1>Quản lý giá sản phẩm — Tiệm Trà Bánh</h1>
-            <NotificationBell userId={userId} onNavigate={setActiveView} />
-          </div>
+        <div className="app-header-title">
+          <h1>Quản lý hàng hóa</h1>
           <p className="app-header-meta app-header-meta-accent">
             {products.length} sản phẩm · {monthlyStats.newThisMonth} mới · {priceChangesThisMonth} đổi giá (tháng {monthlyStats.monthLabel})
           </p>
+          <NotificationBell userId={userId} onNavigate={setActiveView} />
         </div>
       </header>
 
@@ -965,8 +990,16 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
               <span className="switch-knob" />
             </span>
           </span>
-          Update giá
+          Chế độ sửa giá
         </label>
+
+        <Segmented
+          items={[
+            { key: "all", label: `Tất cả (${filteredByCriteria.length})`, active: tab === "all", onClick: () => setTab("all") },
+            { key: "pending", label: `Chờ xuất file (${pendingInFilter})`, active: tab === "pending", onClick: () => setTab("pending") },
+            { key: "draft", label: `Chưa hoàn chỉnh (${draftInFilter})`, active: tab === "draft", onClick: () => setTab("draft") },
+          ]}
+        />
 
         <div className="toolbar-spacer" />
 
@@ -1036,31 +1069,16 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
         />
       </div>
 
-      <div className="view-row">
-        <div className="view-row-left">
-          <Segmented
-            items={[
-              { key: "all", label: `Tất cả (${filteredByCriteria.length})`, active: tab === "all", onClick: () => setTab("all") },
-              { key: "pending", label: `Chờ xuất file (${pendingInFilter})`, active: tab === "pending", onClick: () => setTab("pending") },
-              { key: "draft", label: `Chưa hoàn chỉnh (${draftInFilter})`, active: tab === "draft", onClick: () => setTab("draft") },
-            ]}
-          />
-          <button className="btn btn-neutral" onClick={selectAllVisible}>
-            Chọn tất cả đang hiện
+      {selected.size > 0 && (
+        <div className="selection-bar" style={{ marginTop: 10 }}>
+          <span>
+            Đã chọn <b>{selected.size}</b> sản phẩm
+          </span>
+          <button className="btn btn-quiet btn-sm" onClick={() => setSelected(new Set())}>
+            Bỏ chọn
           </button>
-          {selected.size > 0 && (
-            <button className="btn btn-danger" onClick={() => setSelected(new Set())}>
-              Bỏ chọn
-            </button>
-          )}
-        </div>
-
-        {selected.size > 0 && (
-          <div className="selection-bar">
-            <span>
-              Đã chọn <b>{selected.size}</b> sản phẩm
-            </span>
-            <div className="menu-wrap" ref={exportMenuRef}>
+          <div className="toolbar-spacer" />
+          <div className="menu-wrap" ref={exportMenuRef}>
               <button
                 className="btn btn-primary"
                 disabled={exporting !== null || exportingRollLabel}
@@ -1149,7 +1167,6 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
             )}
           </div>
         )}
-      </div>
 
       <div className="table-card">
         <div className="table-scroll" ref={tableScrollRef}>
@@ -1178,7 +1195,16 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
             </colgroup>
             <thead>
               <tr>
-                <th className="col-check"></th>
+                <th className="col-check">
+                  <input
+                    ref={selectAllCheckboxRef}
+                    type="checkbox"
+                    checked={allVisibleSelected}
+                    onChange={toggleSelectAllVisible}
+                    aria-label="Chọn tất cả đang hiện"
+                    title="Chọn tất cả đang hiện"
+                  />
+                </th>
                 <th className="col-name" style={{ left: nameColumnStickyLeft }}>
                   Tên hàng hóa
                   {renderResizeHandle("ten_hang_hoa")}
@@ -1325,22 +1351,17 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
 
       {pageCount > 1 && (
         <div className="pagination-bar">
-          <button className="btn btn-quiet" disabled={currentPage <= 1} onClick={() => setPage(currentPage - 1)}>
+          <button className="btn btn-quiet btn-sm" disabled={currentPage <= 1} onClick={() => setPage(currentPage - 1)}>
             ← Trước
           </button>
           <span>
             Trang {currentPage}/{pageCount} ({visible.length} sản phẩm)
           </span>
-          <button className="btn btn-quiet" disabled={currentPage >= pageCount} onClick={() => setPage(currentPage + 1)}>
+          <button className="btn btn-quiet btn-sm" disabled={currentPage >= pageCount} onClick={() => setPage(currentPage + 1)}>
             Sau →
           </button>
         </div>
       )}
-
-      <p className="helper-text">
-        Sửa giá xong tự lưu ngay (không cần bấm nút riêng). Sản phẩm nào vừa đổi giá sẽ tự hiện ở tab &quot;Chờ xuất
-        file&quot; — chọn xong bấm xuất MISA hoặc Word, chỉ đúng các sản phẩm đã chọn.
-      </p>
 
       {formTarget !== null && (
         <ProductForm

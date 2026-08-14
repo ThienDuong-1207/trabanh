@@ -324,13 +324,10 @@ button, input, select { font: inherit; color: inherit; }
   flex-wrap: wrap;
 }
 .app-header h1 { font-size: 20px; font-weight: 650; letter-spacing: -0.01em; margin: 0; }
-.app-header-title { display: flex; align-items: center; gap: 10px; }
-.app-header-title-group { display: flex; flex-direction: column; gap: 4px; }
-/* Gộp "Tổng sản phẩm / Sản phẩm mới / Thay đổi giá" vào ngay dưới tiêu đề
-   thay vì 3 thẻ riêng — nhường chiều cao đó lại cho bảng dữ liệu bên dưới,
-   không còn dùng dạng thẻ cho nhóm số liệu "cần chú ý" nữa — đã bỏ hẳn theo
-   yêu cầu, nhường tối đa chỗ cho bảng dữ liệu. */
-.app-header-meta { margin: 0; color: var(--muted); font-size: var(--text-body-sm); font-variant-numeric: tabular-nums; }
+/* 1 dòng duy nhất (tiêu đề + số liệu + chuông) thay vì 2 dòng xếp chồng —
+   nhường tối đa chiều cao cho bảng dữ liệu bên dưới. */
+.app-header-title { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.app-header-meta { margin: 0; color: var(--muted); font-size: var(--text-body-sm); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .app-header-meta-accent { color: var(--primary-ink); font-weight: 650; }
 
 .stat-kpis { display: flex; gap: 10px; font-variant-numeric: tabular-nums; }
@@ -380,11 +377,18 @@ button, input, select { font: inherit; color: inherit; }
 .toggle-pill input { display: none; }
 .toggle-pill.active { background: var(--warm-wash); border-color: transparent; color: var(--warm-ink); font-weight: 600; }
 
-/* Công tắc trượt kiểu iOS thật (rãnh + núm tròn di chuyển) — dùng cho các
-   lựa chọn bật/tắt thật sự (vd "Cập nhật giá theo lô"), khác với
-   .toggle-pill (chip lọc dạng nút bấm) ở trên. */
-.switch-field { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; font-size: var(--text-body-sm); color: var(--muted); white-space: nowrap; }
-.switch-field.has-checked { color: var(--warm-ink); font-weight: 600; }
+/* Công tắc trượt kiểu iOS thật (rãnh + núm tròn di chuyển), khác với
+   .toggle-pill (chip lọc dạng nút bấm) ở trên. Luôn nổi bật màu cam (không
+   chỉ khi bật) — theo yêu cầu, vì đây là lối tắt hay dùng nhất trong ngày
+   (chế độ sửa giá nhanh) nên cần dễ tìm thấy giữa các control còn lại của
+   thanh công cụ, kể cả lúc đang tắt. */
+.switch-field {
+  display: inline-flex; align-items: center; gap: 8px; cursor: pointer; user-select: none;
+  font-size: var(--text-body-sm); color: var(--warm-ink); font-weight: 600; white-space: nowrap;
+  padding: 6px 12px; border-radius: var(--radius-sm); background: var(--warm-wash); border: 1px solid transparent;
+  transition: border-color 150ms ease-out;
+}
+.switch-field.has-checked { border-color: var(--warm); }
 .switch { position: relative; display: inline-flex; flex-shrink: 0; width: 40px; height: 24px; }
 .switch input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
 .switch-track {
@@ -670,9 +674,8 @@ label.field input:disabled { opacity: 0.6; }
 
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; padding-top: 14px; border-top: 1px solid var(--border); }
 
-.helper-text { color: var(--faint); font-size: var(--text-meta); margin-top: 16px; }
 
-.pagination-bar { display: flex; align-items: center; justify-content: center; gap: 16px; margin-top: 14px; font-size: var(--text-meta); color: var(--muted); }
+.pagination-bar { display: flex; align-items: center; justify-content: center; gap: 16px; margin-top: 6px; font-size: var(--text-meta); color: var(--muted); }
 
 /* ---- Đăng nhập ---- */
 .login-shell {
