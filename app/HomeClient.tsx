@@ -18,7 +18,7 @@ import { ACTION_LABELS } from "@/lib/activityLabels";
 import { stripXlsxDrawings } from "@/lib/stripXlsxDrawings";
 import PasswordChecklist from "@/components/PasswordChecklist";
 
-type View = "hanghoa" | "tonkho" | "baocao" | "duyetgia" | "users" | "activitylog";
+type View = "hanghoa" | "tonkho" | "baocao" | "duyetgia" | "users" | "activitylog" | "chuyenkho";
 export type Role = "sales" | "accountant" | "admin";
 
 // Tạm ẩn nav "Quản lý tồn kho" theo yêu cầu — đổi thành true để hiện lại.
@@ -1395,6 +1395,7 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
         )}
         {activeView === "users" && role === "admin" && <UserManagementView currentUserId={userId} />}
         {activeView === "activitylog" && <ActivityLogView role={role} />}
+        {activeView === "chuyenkho" && <TransferKhoView />}
       </main>
     </div>
   );
@@ -1711,6 +1712,10 @@ function Sidebar({
         <button className={`nav-item${activeView === "baocao" ? " active" : ""}`} onClick={() => onChange("baocao")}>
           <ChartIcon />
           Báo cáo
+        </button>
+        <button className={`nav-item${activeView === "chuyenkho" ? " active" : ""}`} onClick={() => onChange("chuyenkho")}>
+          <TruckIcon />
+          Chuyển kho Shopee
         </button>
         {role === "admin" && (
           <button className={`nav-item${activeView === "users" ? " active" : ""}`} onClick={() => onChange("users")}>
@@ -3043,6 +3048,163 @@ function InventoryView() {
   );
 }
 
+type TransferKhoRow = { ma_noi_bo: string; ten_hang_hoa: string; dvt: string | null; so_luong: number };
+type TransferKhoUnmatched = { ten_san_pham: string; ten_phan_loai: string | null; so_luong: number };
+type TransferKhoResult = { rows: TransferKhoRow[]; unmatched: TransferKhoUnmatched[] };
+
+function TransferKhoView() {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<TransferKhoResult | null>(null);
+  const [lastFileName, setLastFileName] = useState("");
+
+  async function handleFile(file: File) {
+    setUploading(true);
+    setError(null);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const res = await fetch("/api/export-transfer-kho", { method: "POST", body: form });
+      let data: any;
+      try {
+        data = await res.json();
+      } catch {
+        throw new Error(`Máy chủ phản hồi không hợp lệ (mã lỗi ${res.status}). Vui lòng thử lại sau.`);
+      }
+      if (!res.ok) throw new Error(data.error || "Xử lý file thất bại");
+
+      const byteChars = atob(data.file);
+      const bytes = new Uint8Array(byteChars.length);
+      for (let i = 0; i < byteChars.length; i++) bytes[i] = byteChars.charCodeAt(i);
+      const blob = new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      downloadBlob(blob, data.filename);
+
+      setResult({ rows: data.rows, unmatched: data.unmatched });
+      setLastFileName(file.name);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
+
+  return (
+    <div className="app">
+      <div className="view-header">
+        <div>
+          <h1>Chuyển kho Shopee</h1>
+          <p>
+            Tải lên file &quot;đơn hàng giao&quot; theo ngày (export từ Shopee) — đối chiếu theo cột &quot;Tên
+            Shopee&quot; của từng sản phẩm, tự tải về file phiếu chuyển kho Kho mặc định → SHOPEE sẵn sàng nhập vào
+            MISA.
+          </p>
+        </div>
+      </div>
+
+      <div className="panel">
+        <h3>Tải file đơn hàng giao theo ngày</h3>
+        <input
+          type="file"
+          accept=".xlsx"
+          ref={fileInputRef}
+          style={{ display: "none" }}
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) handleFile(file);
+          }}
+        />
+        <button className="btn btn-primary" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
+          {uploading ? "Đang xử lý..." : "Chọn file đơn hàng"}
+        </button>
+        {error && (
+          <p style={{ color: "var(--danger)", marginTop: 10, fontSize: "var(--text-body-sm)" }}>{error}</p>
+        )}
+      </div>
+
+      {result && (
+        <>
+          <div className="kpi-grid">
+            <div className="kpi-card">
+              <div className="label">File vừa xử lý</div>
+              <div className="value" style={{ fontSize: 15 }}>{lastFileName}</div>
+            </div>
+            <div className="kpi-card">
+              <div className="label">Mã hàng hóa cần chuyển kho</div>
+              <div className="value">{result.rows.length}</div>
+            </div>
+            <div className="kpi-card">
+              <div className="label">Chưa khớp Tên Shopee</div>
+              <div className={`value${result.unmatched.length > 0 ? " accent" : ""}`}>{result.unmatched.length}</div>
+            </div>
+          </div>
+
+          <div className="table-card">
+            <table className="product-table" style={{ width: "100%" }}>
+              <thead>
+                <tr>
+                  <th>Mã hàng hóa</th>
+                  <th>Tên hàng hóa</th>
+                  <th>Đơn vị tính</th>
+                  <th>Số lượng</th>
+                </tr>
+              </thead>
+              <tbody>
+                {result.rows.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="empty-state">
+                      Không có mã hàng hóa nào khớp được — xem danh sách bên dưới để bổ sung Tên Shopee.
+                    </td>
+                  </tr>
+                ) : (
+                  result.rows.map((r) => (
+                    <tr key={r.ma_noi_bo}>
+                      <td>{r.ma_noi_bo}</td>
+                      <td>{r.ten_hang_hoa}</td>
+                      <td>{r.dvt ?? ""}</td>
+                      <td>{r.so_luong}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {result.unmatched.length > 0 && (
+            <div className="table-card" style={{ marginTop: 18 }}>
+              <div style={{ padding: "12px 16px 0" }}>
+                <span className="pill pill-warm">
+                  <span className="dot" />
+                  Cần bổ sung cột &quot;Tên Shopee&quot; cho các dòng sau
+                </span>
+              </div>
+              <table className="product-table" style={{ width: "100%" }}>
+                <thead>
+                  <tr>
+                    <th>Tên sản phẩm (Shopee)</th>
+                    <th>Tên phân loại hàng</th>
+                    <th>Số lượng</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {result.unmatched.map((u, i) => (
+                    <tr key={i}>
+                      <td>{u.ten_san_pham}</td>
+                      <td>{u.ten_phan_loai ?? ""}</td>
+                      <td>{u.so_luong}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 // Trùng lặp có chủ đích với lib/inventoryCheckBuilder.ts (không import thẳng
 // từ đó — file đó có import pdfmake/pdfFonts phía server, đưa vào bundle
 // client sẽ vỡ vì dùng process.cwd()/fs). Chỉ cần hàm thuần này để tính ngày
@@ -3249,6 +3411,10 @@ type FormState = {
   ma_thung: string;
   ma_nhom_thay_the: string;
   trang_thai: string;
+  // Không có ô nhập riêng trong form này (chỉ sửa qua "Nhập từ Excel" theo
+  // cột "Tên Shopee") — vẫn phải giữ nguyên giá trị cũ khi lưu, nếu không
+  // formStateToInput sẽ gửi null và xoá mất mapping Shopee mỗi lần sửa tay.
+  ten_shopee: string;
   xuat_xu: string;
   category_sheet: string;
 };
@@ -3273,6 +3439,7 @@ function productToFormState(p: Product | null): FormState {
     ma_thung: p?.ma_thung ?? "",
     ma_nhom_thay_the: p?.ma_nhom_thay_the ?? "",
     trang_thai: p?.trang_thai ?? "",
+    ten_shopee: p?.ten_shopee ?? "",
     xuat_xu: p?.xuat_xu ?? "",
     category_sheet: p?.category_sheet ?? CATEGORY_ORDER[0],
   };
@@ -3300,6 +3467,7 @@ function formStateToInput(f: FormState): ProductInput {
     ma_thung: str(f.ma_thung),
     ma_nhom_thay_the: str(f.ma_nhom_thay_the),
     trang_thai: str(f.trang_thai),
+    ten_shopee: str(f.ten_shopee),
     xuat_xu: str(f.xuat_xu),
     category_sheet: f.category_sheet,
   };
@@ -4105,6 +4273,16 @@ function ArchiveIcon() {
       <rect x="3" y="4" width="18" height="5" rx="1.2" />
       <path d="M5 9v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9" />
       <path d="M10 13h4" />
+    </svg>
+  );
+}
+function TruckIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="1" y="6" width="13" height="11" rx="1.2" />
+      <path d="M14 10h4l4 3.5V17h-8z" />
+      <circle cx="6" cy="19" r="1.8" />
+      <circle cx="17" cy="19" r="1.8" />
     </svg>
   );
 }

@@ -19,6 +19,11 @@ export type Product = {
   ma_thung: string | null;
   ma_nhom_thay_the: string | null;
   trang_thai: string | null;
+  // Nhiều dòng tương ứng nhiều biến thể Shopee (bán lẻ + trong combo) — phân
+  // tách bằng dấu ";" hoặc xuống dòng. Mỗi dòng dạng "Tên sản phẩm Shopee[,Hương vị]",
+  // KHÔNG kèm cụm số lượng ("Combo N...") — số lượng đọc riêng từ đơn hàng lúc
+  // đối chiếu. Dùng để đối chiếu file đơn hàng Shopee ra phiếu chuyển kho.
+  ten_shopee: string | null;
   xuat_xu: string | null;
   category_sheet: string;
   updated_at: string;

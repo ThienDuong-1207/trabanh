@@ -34,6 +34,7 @@ export const COLUMN_TO_FIELD: Record<string, string> = {
   "Mã thùng": "ma_thung",
   "Mã nhóm thay thế": "ma_nhom_thay_the",
   "Trạng thái": "trang_thai",
+  "Tên Shopee": "ten_shopee",
   "Xuất xứ": "xuat_xu",
 };
 
