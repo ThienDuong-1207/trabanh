@@ -639,15 +639,22 @@ tbody tr.is-selected-elsewhere:hover { background: var(--primary-wash); }
 
 .btn-sm { padding: 3px 7px; font-size: var(--text-meta); }
 
-.row-actions { display: flex; gap: 1px; justify-content: flex-end; }
+.row-actions { display: flex; gap: 4px; justify-content: flex-end; }
+/* Nền màu đặc + icon trắng (không còn trong suốt-tới-khi-hover như trước) —
+   dễ thấy và dễ bấm hơn hẳn giữa 1 hàng dữ liệu dày đặc, luôn rõ đây là nút
+   hành động chứ không phải icon trang trí. Sửa = teal (đúng màu CTA chung
+   của app), Xóa = đỏ (.icon-btn.danger) — tối màu hơn khi hover làm phản
+   hồi bấm, không đổi hẳn sang màu khác như bản nền trong suốt trước đây. */
 .icon-btn {
-  width: 17px; height: 17px; display: inline-flex; align-items: center; justify-content: center;
-  border: none; background: transparent; border-radius: var(--radius-sm); color: var(--muted); cursor: pointer;
-  transition: background-color 150ms ease-out, color 150ms ease-out;
+  width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center;
+  border: none; border-radius: var(--radius-sm); cursor: pointer;
+  background: var(--primary); color: #fff;
+  transition: background-color 150ms ease-out;
 }
-.icon-btn:hover { background: var(--surface); color: var(--ink); }
+.icon-btn:hover { background: var(--primary-ink); }
 .icon-btn:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
-.icon-btn.danger:hover { background: var(--danger-wash); color: var(--danger); }
+.icon-btn.danger { background: var(--danger); }
+.icon-btn.danger:hover { background: var(--danger-ink); }
 
 input[type="checkbox"] { width: 11px; height: 11px; accent-color: var(--primary); cursor: pointer; }
 
