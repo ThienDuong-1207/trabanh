@@ -367,6 +367,9 @@ button, input, select { font: inherit; color: inherit; }
 .search-field input:focus-visible {
   outline: 2px solid var(--focus); outline-offset: 1px; background: var(--surface);
 }
+/* Lọc "Chờ xuất file"/"Chưa hoàn chỉnh" đang bật (khác "Tất cả" mặc định) —
+   viền cam để dễ nhận ra đang xem tập con, không phải toàn bộ danh mục. */
+.toolbar select.select-accent { border-color: var(--warm); color: var(--warm-ink); font-weight: 600; }
 
 .toggle-pill {
   display: flex; align-items: center; gap: 6px;

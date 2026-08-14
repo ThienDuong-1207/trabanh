@@ -993,13 +993,15 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
           Chế độ sửa giá
         </label>
 
-        <Segmented
-          items={[
-            { key: "all", label: `Tất cả (${filteredByCriteria.length})`, active: tab === "all", onClick: () => setTab("all") },
-            { key: "pending", label: `Chờ xuất file (${pendingInFilter})`, active: tab === "pending", onClick: () => setTab("pending") },
-            { key: "draft", label: `Chưa hoàn chỉnh (${draftInFilter})`, active: tab === "draft", onClick: () => setTab("draft") },
-          ]}
-        />
+        <select
+          value={tab}
+          onChange={(e) => setTab(e.target.value as "all" | "pending" | "draft")}
+          className={tab !== "all" ? "select-accent" : undefined}
+        >
+          <option value="all">Tất cả ({filteredByCriteria.length})</option>
+          <option value="pending">Chờ xuất file ({pendingInFilter})</option>
+          <option value="draft">Chưa hoàn chỉnh ({draftInFilter})</option>
+        </select>
 
         <div className="toolbar-spacer" />
 
