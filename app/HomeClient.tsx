@@ -2230,7 +2230,7 @@ function PriceRequestsView({
   }, [historyRefreshToken, loadHistoryPage]);
 
   return (
-    <div className="app table-page">
+    <div className="app app-full table-page">
       <div className="view-header">
         <div>
           <h1>Chờ duyệt giá</h1>
@@ -2525,7 +2525,7 @@ function UserManagementView({ currentUserId }: { currentUserId: string }) {
   }
 
   return (
-    <div className="app table-page">
+    <div className="app app-full table-page">
       <div className="view-header">
         <div>
           <h1>Quản lý người dùng</h1>
@@ -2892,7 +2892,7 @@ function ActivityLogView({ role }: { role: Role }) {
   }
 
   return (
-    <div className="app table-page">
+    <div className="app app-full table-page">
       <div className="view-header">
         <div>
           <h1>Nhật ký hoạt động</h1>
