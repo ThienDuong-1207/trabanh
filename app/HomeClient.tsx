@@ -1979,7 +1979,7 @@ function DashboardView({ products, pendingCount }: { products: Product[]; pendin
   );
 
   return (
-    <div className="app">
+    <div className="app app-full">
       <div className="view-header">
         <div>
           <h1>Báo cáo</h1>

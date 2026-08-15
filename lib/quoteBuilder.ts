@@ -84,10 +84,35 @@ function nameCell(p: Product) {
   return { text: p.ten_hang_hoa, alignment: "left", fontSize: TABLE_FONT_SIZE };
 }
 
+// Trong mỗi nhóm hàng: sắp theo Thương hiệu (A-Z) trước, rồi trong mỗi
+// thương hiệu sắp Giá bán lẻ tăng dần — vd Syrup: DaVinci (rẻ→đắt) rồi mới
+// tới Monin (rẻ→đắt), thay vì xen kẽ lộn xộn theo tên sản phẩm như trước.
+// Sản phẩm không có thương hiệu bị đẩy xuống cuối nhóm hàng (sau mọi thương
+// hiệu có tên), sắp theo tên A-Z. Trong 1 thương hiệu, sản phẩm chưa có giá
+// bán lẻ (null — hiện "Liên hệ") bị đẩy xuống cuối nhóm thương hiệu đó.
 function sortForQuote(items: Product[]): Product[] {
   return [...items].sort((a, b) => {
     const catDiff = QUOTE_CATEGORY_ORDER.indexOf(a.category_sheet) - QUOTE_CATEGORY_ORDER.indexOf(b.category_sheet);
     if (catDiff !== 0) return catDiff;
+
+    const brandA = a.brand?.name ?? null;
+    const brandB = b.brand?.name ?? null;
+    if (brandA === null && brandB !== null) return 1;
+    if (brandA !== null && brandB === null) return -1;
+    if (brandA !== null && brandB !== null) {
+      const brandDiff = brandA.localeCompare(brandB, "vi");
+      if (brandDiff !== 0) return brandDiff;
+    }
+
+    if (brandA === null && brandB === null) {
+      return a.ten_hang_hoa.localeCompare(b.ten_hang_hoa, "vi");
+    }
+
+    const priceA = a.gia_ban;
+    const priceB = b.gia_ban;
+    if (priceA === null && priceB !== null) return 1;
+    if (priceA !== null && priceB === null) return -1;
+    if (priceA !== null && priceB !== null && priceA !== priceB) return priceA - priceB;
     return a.ten_hang_hoa.localeCompare(b.ten_hang_hoa, "vi");
   });
 }

@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
     }
 
     const supabase = supabaseAdmin();
-    const { data, error } = await supabase.from("products").select("*").in("id", ids);
+    const { data, error } = await supabase.from("products").select("*, brand:brands(name)").in("id", ids);
     if (error) throw error;
 
     const buf = await buildQuotePdf(data as Product[], info);
