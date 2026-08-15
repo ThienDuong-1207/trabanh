@@ -1006,7 +1006,7 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
         <div className="toolbar-spacer" />
 
         <div className="menu-wrap" ref={moreMenuRef}>
-          <button className="btn" onClick={() => setMoreMenuOpen((v) => !v)} disabled={importing || exportingAll !== null}>
+          <button className="btn btn-primary" onClick={() => setMoreMenuOpen((v) => !v)} disabled={importing || exportingAll !== null}>
             {importing || exportingAll !== null ? "Đang xử lý..." : "Nhập & xuất"}
             <ChevronDownIcon />
           </button>
@@ -1860,10 +1860,10 @@ function NotificationBell({ userId, onNavigate }: { userId: string; onNavigate: 
 // giá trị nhỏ hơn hẳn sẽ nhìn như 1 đường thẳng phẳng lì).
 function MiniLineChart({ points, color }: { points: { t: number; v: number }[]; color: string }) {
   if (points.length === 0) {
-    return <p style={{ color: "var(--muted)", fontSize: 12.5 }}>Chưa có lịch sử.</p>;
+    return <p style={{ color: "var(--muted)", fontSize: 8.4 }}>Chưa có lịch sử.</p>;
   }
   const W = 600;
-  const H = 130;
+  const H = 87;
   const PAD_X = 8;
   const PAD_Y = 16;
   const minT = points[0].t;
@@ -2023,9 +2023,9 @@ function DashboardView({ products, pendingCount }: { products: Product[]; pendin
         <div className="panel">
           <h3>Thay đổi giá gần đây</h3>
           <div className="panel-scroll">
-            {historyLoading && <p style={{ color: "var(--muted)", fontSize: 12.5 }}>Đang tải...</p>}
+            {historyLoading && <p style={{ color: "var(--muted)", fontSize: 8.4 }}>Đang tải...</p>}
             {!historyLoading && recentPriceChanges.length === 0 && (
-              <p style={{ color: "var(--muted)", fontSize: 12.5 }}>Chưa có lịch sử thay đổi giá.</p>
+              <p style={{ color: "var(--muted)", fontSize: 8.4 }}>Chưa có lịch sử thay đổi giá.</p>
             )}
             {recentPriceChanges.map((h) => {
               const banChanged = h.gia_ban_old !== h.gia_ban_new;
@@ -2053,7 +2053,7 @@ function DashboardView({ products, pendingCount }: { products: Product[]; pendin
           <h3>Sản phẩm mới trong tháng</h3>
           <div className="panel-scroll">
             {newProductsThisMonth.length === 0 && (
-              <p style={{ color: "var(--muted)", fontSize: 12.5 }}>Chưa có sản phẩm mới trong tháng này.</p>
+              <p style={{ color: "var(--muted)", fontSize: 8.4 }}>Chưa có sản phẩm mới trong tháng này.</p>
             )}
             {newProductsThisMonth.map((p) => (
               <div className="activity-row" key={p.id}>
@@ -2084,7 +2084,7 @@ function DashboardView({ products, pendingCount }: { products: Product[]; pendin
 
         <div className="panel panel-wide">
           <h3>Lịch sử giá theo thời gian — chọn sản phẩm</h3>
-          <select value={selectedProductId} onChange={(e) => setSelectedProductId(e.target.value)} style={{ marginBottom: 14, maxWidth: 420 }}>
+          <select value={selectedProductId} onChange={(e) => setSelectedProductId(e.target.value)} style={{ marginBottom: 9, maxWidth: 282 }}>
             <option value="">— Chọn sản phẩm —</option>
             {sortedProducts.map((p) => (
               <option key={p.id} value={p.id}>
@@ -2093,15 +2093,15 @@ function DashboardView({ products, pendingCount }: { products: Product[]; pendin
             ))}
           </select>
           {selectedProductId && (
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 13 }}>
               <div>
-                <div className="stat-kpi-label" style={{ marginBottom: 6 }}>
+                <div className="stat-kpi-label" style={{ marginBottom: 4 }}>
                   Giá lẻ
                 </div>
                 <MiniLineChart points={giaBanPoints} color="var(--primary)" />
               </div>
               <div>
-                <div className="stat-kpi-label" style={{ marginBottom: 6 }}>
+                <div className="stat-kpi-label" style={{ marginBottom: 4 }}>
                   Giá thùng
                 </div>
                 <MiniLineChart points={giaThungPoints} color="var(--warm-ink)" />
@@ -2256,7 +2256,7 @@ function PriceRequestsView({
                 <th className="num">Giá thùng mới</th>
                 <th>Người đề xuất</th>
                 <th>Thời điểm</th>
-                {canReview && <th style={{ width: 140 }}></th>}
+                {canReview && <th style={{ width: 94 }}></th>}
               </tr>
             </thead>
             <tbody>
@@ -2304,7 +2304,7 @@ function PriceRequestsView({
         </div>
       </div>
 
-      <div className="view-header" style={{ marginTop: 28 }}>
+      <div className="view-header" style={{ marginTop: 19 }}>
         <div>
           <h1>Lịch sử duyệt giá</h1>
           <p>Các đề xuất đã được duyệt hoặc từ chối trước đây — chọn sản phẩm đã duyệt để xuất Block giá 7.7x4cm ngay tại đây.</p>
@@ -2901,7 +2901,7 @@ function ActivityLogView({ role }: { role: Role }) {
       </div>
 
       <Segmented
-        style={{ marginBottom: 14 }}
+        style={{ marginBottom: 9 }}
         items={[
           { key: "all", label: "Tất cả hoạt động", active: view === "all", onClick: () => setView("all") },
           {
@@ -2965,8 +2965,8 @@ function ActivityLogView({ role }: { role: Role }) {
 
       {view === "price" && (
         <>
-          <div className="view-row" style={{ marginTop: 0, justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <div className="view-row" style={{ marginTop: 0, justifyContent: "space-between", flexWrap: "wrap", gap: 7 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap" }}>
               <input type="date" value={exportFrom} onChange={(e) => setExportFrom(e.target.value)} title="Từ ngày" />
               <span style={{ color: "var(--muted)" }}>–</span>
               <input type="date" value={exportTo} onChange={(e) => setExportTo(e.target.value)} title="Đến ngày" />
@@ -2983,7 +2983,7 @@ function ActivityLogView({ role }: { role: Role }) {
               {expanded ? "Thu gọn" : "Mở rộng"}
             </button>
           </div>
-          <p style={{ color: "var(--muted)", fontSize: 12.5, margin: "0 0 10px" }}>
+          <p style={{ color: "var(--muted)", fontSize: 8.4, margin: "0 0 7px" }}>
             Gồm cả các lần duyệt đề xuất giá lẫn nhập Excel hàng loạt. File Excel xuất ra vẫn đầy đủ nhất (thêm cả các lần đồng bộ tự động từ Google Sheet — không có người thao tác nên không hiện ở đây).
           </p>
           <div className="table-card">
