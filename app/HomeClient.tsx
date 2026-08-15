@@ -2243,7 +2243,7 @@ function PriceRequestsView({
         )}
       </div>
 
-      <div className="table-card">
+      <div className="table-card table-card-compact">
         <div className="table-scroll">
           <table>
             <thead>

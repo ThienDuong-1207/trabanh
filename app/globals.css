@@ -294,18 +294,22 @@ button, input, select { font: inherit; color: inherit; }
    cho bảng hơn khoảng trắng đầu trang, nhất là trên màn hình 13-14 inch chỉ
    còn ~600-750px chiều cao thật sau thanh trình duyệt. */
 .table-page { display: flex; flex-direction: column; height: 100%; min-height: 0; padding-top: 8px; padding-bottom: 13px; overflow: visible; }
-/* CHỈ .table-card CUỐI CÙNG mới giãn lấp khoảng trống còn lại — trang chỉ có
-   1 bảng (Quản lý hàng hóa, Nhật ký, Người dùng) thì bảng đó vừa là đầu vừa
-   là cuối, không đổi gì. Nhưng trang có 2 bảng xếp chồng (Chờ duyệt giá:
-   "Chờ duyệt" + "Lịch sử duyệt") — nếu CẢ HAI cùng giãn, bảng "Chờ duyệt"
-   khi rỗng (trường hợp thường gặp) sẽ phình to chiếm nửa màn hình chỉ để
-   hiện 1 dòng "Không có đề xuất nào đang chờ", trong khi bảng "Lịch sử" có
-   dữ liệu thật lại bị ép nhỏ lại. Để bảng đầu tự co theo đúng nội dung, dồn
-   hết khoảng trống thật sự cho bảng cuối (luôn là bảng nhiều dữ liệu hơn). */
-.table-page > .table-card:last-of-type { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
-.table-page > .table-card:last-of-type > .table-scroll { flex: 1 1 auto; min-height: 0; overflow: auto; }
-.table-page > .table-card:not(:last-of-type) { flex: 0 0 auto; }
-.table-page > .table-card:not(:last-of-type) > .table-scroll { max-height: 40vh; overflow: auto; }
+/* Mặc định MỌI .table-card đều giãn lấp khoảng trống còn lại — đúng cho các
+   trang chỉ có 1 bảng (Quản lý hàng hóa, Nhật ký, Người dùng). Trang có 2
+   bảng xếp chồng (Chờ duyệt giá) cần bảng ĐẦU ("Chờ duyệt", thường rỗng)
+   KHÔNG giãn — gắn thêm class .table-card-compact cho đúng bảng đó ngay
+   trong JSX để bảng "Lịch sử duyệt" (bảng còn lại, luôn nhiều dữ liệu hơn)
+   nhận hết khoảng trống thật sự.
+   (Trước đây dùng :last-of-type để tự suy ra bảng cuối — SAI: :last-of-type
+   so khớp theo TÊN THẺ <div> trong mọi div anh em cùng cấp, không phải theo
+   class — hễ có 1 div bất kỳ (vd .pagination-bar) đứng sau .table-card là
+   :last-of-type không khớp .table-card nữa, khiến bảng ngừng giãn hoàn
+   toàn — đúng lỗi khiến trang Quản lý hàng hóa chỉ hiện ~13 dòng rồi bỏ
+   trống phần còn lại của màn hình dù còn cả trăm dòng chưa hiện.) */
+.table-page > .table-card { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.table-page > .table-card > .table-scroll { flex: 1 1 auto; min-height: 0; overflow: auto; }
+.table-page > .table-card.table-card-compact { flex: 0 0 auto; }
+.table-page > .table-card.table-card-compact > .table-scroll { max-height: 40vh; overflow: auto; }
 
 /* Trả lại cách cuộn cả trang bình thường trên di động — khung cố định đúng
    bằng màn hình chỉ hợp lý khi màn hình đủ rộng để thấy nhiều cột cùng lúc;
@@ -318,16 +322,11 @@ button, input, select { font: inherit; color: inherit; }
   .main { overflow: visible; }
   .app { height: auto; overflow-y: visible; }
   .table-page { height: auto; }
-  /* :last-of-type ở rule desktop (ngoài media query) đặc thù hơn plain
-     ".table-card" — phải lặp lại đúng :last-of-type ở đây để thắng được,
-     nếu không bảng cuối vẫn cố giãn theo flex dù đã đổi sang cuộn cả trang. */
-  .table-page > .table-card, .table-page > .table-card:last-of-type { flex: none; }
+  .table-page > .table-card { flex: none; }
   /* Chỉ trả lại cuộn dọc bình thường — vẫn giữ overflow-x:auto (từ .table-
      scroll gốc) vì giữa 600–860px bảng chưa sập thành thẻ, vẫn cần cuộn
      ngang để xem hết cột. */
-  .table-page > .table-card > .table-scroll,
-  .table-page > .table-card:last-of-type > .table-scroll,
-  .table-page > .table-card:not(:last-of-type) > .table-scroll { overflow-y: visible; max-height: none; }
+  .table-page > .table-card > .table-scroll { overflow-y: visible; max-height: none; }
 }
 
 /* ---- Header ---- */
