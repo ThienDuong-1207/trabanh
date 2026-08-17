@@ -5,10 +5,6 @@ import { logActivity } from "@/lib/activityLog";
 
 export const runtime = "nodejs";
 
-function todayStamp(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
 export async function POST(req: NextRequest) {
   try {
     const form = await req.formData();
@@ -16,6 +12,11 @@ export async function POST(req: NextRequest) {
     if (!(file instanceof File)) {
       return NextResponse.json({ error: "Chưa chọn file đơn hàng" }, { status: 400 });
     }
+    const targetDate = String(form.get("targetDate") ?? "").trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(targetDate)) {
+      return NextResponse.json({ error: "Chưa chọn ngày làm việc cần tính" }, { status: 400 });
+    }
+
     const buffer = Buffer.from(await file.arrayBuffer());
     const orderRows = await parseShopeeOrderWorkbook(buffer);
     if (orderRows.length === 0) {
@@ -25,7 +26,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const result = await buildTransferKhoFile(orderRows);
+    const result = await buildTransferKhoFile(orderRows, targetDate);
 
     if (result.rows.length > 0) {
       const actor = await getCurrentUserRole();
@@ -35,11 +36,14 @@ export async function POST(req: NextRequest) {
           actorName: actor.displayName,
           action: "transfer_kho.export",
           targetType: "transfer_kho",
-          targetLabel: `Xuất phiếu chuyển kho Shopee từ "${file.name}" — ${result.rows.length} mã hàng hóa`,
+          targetLabel: `Xuất phiếu chuyển kho Shopee ngày ${targetDate} từ "${file.name}" — ${result.rows.length} mã hàng hóa`,
           detail: {
             fileName: file.name,
+            targetDate,
             maCount: result.rows.length,
             unmatchedCount: result.unmatched.length,
+            excludedPendingCount: result.excludedPendingCount,
+            excludedOutOfWindowCount: result.excludedOutOfWindowCount,
           },
         });
       }
@@ -47,9 +51,11 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       file: result.file.toString("base64"),
-      filename: `Nhap_khau_chi_tiet_hang_hoa_chuyen_kho_${todayStamp()}.xlsx`,
+      filename: `Nhap_khau_chi_tiet_hang_hoa_chuyen_kho_${targetDate}.xlsx`,
       rows: result.rows,
       unmatched: result.unmatched,
+      excludedPendingCount: result.excludedPendingCount,
+      excludedOutOfWindowCount: result.excludedOutOfWindowCount,
     });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });

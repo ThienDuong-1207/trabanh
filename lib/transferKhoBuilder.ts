@@ -11,10 +11,23 @@ const KHO_NHAP = "002 | SHOPEE";
 const FIRST_DATA_ROW = 6; // hàng 1-5 là tiêu đề/hướng dẫn của file mẫu, giữ nguyên
 const TEMPLATE_SAMPLE_ROWS = 3; // 3 dòng mẫu (MH00001..) có sẵn trong file gốc, cần xoá trước khi ghi dữ liệu thật
 
+// Trạng thái coi là "chưa thực sự rời kho" — loại khỏi mọi lần tính, dù có
+// đúng ngày làm việc đang chọn hay không. Xác nhận bằng dữ liệu thật: khi
+// còn ở trạng thái này, "Thời gian giao hàng" luôn trống (chưa quét mã);
+// "Ngày gửi hàng" (nếu có) chỉ là hạn chót Shopee đặt ra, không phải ngày
+// đã giao thật — không dùng cột đó để tính.
+const PENDING_STATUS = "chờ giao hàng";
+// Giờ chốt ca làm việc thật của tiệm — không đóng gói thêm sau giờ này.
+// "Ngày làm việc X" = khoảng [17:00 ngày X-1, 17:00 ngày X) theo "Thời gian
+// giao hàng", KHÔNG phải theo ngày lịch (00:00-23:59).
+const SHIFT_CUTOFF_HOUR = 17;
+
 export type ShopeeOrderRow = {
   ten_san_pham: string;
   ten_phan_loai: string | null;
   so_luong: number;
+  trang_thai: string | null;
+  thoi_gian_giao_hang: string | null; // giữ nguyên dạng "YYYY-MM-DD HH:mm[:ss]" đọc từ file, không parse thành Date để tránh lệch múi giờ server
 };
 
 export type TransferKhoRow = {
@@ -28,6 +41,8 @@ export type TransferKhoResult = {
   file: Buffer;
   rows: TransferKhoRow[];
   unmatched: ShopeeOrderRow[];
+  excludedPendingCount: number; // số dòng bị loại vì còn "Chờ giao hàng" — hiển thị cho người dùng yên tâm không phải bị bỏ sót
+  excludedOutOfWindowCount: number; // số dòng có Thời gian giao hàng nhưng rơi ngoài khoảng ngày làm việc đã chọn
 };
 
 // Cụm chỉ nói số lượng ("Combo 2 túi", "1 hộp"...) chứ không phải hương vị —
@@ -61,6 +76,44 @@ export function extractComboMultiplier(variationName: string | null): number {
   if (!variationName) return 1;
   const m = variationName.match(COMBO_COUNT_RE);
   return m ? parseInt(m[1], 10) : 1;
+}
+
+// Số nguyên có thể so sánh trực tiếp (yyyy*1e8 + mm*1e6 + dd*1e4 + hh*1e2 + mi)
+// — cố tình KHÔNG dùng đối tượng Date: chuỗi "Thời gian giao hàng" trong file
+// Shopee là giờ Việt Nam không kèm múi giờ, nếu parse qua `new Date(...)` sẽ
+// bị hiểu theo múi giờ của máy chủ chạy code (thường là UTC trên Vercel),
+// lệch hẳn 7 tiếng so với giờ thật. Tách số trực tiếp từ chuỗi tránh hoàn
+// toàn vấn đề này.
+type TimeKey = number;
+
+function parseTimeKey(raw: string | null): TimeKey | null {
+  if (!raw) return null;
+  const m = raw.trim().match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/);
+  if (!m) return null;
+  const [, y, mo, d, h, mi] = m;
+  return Number(y) * 100000000 + Number(mo) * 1000000 + Number(d) * 10000 + Number(h) * 100 + Number(mi);
+}
+
+// "Ngày làm việc X" = khoảng [17:00 ngày X-1, 17:00 ngày X). Dùng Date.UTC +
+// getUTC* thuần túy để cộng/trừ 1 ngày lịch — chỉ dùng Date ở đây như một bộ
+// đếm ngày trừu tượng (không đại diện 1 thời điểm thật), nên không bị ảnh
+// hưởng bởi múi giờ máy chủ.
+function shiftWindowKeys(targetDateStr: string): { startKey: TimeKey; endKey: TimeKey } {
+  const m = targetDateStr.trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) throw new Error(`Ngày làm việc không hợp lệ: "${targetDateStr}" (cần dạng YYYY-MM-DD)`);
+  const [, y, mo, d] = m;
+  const targetUTC = Date.UTC(Number(y), Number(mo) - 1, Number(d));
+  const prevUTC = targetUTC - 24 * 60 * 60 * 1000;
+  const keyFor = (epochMs: number) => {
+    const dt = new Date(epochMs);
+    return (
+      dt.getUTCFullYear() * 100000000 +
+      (dt.getUTCMonth() + 1) * 1000000 +
+      dt.getUTCDate() * 10000 +
+      SHIFT_CUTOFF_HOUR * 100
+    );
+  };
+  return { startKey: keyFor(prevUTC), endKey: keyFor(targetUTC) };
 }
 
 type ProductLookupEntry = { ma_noi_bo: string; ten_hang_hoa: string; dvt: string | null };
@@ -100,9 +153,10 @@ function cellText(cell: ExcelJS.Cell): string {
   return String(v).trim();
 }
 
-// Đọc file đơn hàng giao theo ngày export từ Shopee — chỉ cần đúng 3 cột
-// "Tên sản phẩm", "Tên phân loại hàng", "Số lượng" (dò theo tên cột ở hàng
-// tiêu đề, không phụ thuộc thứ tự/số lượng cột khác của file gốc).
+// Đọc file đơn hàng giao theo ngày export từ Shopee — cần đúng 5 cột "Tên
+// sản phẩm", "Tên phân loại hàng", "Số lượng", "Trạng Thái Đơn Hàng", "Thời
+// gian giao hàng" (dò theo tên cột ở hàng tiêu đề, không phụ thuộc thứ tự/số
+// lượng cột khác của file gốc).
 export async function parseShopeeOrderWorkbook(buffer: Buffer): Promise<ShopeeOrderRow[]> {
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(buffer as unknown as ArrayBuffer);
@@ -118,8 +172,12 @@ export async function parseShopeeOrderWorkbook(buffer: Buffer): Promise<ShopeeOr
   const colTenSp = colByHeader.get("Tên sản phẩm");
   const colTenPhanLoai = colByHeader.get("Tên phân loại hàng");
   const colSoLuong = colByHeader.get("Số lượng");
-  if (!colTenSp || !colSoLuong) {
-    throw new Error('File đơn hàng thiếu cột "Tên sản phẩm" hoặc "Số lượng" — kiểm tra lại đúng file export đơn hàng giao từ Shopee');
+  const colTrangThai = colByHeader.get("Trạng Thái Đơn Hàng");
+  const colThoiGianGiao = colByHeader.get("Thời gian giao hàng");
+  if (!colTenSp || !colSoLuong || !colTrangThai || !colThoiGianGiao) {
+    throw new Error(
+      'File đơn hàng thiếu cột "Tên sản phẩm"/"Số lượng"/"Trạng Thái Đơn Hàng"/"Thời gian giao hàng" — kiểm tra lại đúng file export đơn hàng giao từ Shopee'
+    );
   }
 
   const rows: ShopeeOrderRow[] = [];
@@ -130,18 +188,35 @@ export async function parseShopeeOrderWorkbook(buffer: Buffer): Promise<ShopeeOr
     const tenPhanLoai = colTenPhanLoai ? cellText(row.getCell(colTenPhanLoai)) || null : null;
     const soLuong = Number(cellText(row.getCell(colSoLuong)));
     if (!Number.isFinite(soLuong) || soLuong <= 0) continue;
-    rows.push({ ten_san_pham: tenSanPham, ten_phan_loai: tenPhanLoai, so_luong: soLuong });
+    const trangThai = cellText(row.getCell(colTrangThai)) || null;
+    const thoiGianGiao = cellText(row.getCell(colThoiGianGiao)) || null;
+    rows.push({ ten_san_pham: tenSanPham, ten_phan_loai: tenPhanLoai, so_luong: soLuong, trang_thai: trangThai, thoi_gian_giao_hang: thoiGianGiao });
   }
   return rows;
 }
 
-export async function buildTransferKhoFile(orderRows: ShopeeOrderRow[]): Promise<TransferKhoResult> {
+// targetDate: "YYYY-MM-DD" — ngày làm việc muốn tính (khoảng 17:00 hôm
+// trước → 17:00 ngày này, xem shiftWindowKeys).
+export async function buildTransferKhoFile(orderRows: ShopeeOrderRow[], targetDate: string): Promise<TransferKhoResult> {
+  const { startKey, endKey } = shiftWindowKeys(targetDate);
   const lookup = await buildShopeeLookup();
 
   const aggregated = new Map<string, TransferKhoRow>();
   const unmatched = new Map<string, ShopeeOrderRow>();
+  let excludedPendingCount = 0;
+  let excludedOutOfWindowCount = 0;
 
   for (const row of orderRows) {
+    if (row.trang_thai && normalize(row.trang_thai) === PENDING_STATUS) {
+      excludedPendingCount++;
+      continue;
+    }
+    const timeKey = parseTimeKey(row.thoi_gian_giao_hang);
+    if (timeKey === null || timeKey < startKey || timeKey >= endKey) {
+      excludedOutOfWindowCount++;
+      continue;
+    }
+
     const key = buildShopeeKey(row.ten_san_pham, row.ten_phan_loai);
     const matches = lookup.get(key);
     if (!matches || matches.length === 0) {
@@ -184,5 +259,11 @@ export async function buildTransferKhoFile(orderRows: ShopeeOrderRow[]): Promise
   });
 
   const arrayBuffer = await workbook.xlsx.writeBuffer();
-  return { file: Buffer.from(arrayBuffer), rows, unmatched: Array.from(unmatched.values()) };
+  return {
+    file: Buffer.from(arrayBuffer),
+    rows,
+    unmatched: Array.from(unmatched.values()),
+    excludedPendingCount,
+    excludedOutOfWindowCount,
+  };
 }

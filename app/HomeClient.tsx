@@ -3073,7 +3073,22 @@ function InventoryView() {
 
 type TransferKhoRow = { ma_noi_bo: string; ten_hang_hoa: string; dvt: string | null; so_luong: number };
 type TransferKhoUnmatched = { ten_san_pham: string; ten_phan_loai: string | null; so_luong: number };
-type TransferKhoResult = { rows: TransferKhoRow[]; unmatched: TransferKhoUnmatched[] };
+type TransferKhoResult = {
+  rows: TransferKhoRow[];
+  unmatched: TransferKhoUnmatched[];
+  excludedPendingCount: number;
+  excludedOutOfWindowCount: number;
+};
+
+// "YYYY-MM-DD" theo giờ máy khách (chủ tiệm ở VN) — dùng làm giá trị mặc
+// định cho ô chọn ngày làm việc, không dùng toISOString() vì đó là giờ UTC.
+function todayLocalDateInput(): string {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
 
 function TransferKhoView() {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -3081,6 +3096,7 @@ function TransferKhoView() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<TransferKhoResult | null>(null);
   const [lastFileName, setLastFileName] = useState("");
+  const [targetDate, setTargetDate] = useState(todayLocalDateInput);
 
   async function handleFile(file: File) {
     setUploading(true);
@@ -3088,6 +3104,7 @@ function TransferKhoView() {
     try {
       const form = new FormData();
       form.append("file", file);
+      form.append("targetDate", targetDate);
       const res = await fetch("/api/export-transfer-kho", { method: "POST", body: form });
       let data: any;
       try {
@@ -3103,7 +3120,12 @@ function TransferKhoView() {
       const blob = new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
       downloadBlob(blob, data.filename);
 
-      setResult({ rows: data.rows, unmatched: data.unmatched });
+      setResult({
+        rows: data.rows,
+        unmatched: data.unmatched,
+        excludedPendingCount: data.excludedPendingCount,
+        excludedOutOfWindowCount: data.excludedOutOfWindowCount,
+      });
       setLastFileName(file.name);
     } catch (e: any) {
       setError(e.message);
@@ -3119,15 +3141,20 @@ function TransferKhoView() {
         <div>
           <h1>Chuyển kho Shopee</h1>
           <p>
-            Tải lên file &quot;đơn hàng giao&quot; theo ngày (export từ Shopee) — đối chiếu theo cột &quot;Tên
-            Shopee&quot; của từng sản phẩm, tự tải về file phiếu chuyển kho Kho mặc định → SHOPEE sẵn sàng nhập vào
-            MISA.
+            Tải lên file &quot;đơn hàng giao&quot; export từ Shopee (nên gồm ít nhất 2 ngày lịch gần nhau) — đối
+            chiếu theo cột &quot;Tên Shopee&quot; của từng sản phẩm, chỉ tính đơn đã thật sự rời kho (loại &quot;Chờ
+            giao hàng&quot;) và đúng trong khoảng <b>17:00 hôm trước → 17:00 ngày làm việc đã chọn</b> theo &quot;Thời
+            gian giao hàng&quot;, rồi tự tải về file phiếu chuyển kho Kho mặc định → SHOPEE sẵn sàng nhập vào MISA.
           </p>
         </div>
       </div>
 
       <div className="panel">
-        <h3>Tải file đơn hàng giao theo ngày</h3>
+        <h3>Chọn ngày làm việc và tải file đơn hàng</h3>
+        <label className="field" style={{ maxWidth: 220, marginBottom: 12 }}>
+          Ngày làm việc
+          <input type="date" value={targetDate} onChange={(e) => setTargetDate(e.target.value)} />
+        </label>
         <input
           type="file"
           accept=".xlsx"
@@ -3138,7 +3165,7 @@ function TransferKhoView() {
             if (file) handleFile(file);
           }}
         />
-        <button className="btn btn-primary" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
+        <button className="btn btn-primary" onClick={() => fileInputRef.current?.click()} disabled={uploading || !targetDate}>
           {uploading ? "Đang xử lý..." : "Chọn file đơn hàng"}
         </button>
         {error && (
@@ -3160,6 +3187,14 @@ function TransferKhoView() {
             <div className="kpi-card">
               <div className="label">Chưa khớp Tên Shopee</div>
               <div className={`value${result.unmatched.length > 0 ? " accent" : ""}`}>{result.unmatched.length}</div>
+            </div>
+            <div className="kpi-card">
+              <div className="label">Loại — còn &quot;Chờ giao hàng&quot;</div>
+              <div className="value">{result.excludedPendingCount}</div>
+            </div>
+            <div className="kpi-card">
+              <div className="label">Loại — ngoài khoảng ngày đã chọn</div>
+              <div className="value">{result.excludedOutOfWindowCount}</div>
             </div>
           </div>
 
