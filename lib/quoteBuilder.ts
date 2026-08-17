@@ -6,11 +6,12 @@ import { extractUnitFromQuyCach } from "./suggestionLists";
 
 // Thứ tự nhóm hàng RIÊNG cho bảng báo giá — khác CATEGORY_ORDER dùng chung
 // toàn hệ thống (dropdown thêm/sửa sản phẩm, import...). Theo yêu cầu: Sữa
-// đặc/Sữa tươi/Kem đông lạnh lên đầu, các nhóm còn lại giữ nguyên thứ tự cũ,
-// Công cụ dụng cụ luôn ở cuối cùng.
+// đặc/Sữa tươi/Kem đông lạnh lên đầu, Trà xuống cuối cùng trong các nhóm sản
+// phẩm thật, Công cụ dụng cụ vẫn luôn ở cuối cùng tuyệt đối (không phải sản
+// phẩm bán trực tiếp, tách riêng khỏi mọi nhóm hàng khác).
 const QUOTE_CATEGORY_ORDER = [
-  "Sữa đặc", "Sữa tươi", "Kem đông lạnh", "Trà", "Syrup", "Bột",
-  "Trân châu", "Mứt", "Đồ lon", "Mặt hàng khác", "Công cụ dụng cụ",
+  "Sữa đặc", "Sữa tươi", "Kem đông lạnh", "Syrup", "Bột",
+  "Trân châu", "Mứt", "Đồ lon", "Mặt hàng khác", "Trà", "Công cụ dụng cụ",
 ];
 
 // Chuyển sang dạng bảng giá niêm yết chung (không phải báo giá riêng theo
