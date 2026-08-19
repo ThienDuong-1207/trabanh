@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { importProductsFromWorkbook, ImportMode } from "@/lib/excelImport";
 import { getCurrentUserRole } from "@/lib/authz";
-import { logActivity } from "@/lib/activityLog";
+import { logActivity, getRecipientIds } from "@/lib/activityLog";
 
 export const runtime = "nodejs";
 
@@ -23,35 +23,47 @@ export async function POST(req: NextRequest) {
     }
     const mode: ImportMode = form.get("mode") === "update-all" ? "update-all" : "new-only";
     const buffer = Buffer.from(await file.arrayBuffer());
-    const summary = await importProductsFromWorkbook(buffer, mode);
+    const actor = await getCurrentUserRole();
+    const summary = await importProductsFromWorkbook(buffer, mode, actor?.userId ?? null);
 
-    // Chỉ ghi Nhật ký hoạt động khi thực sự có thay đổi (sản phẩm mới hoặc
-    // đổi giá) — import không đổi gì thì bỏ qua, không tạo dòng log nào.
-    const hasChanges = summary.newCount > 0 || summary.priceChanges.length > 0;
-    if (hasChanges) {
-      const actor = await getCurrentUserRole();
-      if (actor) {
-        const parts: string[] = [];
-        if (summary.newCount > 0) parts.push(`${summary.newCount} sản phẩm mới`);
-        if (summary.priceChanges.length > 0) parts.push(`${summary.priceChanges.length} đổi giá`);
-        const targetLabel = `Nhập file "${file.name}" — ${parts.join(", ")}`;
+    // Chỉ ghi Nhật ký hoạt động khi thực sự có thay đổi (sản phẩm mới, đổi
+    // giá, hoặc có Mã vạch/Mã thùng đang chờ duyệt) — import không đổi gì
+    // thì bỏ qua, không tạo dòng log nào.
+    const hasChanges = summary.newCount > 0 || summary.priceChanges.length > 0 || summary.fieldRequests.length > 0;
+    if (hasChanges && actor) {
+      const parts: string[] = [];
+      if (summary.newCount > 0) parts.push(`${summary.newCount} sản phẩm mới`);
+      if (summary.priceChanges.length > 0) parts.push(`${summary.priceChanges.length} đổi giá`);
+      if (summary.fieldRequests.length > 0) parts.push(`${summary.fieldRequests.length} Mã vạch/Mã thùng chờ duyệt`);
+      const targetLabel = `Nhập file "${file.name}" — ${parts.join(", ")}`;
 
-        await logActivity({
-          actorId: actor.userId,
-          actorName: actor.displayName,
-          action: "product.import",
-          targetType: "import",
-          targetLabel,
-          detail: {
-            fileName: file.name,
-            mode,
-            newCount: summary.newCount,
-            priceChangedCount: summary.priceChanges.length,
-            newProducts: capList(summary.newProducts),
-            priceChanges: capList(summary.priceChanges),
-          },
-        });
-      }
+      await logActivity({
+        actorId: actor.userId,
+        actorName: actor.displayName,
+        action: "product.import",
+        targetType: "import",
+        targetLabel,
+        detail: {
+          fileName: file.name,
+          mode,
+          newCount: summary.newCount,
+          priceChangedCount: summary.priceChanges.length,
+          fieldRequestCount: summary.fieldRequests.length,
+          newProducts: capList(summary.newProducts),
+          priceChanges: capList(summary.priceChanges),
+          fieldRequests: capList(summary.fieldRequests),
+        },
+        // Chỉ báo cho Kế toán/Admin khi có Mã vạch/Mã thùng cần duyệt — sản
+        // phẩm mới/đổi giá thường thì không cần chuông thông báo riêng.
+        notify:
+          summary.fieldRequests.length > 0
+            ? {
+                recipientIds: await getRecipientIds(["accountant", "admin"]),
+                message: `${actor.displayName ?? "Người dùng"} vừa nhập file có ${summary.fieldRequests.length} Mã vạch/Mã thùng trùng cần duyệt.`,
+                linkView: "duyetgia",
+              }
+            : undefined,
+      });
     }
 
     return NextResponse.json(summary);

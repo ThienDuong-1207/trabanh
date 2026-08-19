@@ -359,3 +359,44 @@ do $$ begin
 exception
   when others then null;
 end $$;
+
+-- Giai đoạn 4: nhập file Excel gặp Mã vạch/Mã thùng trùng với 1 sản phẩm
+-- KHÁC đã có sẵn (idx_products_ma_vach_unique / idx_products_ma_thung_unique)
+-- — thay vì chặn cả lượt nhập bằng lỗi Postgres thô, các trường khác của
+-- dòng đó vẫn cập nhật bình thường, riêng trường bị trùng giữ nguyên giá trị
+-- cũ và chờ Kế toán/Admin duyệt (xem lib/excelImport.ts, lib/productFieldRequests.ts).
+create table if not exists product_field_requests (
+  id uuid primary key default gen_random_uuid(),
+  product_id uuid not null references products(id) on delete cascade,
+  field text not null check (field in ('ma_vach', 'ma_thung')),
+  old_value text,
+  proposed_value text not null,
+  conflict_ma_noi_bo text,      -- mã sản phẩm hiện đang giữ proposed_value (nếu có) — cho người duyệt biết ngữ cảnh
+  conflict_ten_hang_hoa text,
+  proposed_by uuid references profiles(id) on delete set null,
+  status request_status not null default 'pending',
+  reviewed_by uuid references profiles(id) on delete set null,
+  reviewed_at timestamptz,
+  note text,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_field_requests_status on product_field_requests(status);
+create index if not exists idx_field_requests_product on product_field_requests(product_id);
+
+alter table product_field_requests enable row level security;
+
+drop policy if exists "Người dùng tạo đề xuất trường của mình" on product_field_requests;
+create policy "Người dùng tạo đề xuất trường của mình" on product_field_requests
+  for insert
+  with check (
+    proposed_by = auth.uid()
+    and exists (select 1 from profiles where id = auth.uid() and role is not null)
+  );
+
+drop policy if exists "Xem đề xuất trường theo quyền" on product_field_requests;
+create policy "Xem đề xuất trường theo quyền" on product_field_requests
+  for select using (
+    proposed_by = auth.uid()
+    or exists (select 1 from profiles where id = auth.uid() and role in ('accountant', 'admin'))
+  );

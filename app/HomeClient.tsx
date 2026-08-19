@@ -7,6 +7,7 @@ import {
   Product,
   ProductInput,
   PriceChangeRequest,
+  ProductFieldRequest,
   PriceHistoryEntry,
   Profile,
   ActivityLogEntry,
@@ -150,6 +151,10 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
   const [priceHistoryRefreshToken, setPriceHistoryRefreshToken] = useState(0);
   const [reviewingRequestId, setReviewingRequestId] = useState<string | null>(null);
   const [approvingAll, setApprovingAll] = useState(false);
+  const [fieldRequests, setFieldRequests] = useState<ProductFieldRequest[]>([]);
+  const [fieldHistoryRefreshToken, setFieldHistoryRefreshToken] = useState(0);
+  const [reviewingFieldRequestId, setReviewingFieldRequestId] = useState<string | null>(null);
+  const [approvingAllFields, setApprovingAllFields] = useState(false);
   const [completeDraftTarget, setCompleteDraftTarget] = useState<Product | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [exporting, setExporting] = useState<"misa" | "word" | "misa-update" | "vertical" | null>(null);
@@ -210,6 +215,19 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
     if (!error) setPriceRequests((data ?? []) as PriceChangeRequest[]);
   }, []);
 
+  // Mã vạch/Mã thùng trùng với sản phẩm khác phát hiện lúc nhập file Excel
+  // (lib/excelImport.ts) — cùng cơ chế chờ duyệt như giá, chỉ khác bảng.
+  const loadFieldRequests = useCallback(async () => {
+    const { data, error } = await supabase
+      .from("product_field_requests")
+      .select(
+        "*, product:products(ten_hang_hoa, ma_noi_bo), proposer:profiles!product_field_requests_proposed_by_fkey(display_name, username)"
+      )
+      .eq("status", "pending")
+      .order("created_at", { ascending: false });
+    if (!error) setFieldRequests((data ?? []) as ProductFieldRequest[]);
+  }, []);
+
   const [priceChangesThisMonth, setPriceChangesThisMonth] = useState(0);
   const loadPriceChangesThisMonth = useCallback(async () => {
     const now = new Date();
@@ -225,6 +243,7 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
     loadProducts();
     loadBrandNames();
     loadPriceRequests();
+    loadFieldRequests();
     loadPriceChangesThisMonth();
   }, []);
 
@@ -530,6 +549,47 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
     }
   }
 
+  async function reviewFieldRequest(id: string, action: "approve" | "reject") {
+    if (action === "reject" && !confirm("Từ chối đề xuất Mã vạch/Mã thùng này?")) return;
+    setReviewingFieldRequestId(id);
+    try {
+      const res = await fetch(`/api/field-requests/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Xử lý thất bại");
+      await Promise.all([loadFieldRequests(), action === "approve" ? loadProducts() : Promise.resolve()]);
+      setFieldHistoryRefreshToken((v) => v + 1);
+    } catch (e: any) {
+      alert("Xử lý đề xuất thất bại: " + e.message);
+    } finally {
+      setReviewingFieldRequestId(null);
+    }
+  }
+
+  async function approveAllFieldRequests(): Promise<boolean> {
+    if (!confirm("Duyệt toàn bộ đề xuất Mã vạch/Mã thùng đang chờ? Không thể hoàn tác.")) return false;
+    setApprovingAllFields(true);
+    try {
+      const res = await fetch("/api/field-requests/approve-all", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Duyệt tất cả thất bại");
+      await Promise.all([loadFieldRequests(), loadProducts()]);
+      setFieldHistoryRefreshToken((v) => v + 1);
+      if (data.failed?.length > 0) {
+        alert(`Duyệt được ${data.succeeded}, còn ${data.failed.length} vẫn đang trùng — kiểm tra lại thủ công.`);
+      }
+      return true;
+    } catch (e: any) {
+      alert("Duyệt tất cả thất bại: " + e.message);
+      return false;
+    } finally {
+      setApprovingAllFields(false);
+    }
+  }
+
   async function submitCompleteDraft(fields: {
     ma_noi_bo: string;
     ten_hoa_don: string;
@@ -828,9 +888,14 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
       const summary = importOnlyNew
         ? `Đã thêm ${data.newCount} sản phẩm mới. ${data.existingCount} sản phẩm đã tồn tại (giữ nguyên, không thay đổi).`
         : `Đã cập nhật ${data.existingCount} sản phẩm đã có và thêm ${data.newCount} sản phẩm mới.`;
-      alert(`${summary} ${data.brandsUpserted} thương hiệu.${skipped}${skippedIncomplete}`);
+      const fieldRequestsNote =
+        data.fieldRequests?.length > 0
+          ? ` Có ${data.fieldRequests.length} Mã vạch/Mã thùng trùng với sản phẩm khác — đã giữ nguyên giá trị cũ, đang chờ duyệt ở "Chờ duyệt giá" (tab Mã vạch / Mã thùng).`
+          : "";
+      alert(`${summary} ${data.brandsUpserted} thương hiệu.${skipped}${skippedIncomplete}${fieldRequestsNote}`);
       await loadProducts();
       await loadBrandNames();
+      if (data.fieldRequests?.length > 0) await loadFieldRequests();
     } catch (e: any) {
       alert("Nhập file thất bại: " + e.message);
     } finally {
@@ -1414,6 +1479,12 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
             approvingAll={approvingAll}
             onApproveAll={approveAllPriceRequests}
             historyRefreshToken={priceHistoryRefreshToken}
+            fieldRequests={fieldRequests}
+            reviewingFieldRequestId={reviewingFieldRequestId}
+            onReviewField={reviewFieldRequest}
+            approvingAllFields={approvingAllFields}
+            onApproveAllFields={approveAllFieldRequests}
+            fieldHistoryRefreshToken={fieldHistoryRefreshToken}
           />
         )}
         {activeView === "users" && role === "admin" && <UserManagementView currentUserId={userId} />}
@@ -2116,6 +2187,9 @@ function DashboardView({ products, pendingCount }: { products: Product[]; pendin
 
 const PRICE_HISTORY_PAGE_SIZE = 100;
 
+const FIELD_LABEL: Record<string, string> = { ma_vach: "Mã vạch", ma_thung: "Mã thùng" };
+const FIELD_HISTORY_PAGE_SIZE = 100;
+
 function PriceRequestsView({
   requests,
   role,
@@ -2124,6 +2198,12 @@ function PriceRequestsView({
   approvingAll,
   onApproveAll,
   historyRefreshToken,
+  fieldRequests,
+  reviewingFieldRequestId,
+  onReviewField,
+  approvingAllFields,
+  onApproveAllFields,
+  fieldHistoryRefreshToken,
 }: {
   requests: PriceChangeRequest[];
   role: Role;
@@ -2132,14 +2212,57 @@ function PriceRequestsView({
   approvingAll: boolean;
   onApproveAll: () => Promise<boolean>;
   historyRefreshToken: number;
+  fieldRequests: ProductFieldRequest[];
+  reviewingFieldRequestId: string | null;
+  onReviewField: (id: string, action: "approve" | "reject") => void;
+  approvingAllFields: boolean;
+  onApproveAllFields: () => Promise<boolean>;
+  fieldHistoryRefreshToken: number;
 }) {
   const canReview = role === "accountant" || role === "admin";
+  const [tab, setTab] = useState<"gia" | "ma">("gia");
   const pending = useMemo(
     () => [...requests].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
     [requests]
   );
   const pendingCount = pending.length;
   const pendingColCount = canReview ? 9 : 8;
+
+  const fieldPending = useMemo(
+    () => [...fieldRequests].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
+    [fieldRequests]
+  );
+  const fieldPendingCount = fieldPending.length;
+  const fieldPendingColCount = canReview ? 8 : 7;
+
+  const [fieldHistory, setFieldHistory] = useState<ProductFieldRequest[]>([]);
+  const [fieldHistoryLoading, setFieldHistoryLoading] = useState(true);
+  const [fieldHistoryLoadingMore, setFieldHistoryLoadingMore] = useState(false);
+  const [fieldHistoryHasMore, setFieldHistoryHasMore] = useState(true);
+
+  const loadFieldHistoryPage = useCallback(async (offset: number, replace: boolean) => {
+    if (replace) setFieldHistoryLoading(true);
+    else setFieldHistoryLoadingMore(true);
+    const { data, error } = await supabase
+      .from("product_field_requests")
+      .select(
+        "*, product:products(ten_hang_hoa, ma_noi_bo), proposer:profiles!product_field_requests_proposed_by_fkey(display_name, username)"
+      )
+      .neq("status", "pending")
+      .order("created_at", { ascending: false })
+      .range(offset, offset + FIELD_HISTORY_PAGE_SIZE - 1);
+    if (!error) {
+      const rows = (data ?? []) as ProductFieldRequest[];
+      setFieldHistory((prev) => (replace ? rows : [...prev, ...rows]));
+      setFieldHistoryHasMore(rows.length === FIELD_HISTORY_PAGE_SIZE);
+    }
+    if (replace) setFieldHistoryLoading(false);
+    else setFieldHistoryLoadingMore(false);
+  }, []);
+
+  useEffect(() => {
+    loadFieldHistoryPage(0, true);
+  }, [fieldHistoryRefreshToken, loadFieldHistoryPage]);
 
   // "Chờ duyệt" (requests prop) luôn nhỏ nên không cần phân trang — chỉ
   // approved/rejected mới tự phình theo thời gian, nên phần lịch sử tự tải
@@ -2233,16 +2356,186 @@ function PriceRequestsView({
     <div className="app app-full table-page">
       <div className="view-header">
         <div>
-          <h1>Chờ duyệt giá</h1>
-          <p>{canReview ? "Đề xuất giá từ mọi người, chờ Kế toán/Admin duyệt." : "Đề xuất giá bạn đã gửi và trạng thái xử lý."}</p>
+          <h1>Chờ duyệt</h1>
+          <p>
+            {tab === "gia"
+              ? canReview
+                ? "Đề xuất giá từ mọi người, chờ Kế toán/Admin duyệt."
+                : "Đề xuất giá bạn đã gửi và trạng thái xử lý."
+              : canReview
+                ? "Mã vạch/Mã thùng trùng với sản phẩm khác khi nhập file — chờ Kế toán/Admin duyệt."
+                : "Mã vạch/Mã thùng đang chờ duyệt do trùng với sản phẩm khác."}
+          </p>
         </div>
-        {canReview && pendingCount > 0 && (
+        {tab === "gia" && canReview && pendingCount > 0 && (
           <button className="btn btn-primary" disabled={approvingAll} onClick={handleApproveAllAndSelect}>
             {approvingAll ? "Đang duyệt..." : `Duyệt tất cả (${pendingCount})`}
           </button>
         )}
+        {tab === "ma" && canReview && fieldPendingCount > 0 && (
+          <button className="btn btn-primary" disabled={approvingAllFields} onClick={onApproveAllFields}>
+            {approvingAllFields ? "Đang duyệt..." : `Duyệt tất cả (${fieldPendingCount})`}
+          </button>
+        )}
       </div>
 
+      <Segmented
+        style={{ marginBottom: 9 }}
+        items={[
+          { key: "gia", label: `Giá${pendingCount > 0 ? ` (${pendingCount})` : ""}`, active: tab === "gia", onClick: () => setTab("gia") },
+          {
+            key: "ma",
+            label: `Mã vạch / Mã thùng${fieldPendingCount > 0 ? ` (${fieldPendingCount})` : ""}`,
+            active: tab === "ma",
+            onClick: () => setTab("ma"),
+          },
+        ]}
+      />
+
+      {tab === "ma" && (
+        <>
+          <div className="table-card table-card-compact">
+            <div className="table-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Tên sản phẩm</th>
+                    <th>Mã sản phẩm</th>
+                    <th>Trường</th>
+                    <th>Giá trị cũ</th>
+                    <th>Giá trị mới</th>
+                    <th>Đang trùng với</th>
+                    <th>Người đề xuất</th>
+                    <th>Thời điểm</th>
+                    {canReview && <th style={{ width: 94 }}></th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {fieldPending.length === 0 && (
+                    <tr>
+                      <td colSpan={fieldPendingColCount} style={{ textAlign: "center", color: "var(--muted)" }}>
+                        Không có đề xuất nào đang chờ.
+                      </td>
+                    </tr>
+                  )}
+                  {fieldPending.map((r) => (
+                    <tr key={r.id}>
+                      <td className="col-name">{r.product?.ten_hang_hoa ?? "(sản phẩm đã xóa)"}</td>
+                      <td className="code-cell">{r.product?.ma_noi_bo}</td>
+                      <td>{FIELD_LABEL[r.field]}</td>
+                      <td>{r.old_value ?? "—"}</td>
+                      <td>{r.proposed_value}</td>
+                      <td>
+                        {r.conflict_ten_hang_hoa ?? "—"}
+                        {r.conflict_ma_noi_bo ? ` (${r.conflict_ma_noi_bo})` : ""}
+                      </td>
+                      <td>{r.proposer?.display_name ?? r.proposer?.username ?? "—"}</td>
+                      <td>{formatDate(r.created_at)}</td>
+                      {canReview && (
+                        <td>
+                          <div className="row-actions">
+                            <button
+                              className="btn btn-quiet"
+                              disabled={reviewingFieldRequestId === r.id}
+                              onClick={() => onReviewField(r.id, "approve")}
+                            >
+                              Duyệt
+                            </button>
+                            <button
+                              className="btn btn-quiet"
+                              disabled={reviewingFieldRequestId === r.id}
+                              onClick={() => onReviewField(r.id, "reject")}
+                            >
+                              Từ chối
+                            </button>
+                          </div>
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="view-header" style={{ marginTop: 19 }}>
+            <div>
+              <h1>Lịch sử duyệt Mã vạch/Mã thùng</h1>
+              <p>Các đề xuất đã được duyệt hoặc từ chối trước đây.</p>
+            </div>
+          </div>
+
+          <div className="table-card">
+            <div className="table-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Tên sản phẩm</th>
+                    <th>Mã sản phẩm</th>
+                    <th>Trường</th>
+                    <th>Giá trị cũ</th>
+                    <th>Giá trị mới</th>
+                    <th>Đang trùng với</th>
+                    <th>Người đề xuất</th>
+                    <th>Thời điểm</th>
+                    <th>Trạng thái</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {fieldHistoryLoading && (
+                    <tr>
+                      <td colSpan={9} style={{ textAlign: "center", color: "var(--muted)" }}>
+                        Đang tải...
+                      </td>
+                    </tr>
+                  )}
+                  {!fieldHistoryLoading && fieldHistory.length === 0 && (
+                    <tr>
+                      <td colSpan={9} style={{ textAlign: "center", color: "var(--muted)" }}>
+                        Chưa có lịch sử duyệt Mã vạch/Mã thùng nào.
+                      </td>
+                    </tr>
+                  )}
+                  {fieldHistory.map((r) => (
+                    <tr key={r.id}>
+                      <td className="col-name">{r.product?.ten_hang_hoa ?? "(sản phẩm đã xóa)"}</td>
+                      <td className="code-cell">{r.product?.ma_noi_bo}</td>
+                      <td>{FIELD_LABEL[r.field]}</td>
+                      <td>{r.old_value ?? "—"}</td>
+                      <td>{r.proposed_value}</td>
+                      <td>
+                        {r.conflict_ten_hang_hoa ?? "—"}
+                        {r.conflict_ma_noi_bo ? ` (${r.conflict_ma_noi_bo})` : ""}
+                      </td>
+                      <td>{r.proposer?.display_name ?? r.proposer?.username ?? "—"}</td>
+                      <td>{formatDate(r.created_at)}</td>
+                      <td>
+                        {r.status === "approved" && <span className="pill pill-success">Đã duyệt</span>}
+                        {r.status === "rejected" && <span className="pill pill-danger">Đã từ chối</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {fieldHistoryHasMore && !fieldHistoryLoading && (
+            <div className="pagination-bar">
+              <button
+                className="btn btn-quiet"
+                disabled={fieldHistoryLoadingMore}
+                onClick={() => loadFieldHistoryPage(fieldHistory.length, false)}
+              >
+                {fieldHistoryLoadingMore ? "Đang tải..." : "Xem thêm"}
+              </button>
+            </div>
+          )}
+        </>
+      )}
+
+      {tab === "gia" && (
+        <>
       <div className="table-card table-card-compact">
         <div className="table-scroll">
           <table>
@@ -2398,6 +2691,8 @@ function PriceRequestsView({
             {historyLoadingMore ? "Đang tải..." : "Xem thêm"}
           </button>
         </div>
+      )}
+        </>
       )}
     </div>
   );

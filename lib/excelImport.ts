@@ -52,6 +52,15 @@ export type PriceChangeLogEntry = {
   gia_thung_moi: number | null;
 };
 
+export type FieldRequestLogEntry = {
+  ma_noi_bo: string;
+  ten_hang_hoa: string | null;
+  field: "ma_vach" | "ma_thung";
+  proposed_value: string;
+  conflict_ma_noi_bo: string;
+  conflict_ten_hang_hoa: string;
+};
+
 export type UpsertSummary = {
   newCount: number;
   existingCount: number;
@@ -61,6 +70,10 @@ export type UpsertSummary = {
   // trường khác (tên hàng hóa, ĐVT...) dù import cũng có thể đổi chúng.
   newProducts: NewProductLogEntry[];
   priceChanges: PriceChangeLogEntry[];
+  // Mã vạch/Mã thùng trong file trùng với 1 sản phẩm KHÁC đã có sẵn — dòng đó
+  // vẫn được nhập bình thường (mọi trường khác), riêng trường trùng bị giữ
+  // nguyên giá trị cũ và chờ Kế toán/Admin duyệt (xem checkFieldConflicts).
+  fieldRequests: FieldRequestLogEntry[];
 };
 
 export type ImportSummary = UpsertSummary & { skippedSheets: string[]; skippedIncomplete: number };
@@ -88,7 +101,14 @@ function cellValue(raw: ExcelJS.CellValue): string | number | null {
 
 // Parses a workbook shaped like "Misa hàng hóa/1. Quản lý hàng hóa hợp nhất.xlsx":
 // one sheet per CATEGORY_ORDER entry, columns matching COLUMN_TO_FIELD headers.
-export async function importProductsFromWorkbook(buffer: Buffer, mode: ImportMode = "new-only"): Promise<ImportSummary> {
+// actorId: người đang thực hiện import (nếu có) — gắn vào proposed_by của các
+// yêu cầu duyệt Mã vạch/Mã thùng được tạo ra; null khi chạy tự động (Google
+// Sheet sync) không có người dùng cụ thể đứng sau.
+export async function importProductsFromWorkbook(
+  buffer: Buffer,
+  mode: ImportMode = "new-only",
+  actorId: string | null = null
+): Promise<ImportSummary> {
   const workbook = new ExcelJS.Workbook();
   const arrayBuffer = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength) as ArrayBuffer;
   const cleaned = await stripXlsxDrawings(arrayBuffer);
@@ -140,7 +160,7 @@ export async function importProductsFromWorkbook(buffer: Buffer, mode: ImportMod
     });
   }
 
-  const summary = await upsertProductRows(rows, mode);
+  const summary = await upsertProductRows(rows, mode, actorId);
   return { ...summary, skippedSheets, skippedIncomplete };
 }
 
@@ -173,6 +193,40 @@ function checkDuplicates(rows: ProductRow[], field: "ma_noi_bo" | "ma_vach" | "m
   }
 }
 
+const UNIQUE_SOFT_FIELDS = ["ma_vach", "ma_thung"] as const;
+type UniqueSoftField = (typeof UNIQUE_SOFT_FIELDS)[number];
+
+function fieldValueOf(row: Record<string, string | number | null>, field: string): string | null {
+  const v = row[field];
+  if (v === null || v === undefined || v === "") return null;
+  return String(v);
+}
+
+// Tra xem mỗi giá trị (Mã vạch/Mã thùng) xuất hiện trong file hiện đang
+// thuộc mã nội bộ nào trong database — dùng để phát hiện trước xung đột với
+// 1 sản phẩm KHÁC, thay vì để lỗi unique constraint thô văng ra giữa chừng
+// batch upsert (không nói rõ trùng với ai, chặn luôn cả các dòng khác trong
+// cùng batch).
+async function findFieldOwners(
+  supabase: ReturnType<typeof supabaseAdmin>,
+  field: UniqueSoftField,
+  values: string[]
+): Promise<Map<string, { ma_noi_bo: string; ten_hang_hoa: string }>> {
+  const map = new Map<string, { ma_noi_bo: string; ten_hang_hoa: string }>();
+  const uniqueValues = [...new Set(values)];
+  const BATCH = 200;
+  for (let i = 0; i < uniqueValues.length; i += BATCH) {
+    const chunk = uniqueValues.slice(i, i + BATCH);
+    const { data, error } = await supabase.from("products").select(`ma_noi_bo, ten_hang_hoa, ${field}`).in(field, chunk);
+    if (error) throw new Error(`Kiểm tra ${field === "ma_vach" ? "Mã vạch" : "Mã thùng"} trùng thất bại: ${error.message}`);
+    for (const row of data ?? []) {
+      const value = (row as Record<string, unknown>)[field] as string;
+      map.set(value, { ma_noi_bo: row.ma_noi_bo as string, ten_hang_hoa: row.ten_hang_hoa as string });
+    }
+  }
+  return map;
+}
+
 // Shared by both the Excel import and the Google Sheet sync: takes rows
 // already parsed into our column shape and upserts them into `products`.
 //
@@ -185,7 +239,11 @@ function checkDuplicates(rows: ProductRow[], field: "ma_noi_bo" | "ma_vach" | "m
 // - "update-all": upserts every row, overwriting existing products with the
 //   source's values — for when the source really is the source of truth to
 //   sync from (deliberate bulk corrections, or the Google Sheet sync).
-export async function upsertProductRows(rows: ProductRow[], mode: ImportMode): Promise<UpsertSummary> {
+export async function upsertProductRows(
+  rows: ProductRow[],
+  mode: ImportMode,
+  actorId: string | null = null
+): Promise<UpsertSummary> {
   checkDuplicates(rows, "ma_noi_bo", "Mã nội bộ");
   checkDuplicates(rows, "ma_vach", "Mã vạch");
   checkDuplicates(rows, "ma_thung", "Mã thùng");
@@ -216,14 +274,17 @@ export async function upsertProductRows(rows: ProductRow[], mode: ImportMode): P
   // well under any reasonable IN-clause size. Also fetch giá cũ ngay trong
   // cùng lượt tra cứu này (không tốn thêm round-trip) để có thể so giá
   // cũ/mới cho việc ghi Nhật ký hoạt động ở tầng route.
-  const existingByCode = new Map<string, { ten_hang_hoa: string | null; gia_ban: number | null; gia_thung: number | null }>();
+  const existingByCode = new Map<
+    string,
+    { ten_hang_hoa: string | null; gia_ban: number | null; gia_thung: number | null; ma_vach: string | null; ma_thung: string | null }
+  >();
   const allCodes = productRows.map((r) => r.ma_noi_bo as string);
   const LOOKUP_BATCH = 200;
   for (let i = 0; i < allCodes.length; i += LOOKUP_BATCH) {
     const chunk = allCodes.slice(i, i + LOOKUP_BATCH);
     const { data: existing, error: existingError } = await supabase
       .from("products")
-      .select("ma_noi_bo, ten_hang_hoa, gia_ban, gia_thung")
+      .select("ma_noi_bo, ten_hang_hoa, gia_ban, gia_thung, ma_vach, ma_thung")
       .in("ma_noi_bo", chunk);
     if (existingError) throw new Error(`Kiểm tra sản phẩm đã tồn tại thất bại: ${existingError.message}`);
     for (const row of existing ?? []) {
@@ -231,10 +292,46 @@ export async function upsertProductRows(rows: ProductRow[], mode: ImportMode): P
         ten_hang_hoa: (row.ten_hang_hoa as string | null) ?? null,
         gia_ban: (row.gia_ban as number | null) ?? null,
         gia_thung: (row.gia_thung as number | null) ?? null,
+        ma_vach: (row.ma_vach as string | null) ?? null,
+        ma_thung: (row.ma_thung as string | null) ?? null,
       });
     }
   }
   const existingSet = new Set(existingByCode.keys());
+
+  // Mã vạch/Mã thùng trong file trùng với 1 sản phẩm KHÁC (mã nội bộ khác) —
+  // giữ nguyên giá trị cũ cho lần ghi này (không chặn cả dòng, không đè lên
+  // sản phẩm khác), đồng thời gom lại để tạo yêu cầu chờ duyệt sau khi upsert
+  // xong (cần product_id — với sản phẩm mới, id chỉ có sau khi insert).
+  const fieldRequestsPending: {
+    ma_noi_bo: string;
+    field: UniqueSoftField;
+    old_value: string | null;
+    proposed_value: string;
+    conflict_ma_noi_bo: string;
+    conflict_ten_hang_hoa: string;
+  }[] = [];
+  for (const field of UNIQUE_SOFT_FIELDS) {
+    const values = productRows.map((r) => fieldValueOf(r, field)).filter((v): v is string => v !== null);
+    if (values.length === 0) continue;
+    const owners = await findFieldOwners(supabase, field, values);
+    for (const row of productRows) {
+      const value = fieldValueOf(row, field);
+      if (value === null) continue;
+      const owner = owners.get(value);
+      if (!owner || owner.ma_noi_bo === row.ma_noi_bo) continue; // không trùng, hoặc trùng với chính sản phẩm này (không đổi gì)
+      const oldValue = existingByCode.get(row.ma_noi_bo as string)?.[field] ?? null;
+      fieldRequestsPending.push({
+        ma_noi_bo: row.ma_noi_bo as string,
+        field,
+        old_value: oldValue,
+        proposed_value: value,
+        conflict_ma_noi_bo: owner.ma_noi_bo,
+        conflict_ten_hang_hoa: owner.ten_hang_hoa,
+      });
+      row[field] = oldValue; // giữ nguyên giá trị cũ (null với sản phẩm mới) — chờ duyệt mới đổi thật
+    }
+  }
 
   const newCount = productRows.filter((r) => !existingSet.has(r.ma_noi_bo as string)).length;
   const existingCount = productRows.length - newCount;
@@ -246,6 +343,13 @@ export async function upsertProductRows(rows: ProductRow[], mode: ImportMode): P
   if (mode === "new-only") {
     productRows = productRows.filter((r) => !existingSet.has(r.ma_noi_bo as string));
   }
+
+  // Ở mode "new-only", sản phẩm đã tồn tại hoàn toàn không bị đụng tới — nên
+  // bỏ luôn các yêu cầu chờ duyệt đã gom cho những sản phẩm đó (không có gì
+  // thật sự thay đổi để chờ duyệt).
+  const fieldRequestsToApply =
+    mode === "new-only" ? fieldRequestsPending.filter((r) => !existingSet.has(r.ma_noi_bo)) : fieldRequestsPending;
+  const tenByMaNoiBo = new Map(rows.map((r) => [r.ma_noi_bo as string, (r.ten_hang_hoa as string | null) ?? null]));
 
   // Chỉ stamp created_at cho sản phẩm THẬT SỰ mới — tách thành 2 lượt upsert
   // riêng (không trộn chung 1 mảng) vì PostgREST dùng chung 1 danh sách cột
@@ -269,16 +373,73 @@ export async function upsertProductRows(rows: ProductRow[], mode: ImportMode): P
     .filter((c) => c.gia_ban_cu !== c.gia_ban_moi || c.gia_thung_cu !== c.gia_thung_moi);
 
   const BATCH = 200;
+  // Lấy lại id ngay trong response upsert — cần để tạo yêu cầu chờ duyệt
+  // Mã vạch/Mã thùng bên dưới (product_id là FK bắt buộc, sản phẩm mới chỉ
+  // có id sau khi insert xong).
+  const idByMaNoiBo = new Map<string, string>();
   for (const [label, group] of [
     ["sản phẩm mới", newRows],
     ["sản phẩm cập nhật", existingRows],
   ] as const) {
     for (let i = 0; i < group.length; i += BATCH) {
       const chunk = group.slice(i, i + BATCH);
-      const { error } = await supabase.from("products").upsert(chunk, { onConflict: "ma_noi_bo" });
+      const { data, error } = await supabase.from("products").upsert(chunk, { onConflict: "ma_noi_bo" }).select("id, ma_noi_bo");
       if (error) throw new Error(`Nhập sản phẩm thất bại (${label}, dòng ${i + 1}-${i + chunk.length}): ${error.message}`);
+      for (const row of data ?? []) idByMaNoiBo.set(row.ma_noi_bo as string, row.id as string);
     }
   }
 
-  return { newCount, existingCount, brandsUpserted: brandNames.length, newProducts, priceChanges };
+  const fieldRequests: FieldRequestLogEntry[] = [];
+  if (fieldRequestsToApply.length > 0) {
+    const candidates = fieldRequestsToApply
+      .map((r) => ({ ...r, product_id: idByMaNoiBo.get(r.ma_noi_bo) }))
+      .filter((r): r is typeof r & { product_id: string } => !!r.product_id);
+
+    // Nhập lại file (vd sửa dòng khác rồi upload lại trong lúc yêu cầu cũ
+    // vẫn "pending") không nên tạo thêm 1 yêu cầu trùng cho cùng sản phẩm +
+    // trường đó — cập nhật đè lên yêu cầu cũ thay vì insert thêm dòng mới.
+    const affectedProductIds = [...new Set(candidates.map((r) => r.product_id))];
+    const { data: existingPending } = await supabase
+      .from("product_field_requests")
+      .select("id, product_id, field")
+      .eq("status", "pending")
+      .in("product_id", affectedProductIds);
+    const pendingIdByKey = new Map((existingPending ?? []).map((r) => [`${r.product_id}|${r.field}`, r.id as string]));
+
+    const toInsert: Record<string, string | null>[] = [];
+    for (const c of candidates) {
+      const key = `${c.product_id}|${c.field}`;
+      const pendingId = pendingIdByKey.get(key);
+      const patch = {
+        old_value: c.old_value,
+        proposed_value: c.proposed_value,
+        conflict_ma_noi_bo: c.conflict_ma_noi_bo,
+        conflict_ten_hang_hoa: c.conflict_ten_hang_hoa,
+        proposed_by: actorId,
+        created_at: new Date().toISOString(),
+      };
+      if (pendingId) {
+        const { error } = await supabase.from("product_field_requests").update(patch).eq("id", pendingId);
+        if (error) throw new Error(`Cập nhật yêu cầu duyệt ${c.field} thất bại: ${error.message}`);
+      } else {
+        toInsert.push({ product_id: c.product_id, field: c.field, ...patch });
+      }
+      fieldRequests.push({
+        ma_noi_bo: c.ma_noi_bo,
+        ten_hang_hoa: tenByMaNoiBo.get(c.ma_noi_bo) ?? null,
+        field: c.field,
+        proposed_value: c.proposed_value,
+        conflict_ma_noi_bo: c.conflict_ma_noi_bo,
+        conflict_ten_hang_hoa: c.conflict_ten_hang_hoa,
+      });
+    }
+    const FR_BATCH = 200;
+    for (let i = 0; i < toInsert.length; i += FR_BATCH) {
+      const chunk = toInsert.slice(i, i + FR_BATCH);
+      const { error } = await supabase.from("product_field_requests").insert(chunk);
+      if (error) throw new Error(`Tạo yêu cầu duyệt Mã vạch/Mã thùng thất bại: ${error.message}`);
+    }
+  }
+
+  return { newCount, existingCount, brandsUpserted: brandNames.length, newProducts, priceChanges, fieldRequests };
 }
