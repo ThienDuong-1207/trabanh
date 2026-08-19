@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseServer";
 import { getCurrentUserRole } from "@/lib/authz";
-import { applyFieldRequestDecision } from "@/lib/productFieldRequests";
+import { applyFieldRequestDecision, FieldConflictError } from "@/lib/productFieldRequests";
 
 export const runtime = "nodejs";
 
@@ -13,7 +13,13 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
 
   try {
-    const { action, note } = (await req.json()) as { action: "approve" | "reject"; note?: string };
+    const { action, note, conflictOverride } = (await req.json()) as {
+      action: "approve" | "reject";
+      note?: string;
+      // undefined = không xử lý (còn trùng thì báo lỗi); null = xoá mã của bên
+      // đang giữ; chuỗi = gán mã đó cho bên đang giữ (xem lib/productFieldRequests.ts)
+      conflictOverride?: string | null;
+    };
     if (action !== "approve" && action !== "reject") {
       return NextResponse.json({ error: "Hành động không hợp lệ" }, { status: 400 });
     }
@@ -29,9 +35,12 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       return NextResponse.json({ error: "Đề xuất này đã được xử lý rồi" }, { status: 400 });
     }
 
-    const data = await applyFieldRequestDecision(supabase, request, action, current, note);
+    const data = await applyFieldRequestDecision(supabase, request, action, current, note, conflictOverride);
     return NextResponse.json(data);
   } catch (e: any) {
+    if (e instanceof FieldConflictError) {
+      return NextResponse.json({ error: e.message, conflict: e.conflict }, { status: 409 });
+    }
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

@@ -549,17 +549,44 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
     }
   }
 
-  async function reviewFieldRequest(id: string, action: "approve" | "reject") {
+  async function patchFieldRequest(id: string, action: "approve" | "reject", conflictOverride?: string | null) {
+    const res = await fetch(`/api/field-requests/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(conflictOverride !== undefined ? { action, conflictOverride } : { action }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      const err: any = new Error(data.error || "Xử lý thất bại");
+      err.conflict = data.conflict;
+      throw err;
+    }
+    return data;
+  }
+
+  async function reviewFieldRequest(request: ProductFieldRequest, action: "approve" | "reject") {
     if (action === "reject" && !confirm("Từ chối đề xuất Mã vạch/Mã thùng này?")) return;
-    setReviewingFieldRequestId(id);
+    setReviewingFieldRequestId(request.id);
     try {
-      const res = await fetch(`/api/field-requests/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Xử lý thất bại");
+      try {
+        await patchFieldRequest(request.id, action);
+      } catch (e: any) {
+        // Vẫn còn trùng thật tại thời điểm duyệt (thông tin trùng lúc tạo yêu
+        // cầu có thể đã cũ) — hỏi ngay cách xử lý sản phẩm đang giữ mã, gợi ý
+        // sẵn giá trị cũ của dòng đang duyệt (đúng cho trường hợp phổ biến
+        // nhất: 2 sản phẩm bị lộn mã qua lại) rồi thử duyệt lại kèm lựa chọn đó.
+        if (action === "approve" && e.conflict) {
+          const input = window.prompt(
+            `${FIELD_LABEL[request.field]} "${request.proposed_value}" hiện đang thuộc "${e.conflict.ten_hang_hoa}" (${e.conflict.ma_noi_bo}).\n` +
+              `Đổi ${FIELD_LABEL[request.field]} của sản phẩm đó sang giá trị nào? (để trống = xoá mã cũ của họ, Huỷ = không duyệt)`,
+            request.old_value ?? ""
+          );
+          if (input === null) return;
+          await patchFieldRequest(request.id, action, input.trim() === "" ? null : input.trim());
+        } else {
+          throw e;
+        }
+      }
       await Promise.all([loadFieldRequests(), action === "approve" ? loadProducts() : Promise.resolve()]);
       setFieldHistoryRefreshToken((v) => v + 1);
     } catch (e: any) {
@@ -2214,7 +2241,7 @@ function PriceRequestsView({
   historyRefreshToken: number;
   fieldRequests: ProductFieldRequest[];
   reviewingFieldRequestId: string | null;
-  onReviewField: (id: string, action: "approve" | "reject") => void;
+  onReviewField: (request: ProductFieldRequest, action: "approve" | "reject") => void;
   approvingAllFields: boolean;
   onApproveAllFields: () => Promise<boolean>;
   fieldHistoryRefreshToken: number;
@@ -2437,14 +2464,14 @@ function PriceRequestsView({
                             <button
                               className="btn btn-quiet"
                               disabled={reviewingFieldRequestId === r.id}
-                              onClick={() => onReviewField(r.id, "approve")}
+                              onClick={() => onReviewField(r, "approve")}
                             >
                               Duyệt
                             </button>
                             <button
                               className="btn btn-quiet"
                               disabled={reviewingFieldRequestId === r.id}
-                              onClick={() => onReviewField(r.id, "reject")}
+                              onClick={() => onReviewField(r, "reject")}
                             >
                               Từ chối
                             </button>
