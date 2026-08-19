@@ -3399,6 +3399,7 @@ type TransferKhoResult = {
   rows: TransferKhoRow[];
   unmatched: TransferKhoUnmatched[];
   excludedPendingCount: number;
+  excludedReturnWindowCount: number;
   excludedOutOfWindowCount: number;
 };
 
@@ -3446,6 +3447,7 @@ function TransferKhoView() {
         rows: data.rows,
         unmatched: data.unmatched,
         excludedPendingCount: data.excludedPendingCount,
+        excludedReturnWindowCount: data.excludedReturnWindowCount,
         excludedOutOfWindowCount: data.excludedOutOfWindowCount,
       });
       setLastFileName(file.name);
@@ -3463,10 +3465,13 @@ function TransferKhoView() {
         <div>
           <h1>Chuyển kho Shopee</h1>
           <p>
-            Tải lên file &quot;đơn hàng giao&quot; export từ Shopee (nên gồm ít nhất 2 ngày lịch gần nhau) — đối
-            chiếu theo cột &quot;Tên Shopee&quot; của từng sản phẩm, chỉ tính đơn đã thật sự rời kho (loại &quot;Chờ
-            giao hàng&quot;) và đúng trong khoảng <b>17:00 hôm trước → 17:00 ngày làm việc đã chọn</b> theo &quot;Thời
-            gian giao hàng&quot;, rồi tự tải về file phiếu chuyển kho Kho mặc định → SHOPEE sẵn sàng nhập vào MISA.
+            Tải lên file <b>&quot;Order.shipping&quot;</b> export từ Shopee (không dùng &quot;Order.all&quot; — file đó
+            gồm cả đơn Chờ giao hàng/Đã hủy dễ tính dư) — <b>chọn khoảng ngày đặt hàng rộng hơn mức cần</b> (lùi ít
+            nhất 5-7 ngày trước ngày làm việc cần tính, xuất dư không sao) vì có đơn đặt từ nhiều ngày trước vẫn
+            giao đúng vào ngày đang xét, xuất thiếu sẽ tính hụt. Đối chiếu theo cột &quot;Tên Shopee&quot; của
+            từng sản phẩm, chỉ tính đơn đã bán chắc chắn (loại &quot;Chờ giao hàng&quot; và đơn còn trong hạn được
+            yêu cầu trả hàng/hoàn tiền) và đúng <b>ngày làm việc đã chọn</b> theo &quot;Thời gian giao hàng&quot;,
+            rồi tự tải về file phiếu chuyển kho Kho mặc định → SHOPEE sẵn sàng nhập vào MISA.
           </p>
         </div>
       </div>
@@ -3513,6 +3518,10 @@ function TransferKhoView() {
             <div className="kpi-card">
               <div className="label">Loại — còn &quot;Chờ giao hàng&quot;</div>
               <div className="value">{result.excludedPendingCount}</div>
+            </div>
+            <div className="kpi-card">
+              <div className="label">Loại — còn hạn trả hàng</div>
+              <div className="value">{result.excludedReturnWindowCount}</div>
             </div>
             <div className="kpi-card">
               <div className="label">Loại — ngoài khoảng ngày đã chọn</div>

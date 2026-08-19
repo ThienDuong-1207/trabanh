@@ -43,6 +43,7 @@ export async function POST(req: NextRequest) {
             maCount: result.rows.length,
             unmatchedCount: result.unmatched.length,
             excludedPendingCount: result.excludedPendingCount,
+            excludedReturnWindowCount: result.excludedReturnWindowCount,
             excludedOutOfWindowCount: result.excludedOutOfWindowCount,
           },
         });
@@ -55,6 +56,7 @@ export async function POST(req: NextRequest) {
       rows: result.rows,
       unmatched: result.unmatched,
       excludedPendingCount: result.excludedPendingCount,
+      excludedReturnWindowCount: result.excludedReturnWindowCount,
       excludedOutOfWindowCount: result.excludedOutOfWindowCount,
     });
   } catch (e: any) {

@@ -17,10 +17,14 @@ const TEMPLATE_SAMPLE_ROWS = 3; // 3 dòng mẫu (MH00001..) có sẵn trong fil
 // "Ngày gửi hàng" (nếu có) chỉ là hạn chót Shopee đặt ra, không phải ngày
 // đã giao thật — không dùng cột đó để tính.
 const PENDING_STATUS = "chờ giao hàng";
-// Giờ chốt ca làm việc thật của tiệm — không đóng gói thêm sau giờ này.
-// "Ngày làm việc X" = khoảng [17:00 ngày X-1, 17:00 ngày X) theo "Thời gian
-// giao hàng", KHÔNG phải theo ngày lịch (00:00-23:59).
-const SHIFT_CUTOFF_HOUR = 17;
+// Trạng thái "khách đã nhận hàng nhưng còn trong hạn được yêu cầu trả
+// hàng/hoàn tiền" — khác PENDING_STATUS ở chỗ hàng ĐÃ rời kho vật lý thật
+// (khách đã cầm hàng), nhưng theo yêu cầu kinh doanh vẫn loại khỏi phiếu
+// chuyển kho vì chưa coi là "bán chắc chắn" cho tới khi hết hạn trả hàng —
+// xác nhận trực tiếp với chủ tiệm (không phải suy đoán). Chỉ so khớp phần
+// đầu câu vì đuôi câu có ngày hết hạn trả hàng khác nhau theo từng dòng
+// (VD "...tới ngày 2026-09-02."), không so khớp được nguyên câu.
+const RETURN_WINDOW_STATUS_PREFIX = "người mua xác nhận đã nhận được hàng";
 
 export type ShopeeOrderRow = {
   ten_san_pham: string;
@@ -42,6 +46,7 @@ export type TransferKhoResult = {
   rows: TransferKhoRow[];
   unmatched: ShopeeOrderRow[];
   excludedPendingCount: number; // số dòng bị loại vì còn "Chờ giao hàng" — hiển thị cho người dùng yên tâm không phải bị bỏ sót
+  excludedReturnWindowCount: number; // số dòng bị loại vì còn trong hạn được yêu cầu trả hàng/hoàn tiền (đã giao nhưng chưa tính bán chắc chắn)
   excludedOutOfWindowCount: number; // số dòng có Thời gian giao hàng nhưng rơi ngoài khoảng ngày làm việc đã chọn
 };
 
@@ -86,42 +91,19 @@ export function extractComboMultiplier(variationName: string | null): number {
   return m ? parseInt(m[1], 10) : 1;
 }
 
-// Số nguyên có thể so sánh trực tiếp (yyyy*1e8 + mm*1e6 + dd*1e4 + hh*1e2 + mi)
-// — cố tình KHÔNG dùng đối tượng Date: chuỗi "Thời gian giao hàng" trong file
-// Shopee là giờ Việt Nam không kèm múi giờ, nếu parse qua `new Date(...)` sẽ
-// bị hiểu theo múi giờ của máy chủ chạy code (thường là UTC trên Vercel),
-// lệch hẳn 7 tiếng so với giờ thật. Tách số trực tiếp từ chuỗi tránh hoàn
-// toàn vấn đề này.
-type TimeKey = number;
-
-function parseTimeKey(raw: string | null): TimeKey | null {
+// "Ngày làm việc X" = đúng ngày lịch X của "Thời gian giao hàng" (không phải
+// khoảng giờ 17:00 hôm trước → 17:00 hôm sau như bản trước). Đổi vì đối
+// chiếu với nhãn PDF đã in thực tế cho thấy mốc cắt cứng 17:00 sai lệch: giờ
+// bưu tá quét mã trong "Thời gian giao hàng" có độ trễ vài phút so với giờ
+// tiệm thực đóng gói xong — có lô hàng qué mã lúc 17:09 (chỉ trễ 9 phút) vẫn
+// được tiệm in nhãn/tính vào đúng ngày hôm đó, không dời sang ngày hôm sau
+// như quy tắc cũ suy luận. So ngày lịch đơn thuần khớp đúng 100% với thực tế
+// (đã đối chiếu PDF nhãn thật), trong khi mốc 17:00 làm dư/thiếu vài đơn mỗi
+// lần có lô giáp ranh giờ cắt.
+function extractDateOnly(raw: string | null): string | null {
   if (!raw) return null;
-  const m = raw.trim().match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/);
-  if (!m) return null;
-  const [, y, mo, d, h, mi] = m;
-  return Number(y) * 100000000 + Number(mo) * 1000000 + Number(d) * 10000 + Number(h) * 100 + Number(mi);
-}
-
-// "Ngày làm việc X" = khoảng [17:00 ngày X-1, 17:00 ngày X). Dùng Date.UTC +
-// getUTC* thuần túy để cộng/trừ 1 ngày lịch — chỉ dùng Date ở đây như một bộ
-// đếm ngày trừu tượng (không đại diện 1 thời điểm thật), nên không bị ảnh
-// hưởng bởi múi giờ máy chủ.
-function shiftWindowKeys(targetDateStr: string): { startKey: TimeKey; endKey: TimeKey } {
-  const m = targetDateStr.trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (!m) throw new Error(`Ngày làm việc không hợp lệ: "${targetDateStr}" (cần dạng YYYY-MM-DD)`);
-  const [, y, mo, d] = m;
-  const targetUTC = Date.UTC(Number(y), Number(mo) - 1, Number(d));
-  const prevUTC = targetUTC - 24 * 60 * 60 * 1000;
-  const keyFor = (epochMs: number) => {
-    const dt = new Date(epochMs);
-    return (
-      dt.getUTCFullYear() * 100000000 +
-      (dt.getUTCMonth() + 1) * 1000000 +
-      dt.getUTCDate() * 10000 +
-      SHIFT_CUTOFF_HOUR * 100
-    );
-  };
-  return { startKey: keyFor(prevUTC), endKey: keyFor(targetUTC) };
+  const m = raw.trim().match(/^(\d{4}-\d{2}-\d{2})/);
+  return m ? m[1] : null;
 }
 
 type ProductLookupEntry = { ma_noi_bo: string; ten_hang_hoa: string; dvt: string | null };
@@ -203,24 +185,32 @@ export async function parseShopeeOrderWorkbook(buffer: Buffer): Promise<ShopeeOr
   return rows;
 }
 
-// targetDate: "YYYY-MM-DD" — ngày làm việc muốn tính (khoảng 17:00 hôm
-// trước → 17:00 ngày này, xem shiftWindowKeys).
+// targetDate: "YYYY-MM-DD" — ngày làm việc muốn tính, so đúng ngày lịch của
+// "Thời gian giao hàng" (xem extractDateOnly).
 export async function buildTransferKhoFile(orderRows: ShopeeOrderRow[], targetDate: string): Promise<TransferKhoResult> {
-  const { startKey, endKey } = shiftWindowKeys(targetDate);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(targetDate.trim())) {
+    throw new Error(`Ngày làm việc không hợp lệ: "${targetDate}" (cần dạng YYYY-MM-DD)`);
+  }
   const lookup = await buildShopeeLookup();
 
   const aggregated = new Map<string, TransferKhoRow>();
   const unmatched = new Map<string, ShopeeOrderRow>();
   let excludedPendingCount = 0;
+  let excludedReturnWindowCount = 0;
   let excludedOutOfWindowCount = 0;
 
   for (const row of orderRows) {
-    if (row.trang_thai && normalize(row.trang_thai) === PENDING_STATUS) {
+    const trangThai = row.trang_thai ? normalize(row.trang_thai) : "";
+    if (trangThai === PENDING_STATUS) {
       excludedPendingCount++;
       continue;
     }
-    const timeKey = parseTimeKey(row.thoi_gian_giao_hang);
-    if (timeKey === null || timeKey < startKey || timeKey >= endKey) {
+    if (trangThai.startsWith(RETURN_WINDOW_STATUS_PREFIX)) {
+      excludedReturnWindowCount++;
+      continue;
+    }
+    const rowDate = extractDateOnly(row.thoi_gian_giao_hang);
+    if (rowDate !== targetDate.trim()) {
       excludedOutOfWindowCount++;
       continue;
     }
@@ -272,6 +262,7 @@ export async function buildTransferKhoFile(orderRows: ShopeeOrderRow[], targetDa
     rows,
     unmatched: Array.from(unmatched.values()),
     excludedPendingCount,
+    excludedReturnWindowCount,
     excludedOutOfWindowCount,
   };
 }
