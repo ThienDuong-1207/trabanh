@@ -49,7 +49,6 @@ export type TransferKhoResult = {
 // nhận diện bằng việc mở đầu bằng "Combo <số>" hoặc "<số> <từ>", để không
 // nhầm với hương vị viết liền không dấu phẩy như "Vị hạnh nhân".
 const QTY_PHRASE_RE = /^\s*(combo\s+\d+.*|\d+\s+\S+.*)\s*$/i;
-const COMBO_COUNT_RE = /combo\s+(\d+)/i;
 
 function normalize(s: string): string {
   return s.trim().replace(/\s+/g, " ").toLowerCase();
@@ -72,9 +71,18 @@ export function buildShopeeKey(productName: string, variationName: string | null
   return normalize(base);
 }
 
+// Lấy hệ số nhân từ cụm số lượng ở cuối "Tên phân loại hàng" — không chỉ
+// nhận diện đúng chữ "combo" (VD "Combo 2 túi") mà cả cách viết khác cùng
+// dạng "<số> <từ>" ở cuối (VD "Lốc 6 chai", "Set 3") nếu seller đặt tên
+// không dùng từ "combo" — dùng chung QTY_PHRASE_RE với extractFlavor() để cả
+// 2 hàm luôn thống nhất "đâu là cụm số lượng", tránh lệch nhau khi 1 bên sửa
+// mà quên sửa bên kia.
 export function extractComboMultiplier(variationName: string | null): number {
   if (!variationName) return 1;
-  const m = variationName.match(COMBO_COUNT_RE);
+  const parts = variationName.split(",").map((p) => p.trim());
+  const last = parts[parts.length - 1] ?? "";
+  if (!QTY_PHRASE_RE.test(last)) return 1;
+  const m = last.match(/(\d+)/);
   return m ? parseInt(m[1], 10) : 1;
 }
 
