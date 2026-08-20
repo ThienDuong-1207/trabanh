@@ -103,11 +103,14 @@ function itemToRowSpecs(item: Product) {
 
   const specs: [Record<string, string>, Record<string, number | null | undefined>][] = [[retailValues, retailNum]];
 
-  // Sinh trước cấp Hộp (S: 00001) rồi tới cấp Thùng (S: 00002) — khớp thứ tự
-  // Gói → Hộp → Thùng. Giá trị "S" tăng dần theo từng dòng đơn vị phụ của
-  // cùng 1 sản phẩm — TODO: xác nhận lại đúng quy tắc này khi có ví dụ MISA
-  // thật cho sản phẩm 3 cấp (hiện chỉ suy ra từ cách dùng "00001" cho dòng
-  // phụ duy nhất ở sản phẩm 2 cấp).
+  // Cột "S" (Mã đơn vị tính chuyển đổi) KHÔNG được tự điền — dòng hướng dẫn
+  // (dòng 5) của chính file mẫu MISA "Nhập khẩu hàng hóa" ghi rõ: "Không
+  // được sửa dữ liệu của cột này, bạn có thể xóa dòng hoặc thêm dòng để
+  // trống cột này". Đây là mã nội bộ MISA tự quản lý cho từng đơn vị chuyển
+  // đổi, không phải giá trị bên ngoài tự đặt được. Trước đây code tự đoán
+  // "00001"/"00002" theo thứ tự dòng — vi phạm đúng chỉ dẫn này, là nguyên
+  // nhân gây lỗi "Không tìm thấy mã hàng hóa với mã đơn vị tính chuyển đổi
+  // tương ứng" ở một số sản phẩm. Bỏ hẳn, để trống theo đúng hướng dẫn.
   if (hasHop) {
     const hopValues: Record<string, string> = {
       A: ma,
@@ -118,7 +121,6 @@ function itemToRowSpecs(item: Product) {
       // cả cụm mô tả kèm số lượng — đây chính là lỗi thật gặp ở 2 sản phẩm
       // Bột Rau Câu (dvt_cap_2 lưu "Hộp (12 gói)"/"Hộp (10 gói)").
       I: extractUnitFromQuyCach(item.dvt_cap_2 || ""),
-      S: "00001",
     };
     const hopNum: Record<string, number | null | undefined> = { D: 0, J: item.gia_hop, T: item.ty_le_cap_2 };
     specs.push([hopValues, hopNum]);
@@ -129,7 +131,6 @@ function itemToRowSpecs(item: Product) {
       A: ma,
       C: item.ma_thung || "",
       I: extractUnitFromQuyCach(item.quy_cach || ""),
-      S: hasHop ? "00002" : "00001",
     };
     const caseNum: Record<string, number | null | undefined> = { D: 0, J: item.gia_thung, T: item.ty_le };
     specs.push([caseValues, caseNum]);
