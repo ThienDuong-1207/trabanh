@@ -69,13 +69,13 @@ create index if not exists idx_products_brand
 create index if not exists idx_products_search
   on products using gin (to_tsvector('simple', coalesce(ten_hang_hoa,'') || ' ' || coalesce(ten_hoa_don,'')));
 
--- Mã vạch / mã thùng must each be unique when present (many products don't
--- have one yet, so NULLs are excluded rather than enforced not-null).
-create unique index if not exists idx_products_ma_vach_unique
-  on products (ma_vach) where ma_vach is not null;
-
-create unique index if not exists idx_products_ma_thung_unique
-  on products (ma_thung) where ma_thung is not null;
+-- Mã vạch/Mã thùng KHÔNG còn bắt buộc duy nhất nữa — Mã nội bộ (ma_noi_bo,
+-- ràng buộc unique ở cột products.ma_noi_bo phía trên) mới là định danh duy
+-- nhất thật sự. Đã bỏ 2 unique index bên dưới theo yêu cầu (trước đây từng
+-- bắt buộc duy nhất, dẫn tới cả cơ chế "Chờ duyệt Mã vạch/Mã thùng" — nay
+-- không còn cần nữa, xem phần DROP TABLE product_field_requests bên dưới).
+drop index if exists idx_products_ma_vach_unique;
+drop index if exists idx_products_ma_thung_unique;
 
 -- Auto-update updated_at whenever a row is modified — except when the only
 -- change is last_exported_at (marking a product exported/synced isn't a data
@@ -360,43 +360,10 @@ exception
   when others then null;
 end $$;
 
--- Giai đoạn 4: nhập file Excel gặp Mã vạch/Mã thùng trùng với 1 sản phẩm
--- KHÁC đã có sẵn (idx_products_ma_vach_unique / idx_products_ma_thung_unique)
--- — thay vì chặn cả lượt nhập bằng lỗi Postgres thô, các trường khác của
--- dòng đó vẫn cập nhật bình thường, riêng trường bị trùng giữ nguyên giá trị
--- cũ và chờ Kế toán/Admin duyệt (xem lib/excelImport.ts, lib/productFieldRequests.ts).
-create table if not exists product_field_requests (
-  id uuid primary key default gen_random_uuid(),
-  product_id uuid not null references products(id) on delete cascade,
-  field text not null check (field in ('ma_vach', 'ma_thung')),
-  old_value text,
-  proposed_value text not null,
-  conflict_ma_noi_bo text,      -- mã sản phẩm hiện đang giữ proposed_value (nếu có) — cho người duyệt biết ngữ cảnh
-  conflict_ten_hang_hoa text,
-  proposed_by uuid references profiles(id) on delete set null,
-  status request_status not null default 'pending',
-  reviewed_by uuid references profiles(id) on delete set null,
-  reviewed_at timestamptz,
-  note text,
-  created_at timestamptz not null default now()
-);
-
-create index if not exists idx_field_requests_status on product_field_requests(status);
-create index if not exists idx_field_requests_product on product_field_requests(product_id);
-
-alter table product_field_requests enable row level security;
-
-drop policy if exists "Người dùng tạo đề xuất trường của mình" on product_field_requests;
-create policy "Người dùng tạo đề xuất trường của mình" on product_field_requests
-  for insert
-  with check (
-    proposed_by = auth.uid()
-    and exists (select 1 from profiles where id = auth.uid() and role is not null)
-  );
-
-drop policy if exists "Xem đề xuất trường theo quyền" on product_field_requests;
-create policy "Xem đề xuất trường theo quyền" on product_field_requests
-  for select using (
-    proposed_by = auth.uid()
-    or exists (select 1 from profiles where id = auth.uid() and role in ('accountant', 'admin'))
-  );
+-- Giai đoạn 4 (ĐÃ HUỶ): từng thêm bảng "chờ duyệt Mã vạch/Mã thùng" vì lúc đó
+-- 2 trường này bắt buộc duy nhất. Nay Mã hàng hóa (ma_noi_bo) đã là định danh
+-- duy nhất thật sự, Mã vạch/Mã thùng không cần duy nhất nữa — bỏ hẳn cơ chế
+-- chờ duyệt này, không dùng lại. CẢNH BÁO: DROP TABLE bên dưới xoá vĩnh viễn
+-- mọi lịch sử yêu cầu duyệt Mã vạch/Mã thùng đã có (nếu còn muốn giữ lại để
+-- tra cứu, đừng chạy dòng này — comment lại và bỏ qua).
+drop table if exists product_field_requests;

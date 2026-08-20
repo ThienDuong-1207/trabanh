@@ -56,24 +56,6 @@ export type PriceChangeRequest = {
   proposer?: { display_name: string | null; username: string | null } | null;
 };
 
-export type ProductFieldRequest = {
-  id: string;
-  product_id: string;
-  field: "ma_vach" | "ma_thung";
-  old_value: string | null;
-  proposed_value: string;
-  conflict_ma_noi_bo: string | null;
-  conflict_ten_hang_hoa: string | null;
-  proposed_by: string | null;
-  status: RequestStatus;
-  reviewed_by: string | null;
-  reviewed_at: string | null;
-  note: string | null;
-  created_at: string;
-  product?: { ten_hang_hoa: string; ma_noi_bo: string } | null;
-  proposer?: { display_name: string | null; username: string | null } | null;
-};
-
 export type PriceHistoryEntry = {
   id: string;
   product_id: string;
