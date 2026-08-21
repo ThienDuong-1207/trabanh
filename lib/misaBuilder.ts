@@ -45,18 +45,21 @@ function buildRow(rIdx: number, values: Record<string, string>, numValues: Recor
 
 function itemToRowSpecs(item: Product) {
   const ma = item.ma_noi_bo;
-  // Bắt buộc có gia_thung — nhiều sản phẩm (đặc biệt "Công cụ dụng cụ") điền
-  // sẵn quy_cach/ty_le chỉ để tham khảo quy cách đóng gói nhưng chưa từng bán
-  // theo Thùng (không có giá thùng, không có mã thùng riêng); nếu vẫn sinh
-  // dòng con Thùng cho các sản phẩm này, dòng đó thiếu cả giá lẫn mã vạch →
-  // MISA từ chối cập nhật (lỗi thật gặp phải với DC0001-DC0007). Không đòi
-  // thêm ma_thung vì hàng trăm sản phẩm hợp lệ khác có giá thùng nhưng không
-  // có mã thùng riêng (dùng chung mã vạch bán lẻ, chỉ đếm theo thùng).
-  const hasConv = Boolean(item.quy_cach && item.ty_le && item.gia_thung);
+  // KHÁC file Cập nhật (misaUpdateBuilder.ts): ở đây KHÔNG đòi gia_thung phải
+  // có sẵn — chỉ cần đã biết quy_cach+ty_le (tức đã biết SẼ bán theo Thùng,
+  // dù chưa chốt giá) là sinh luôn dòng con để MISA tạo cấp Thùng ngay từ lúc
+  // tạo sản phẩm. Giá bỏ trống (buildRow tự để cell rỗng khi gia_thung null)
+  // — có thể bổ sung giá sau này qua file Cập nhật, không cần tạo bù cấp Thùng
+  // lần 2. ĐANG THỬ NGHIỆM: guard cũ (đòi có giá) tồn tại vì nghi MISA có thể
+  // từ chối dòng con thiếu giá (suy ra từ lỗi DC0001-DC0007 gặp ở file Cập
+  // nhật, chưa xác nhận riêng cho file Nhập khẩu hàng hóa) — nếu MISA báo lỗi
+  // "tệp không hợp lệ"/thiếu giá khi test thật, phải khôi phục lại điều kiện
+  // `&& item.gia_thung` / `&& item.gia_hop` như cũ.
+  const hasConv = Boolean(item.quy_cach && item.ty_le);
   // Cấp Hộp (trung gian) — chỉ số ít sản phẩm bán đủ 3 cấp Gói/Túi → Hộp →
   // Thùng mới có (vd Bột Rau Câu); Gói/Hộp/Thùng dùng chung 1 mã hàng hóa,
   // nhân viên tự chọn đơn vị lúc quét trên MISA nên không cần mã vạch riêng.
-  const hasHop = Boolean(item.dvt_cap_2 && item.ty_le_cap_2 && item.gia_hop);
+  const hasHop = Boolean(item.dvt_cap_2 && item.ty_le_cap_2);
 
   const parentValues: Record<string, string> = {
     A: "Toàn chuỗi",
