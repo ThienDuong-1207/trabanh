@@ -140,7 +140,17 @@ function itemToRowSpecs(item: Product) {
       I: extractUnitFromQuyCach(item.quy_cach || ""),
       S: hasHop ? "00002" : "00001",
     };
-    const caseNum: Record<string, number | null | undefined> = { D: 0, J: item.gia_thung, T: item.ty_le };
+    // Xem chú thích tương ứng trong misaBuilder.ts: "Tỷ lệ quy đổi" (T) của
+    // MISA luôn so với đơn vị CƠ BẢN, còn ty_le trong app nhập theo nghĩa
+    // "Thùng chứa bao nhiêu Hộp" — nên khi có cấp Hộp phải nhân dồn qua
+    // ty_le_cap_2. Lỗi thật gặp phải: Sóc Vàng (54070001) hiện lên MISA sai
+    // thành "1 Thùng = 10 Túi" thay vì đúng "1 Thùng = 10 Hộp" vì thiếu bước
+    // nhân này.
+    const caseNum: Record<string, number | null | undefined> = {
+      D: 0,
+      J: item.gia_thung,
+      T: hasHop ? (item.ty_le as number) * (item.ty_le_cap_2 as number) : item.ty_le,
+    };
     specs.push([caseValues, caseNum]);
   }
   return specs;

@@ -104,8 +104,16 @@ function itemToRowSpecs(item: Product) {
       F: ma,
       Y: extractUnitFromQuyCach(item.quy_cach || ""),
     };
+    // MISA's "Tỷ lệ quy đổi" luôn tính so với đơn vị tính CƠ BẢN (dvt), không
+    // phải so với cấp Hộp trung gian. Nhưng ty_le trong app lại nhập theo
+    // nghĩa "Thùng chứa bao nhiêu Hộp" (khớp chữ trong quy_cach, vd "Thùng
+    // (10 hộp)" -> ty_le=10) — nên khi có cả cấp Hộp, phải nhân dồn qua
+    // ty_le_cap_2 mới ra đúng tỷ lệ so với đơn vị cơ bản. Phát hiện qua lỗi
+    // thật: Sóc Vàng (54070001) ty_le=10, ty_le_cap_2=10, gửi thẳng ty_le=10
+    // khiến MISA hiểu sai "1 Thùng = 10 Túi" thay vì đúng "1 Thùng = 10 Hộp"
+    // (= 100 Túi).
     const childNum: Record<string, number | null | undefined> = {
-      Z: item.ty_le,
+      Z: hasHop ? (item.ty_le as number) * (item.ty_le_cap_2 as number) : item.ty_le,
       AA: item.gia_thung,
     };
     specs.push([childValues, childNum]);
