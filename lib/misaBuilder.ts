@@ -23,7 +23,12 @@ function xmlEscape(s: string): string {
 }
 
 function buildRow(rIdx: number, values: Record<string, string>, numValues: Record<string, number | null | undefined>) {
-  const parts: string[] = [`<row r="${rIdx}" spans="1:58" ht="16.5" x14ac:dyDescent="0.25">`];
+  // Không kèm x14ac:dyDescent — bản mẫu mới (tải trực tiếp từ MISA 21/08)
+  // không khai báo namespace x14ac ở gốc <worksheet>, thêm attribute dùng
+  // prefix đó vào sẽ làm XML không hợp lệ ("unbound prefix"). Bỏ hẳn, chỉ
+  // ảnh hưởng cách Excel tự tính chiều cao dòng mặc định, không ảnh hưởng dữ
+  // liệu hay tính hợp lệ khi MISA đọc file.
+  const parts: string[] = [`<row r="${rIdx}" spans="1:58" ht="16.5">`];
   for (const [col, style] of cellsTemplate) {
     const styleAttr = style ? ` s="${style}"` : "";
     if (values[col] !== undefined && values[col] !== null && values[col] !== "") {
@@ -62,6 +67,10 @@ function itemToRowSpecs(item: Product) {
     I: (item.dvt || "").trim(),
     L: item.brand?.name || "",
     N: item.category_sheet || "",
+    // MISA thêm cột này (W) vào file mẫu sau này — không có ở bản mẫu cũ. Xác
+    // nhận qua bản mẫu mới tải trực tiếp từ MISA (21/08): toàn bộ cột từ đây
+    // trở đi lệch thêm 1 vị trí so với trước, đã cập nhật lại bên dưới.
+    W: (item.ten_hoa_don || "").trim(),
   };
   const parentNum: Record<string, number | null> = { H: item.gia_ban, J: 8 };
 
@@ -79,11 +88,11 @@ function itemToRowSpecs(item: Product) {
       // được điền kiểu mô tả "Hộp (12 gói)" giống quy_cach thay vì chỉ "Hộp",
       // mà MISA chỉ nhận đơn vị tính đơn giản (Hộp/Túi/Thùng/...), không nhận
       // cả cụm mô tả kèm số lượng.
-      X: extractUnitFromQuyCach(item.dvt_cap_2 || ""),
+      Y: extractUnitFromQuyCach(item.dvt_cap_2 || ""),
     };
     const hopNum: Record<string, number | null | undefined> = {
-      Y: item.ty_le_cap_2,
-      Z: item.gia_hop,
+      Z: item.ty_le_cap_2,
+      AA: item.gia_hop,
     };
     specs.push([hopValues, hopNum]);
   }
@@ -93,11 +102,11 @@ function itemToRowSpecs(item: Product) {
       A: "Toàn chuỗi",
       C: LOAI_HANG_CON_DVT,
       F: ma,
-      X: extractUnitFromQuyCach(item.quy_cach || ""),
+      Y: extractUnitFromQuyCach(item.quy_cach || ""),
     };
     const childNum: Record<string, number | null | undefined> = {
-      Y: item.ty_le,
-      Z: item.gia_thung,
+      Z: item.ty_le,
+      AA: item.gia_thung,
     };
     specs.push([childValues, childNum]);
   }
