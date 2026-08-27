@@ -161,7 +161,6 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
   const [exportingAll, setExportingAll] = useState<"category" | "brand" | "word" | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [dismissing, setDismissing] = useState(false);
-  const [deletingSelected, setDeletingSelected] = useState(false);
   const [importing, setImporting] = useState(false);
   const [importOnlyNew, setImportOnlyNew] = useState(false);
   const [formTarget, setFormTarget] = useState<Product | null>(null);
@@ -751,31 +750,6 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
     }
   }
 
-  async function handleDeleteSelectedProducts() {
-    if (selected.size === 0) {
-      alert("Chọn ít nhất 1 sản phẩm để xóa.");
-      return;
-    }
-    if (!confirm(`Xóa ${selected.size} sản phẩm đã chọn? Không thể hoàn tác.`)) return;
-    setDeletingSelected(true);
-    try {
-      const results = await Promise.all(
-        Array.from(selected).map(async (id) => {
-          const res = await fetch(`/api/products/${id}`, { method: "DELETE" });
-          return { id, ok: res.ok };
-        })
-      );
-      const failed = results.filter((r) => !r.ok).length;
-      await loadProducts();
-      setSelected(new Set());
-      if (failed > 0) alert(`Xóa thất bại ${failed}/${results.length} sản phẩm.`);
-    } catch (e: any) {
-      alert("Xóa thất bại: " + e.message);
-    } finally {
-      setDeletingSelected(false);
-    }
-  }
-
   const EXPORT_ALL_ROUTES: Record<"category" | "brand" | "word", { url: string; filename: string }> = {
     category: { url: "/api/export-by-category", filename: "Danh_sach_theo_loai.xlsx" },
     brand: { url: "/api/export-by-brand", filename: "Danh_sach_theo_thuong_hieu.xlsx" },
@@ -1173,11 +1147,6 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
             {tab === "pending" && (
               <button className="btn btn-danger" disabled={dismissing} onClick={dismissPending}>
                 {dismissing ? "Đang xử lý..." : "Bỏ chờ xuất file"}
-              </button>
-            )}
-            {role === "admin" && (
-              <button className="btn btn-danger" disabled={deletingSelected} onClick={handleDeleteSelectedProducts}>
-                {deletingSelected ? "Đang xóa..." : "Xóa tất cả"}
               </button>
             )}
           </div>
