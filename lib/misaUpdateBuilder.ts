@@ -51,7 +51,10 @@ function xmlEscape(s: string): string {
 }
 
 function buildRow(rIdx: number, values: Record<string, string>, numValues: Record<string, number | null | undefined>) {
-  const parts: string[] = [`<row r="${rIdx}" spans="1:27" ht="15">`];
+  // spans="1:29" — MISA thêm 2 cột mới "Là mặt hàng thuốc"/"Số đăng ký" (S,T)
+  // vào giữa file mẫu (21/08→27/08), đẩy toàn bộ cột từ "Mã đơn vị tính
+  // chuyển đổi" trở đi lệch thêm 2 vị trí — xem cellsTemplate/itemToRowSpecs.
+  const parts: string[] = [`<row r="${rIdx}" spans="1:29" ht="15">`];
   for (const [col, style] of cellsTemplate) {
     const styleAttr = style ? ` s="${style}"` : "";
     if (values[col] !== undefined && values[col] !== null && values[col] !== "") {
@@ -97,26 +100,28 @@ function itemToRowSpecs(item: Product) {
     K: TAX_RATE,
     L: item.brand?.name || "",
     P: TAX_RATE,
-    Z: (item.ten_hoa_don || item.ten_hang_hoa || "").trim(),
+    // AB (không phải Z) — MISA chèn thêm 2 cột "Là mặt hàng thuốc"/"Số đăng
+    // ký" ở giữa file mẫu, đẩy "Tên hàng hóa trên hóa đơn" từ Z sang AB.
+    AB: (item.ten_hoa_don || item.ten_hang_hoa || "").trim(),
   };
-  const retailNum: Record<string, number | null | undefined> = { D: 0, J: item.gia_ban, Y: 0 };
+  // AA (không phải Y) — cùng lý do lệch cột ở trên, "Tồn kho tối thiểu" giờ ở AA.
+  const retailNum: Record<string, number | null | undefined> = { D: 0, J: item.gia_ban, AA: 0 };
 
   const specs: [Record<string, string>, Record<string, number | null | undefined>][] = [[retailValues, retailNum]];
 
-  // Cột "S" (Mã đơn vị tính chuyển đổi) = "00001" cho đơn vị phụ đầu tiên,
-  // "00002" cho đơn vị phụ thứ 2 — XÁC NHẬN ĐÚNG bằng dữ liệu thật xuất trực
-  // tiếp từ MISA (không phải đoán): đối chiếu hàng trăm sản phẩm 2 cấp thật
-  // trong file "Nhap_khau_cap_nhat_thong_tin_hang_hoa" MISA tự xuất kèm dữ
-  // liệu hiện có, 100% dùng "00001" cho dòng Thùng. Ban đầu tưởng vi phạm chỉ
-  // dẫn "không được tự sửa cột này" của MISA nên từng bỏ hẳn giá trị này —
-  // nhưng hoá ra bỏ trống mới sai (khiến MISA không khớp được với đơn vị đã
-  // có sẵn của phần lớn sản phẩm). Lỗi "Không tìm thấy mã hàng hóa với mã đơn
-  // vị tính chuyển đổi tương ứng" ở 1 số sản phẩm KHÔNG phải do sai giá trị
-  // "00001" — mà do chính sản phẩm đó CHƯA từng có đơn vị Thùng nào trong
-  // MISA cả (xác nhận qua cùng file dữ liệu thật: 5 mã lỗi chỉ có đúng 1 dòng
-  // đơn vị bán lẻ, không có dòng Thùng) — file cập nhật chỉ sửa được đơn vị
-  // đã tồn tại sẵn, không tự tạo mới được, nên bắt buộc phải tạo tay 1 lần
-  // trong MISA trước, không sửa được bằng cách đổi giá trị cột này.
+  // Cột "U" (Mã đơn vị tính chuyển đổi — TRƯỚC là "S" cho tới khi MISA chèn
+  // thêm 2 cột "Là mặt hàng thuốc"/"Số đăng ký" vào giữa file mẫu ngày
+  // 27/08, đẩy cột này từ S sang U, và "Tỷ lệ quy đổi" từ T sang V — phát
+  // hiện qua so sánh trực tiếp 1 file MISA tự xuất mới nhất với file mẫu cũ
+  // đang dùng, lệch đúng 2 cột kể từ "Nhóm ngành nghề con" trở đi) = "00001"
+  // cho đơn vị phụ đầu tiên, "00002" cho đơn vị phụ thứ 2 — XÁC NHẬN ĐÚNG
+  // bằng dữ liệu thật xuất trực tiếp từ MISA (không phải đoán): đối chiếu
+  // hàng trăm sản phẩm 2 cấp thật trong file MISA tự xuất kèm dữ liệu hiện
+  // có, 100% dùng "00001" cho dòng Thùng. Lỗi "Không tìm thấy mã hàng hóa với
+  // mã đơn vị tính chuyển đổi tương ứng" ở 1 số sản phẩm KHÔNG phải do sai
+  // giá trị "00001" — mà do chính sản phẩm đó CHƯA từng có đơn vị Thùng nào
+  // trong MISA cả — file cập nhật chỉ sửa được đơn vị đã tồn tại sẵn, không
+  // tự tạo mới được, nên bắt buộc phải tạo tay 1 lần trong MISA trước.
   if (hasHop) {
     const hopValues: Record<string, string> = {
       A: ma,
@@ -127,9 +132,9 @@ function itemToRowSpecs(item: Product) {
       // cả cụm mô tả kèm số lượng — đây chính là lỗi thật gặp ở 2 sản phẩm
       // Bột Rau Câu (dvt_cap_2 lưu "Hộp (12 gói)"/"Hộp (10 gói)").
       I: extractUnitFromQuyCach(item.dvt_cap_2 || ""),
-      S: "00001",
+      U: "00001",
     };
-    const hopNum: Record<string, number | null | undefined> = { D: 0, J: item.gia_hop, T: item.ty_le_cap_2 };
+    const hopNum: Record<string, number | null | undefined> = { D: 0, J: item.gia_hop, V: item.ty_le_cap_2 };
     specs.push([hopValues, hopNum]);
   }
 
@@ -138,9 +143,9 @@ function itemToRowSpecs(item: Product) {
       A: ma,
       C: item.ma_thung || "",
       I: extractUnitFromQuyCach(item.quy_cach || ""),
-      S: hasHop ? "00002" : "00001",
+      U: hasHop ? "00002" : "00001",
     };
-    // Xem chú thích tương ứng trong misaBuilder.ts: "Tỷ lệ quy đổi" (T) của
+    // Xem chú thích tương ứng trong misaBuilder.ts: "Tỷ lệ quy đổi" (V) của
     // MISA luôn so với đơn vị CƠ BẢN, còn ty_le trong app nhập theo nghĩa
     // "Thùng chứa bao nhiêu Hộp" — nên khi có cấp Hộp phải nhân dồn qua
     // ty_le_cap_2. Lỗi thật gặp phải: Sóc Vàng (54070001) hiện lên MISA sai
@@ -149,7 +154,7 @@ function itemToRowSpecs(item: Product) {
     const caseNum: Record<string, number | null | undefined> = {
       D: 0,
       J: item.gia_thung,
-      T: hasHop ? (item.ty_le as number) * (item.ty_le_cap_2 as number) : item.ty_le,
+      V: hasHop ? (item.ty_le as number) * (item.ty_le_cap_2 as number) : item.ty_le,
     };
     specs.push([caseValues, caseNum]);
   }
