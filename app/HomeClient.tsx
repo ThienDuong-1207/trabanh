@@ -3072,46 +3072,17 @@ function InventoryView() {
 }
 
 type TransferKhoRow = { ma_noi_bo: string; ten_hang_hoa: string; dvt: string | null; so_luong: number };
-type TransferKhoUnmatched = { ten_san_pham: string; ten_phan_loai: string | null; so_luong: number };
-type TransferKhoResult =
-  | {
-      kind: "shopee";
-      rows: TransferKhoRow[];
-      unmatched: TransferKhoUnmatched[];
-      excludedPendingCount: number;
-      excludedReturnWindowCount: number;
-      excludedOutOfWindowCount: number;
-    }
-  | {
-      kind: "ton_kho";
-      rows: TransferKhoRow[];
-      skippedNonNegativeCount: number;
-    };
-
-// "YYYY-MM-DD" theo giờ máy khách (chủ tiệm ở VN) — dùng làm giá trị mặc
-// định cho ô chọn ngày làm việc, không dùng toISOString() vì đó là giờ UTC.
-function todayLocalDateInput(): string {
-  const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
+type TransferKhoResult = {
+  rows: TransferKhoRow[];
+  skippedNonNegativeCount: number;
+};
 
 function TransferKhoView() {
-  const [mode, setMode] = useState<"shopee" | "ton_kho">("shopee");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<TransferKhoResult | null>(null);
   const [lastFileName, setLastFileName] = useState("");
-  const [targetDate, setTargetDate] = useState(todayLocalDateInput);
-
-  function switchMode(next: "shopee" | "ton_kho") {
-    setMode(next);
-    setResult(null);
-    setError(null);
-  }
 
   async function handleFile(file: File) {
     setUploading(true);
@@ -3119,9 +3090,7 @@ function TransferKhoView() {
     try {
       const form = new FormData();
       form.append("file", file);
-      const endpoint = mode === "shopee" ? "/api/export-transfer-kho" : "/api/export-transfer-kho-ton-kho";
-      if (mode === "shopee") form.append("targetDate", targetDate);
-      const res = await fetch(endpoint, { method: "POST", body: form });
+      const res = await fetch("/api/export-transfer-kho-ton-kho", { method: "POST", body: form });
       let data: any;
       try {
         data = await res.json();
@@ -3136,18 +3105,7 @@ function TransferKhoView() {
       const blob = new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
       downloadBlob(blob, data.filename);
 
-      if (mode === "shopee") {
-        setResult({
-          kind: "shopee",
-          rows: data.rows,
-          unmatched: data.unmatched,
-          excludedPendingCount: data.excludedPendingCount,
-          excludedReturnWindowCount: data.excludedReturnWindowCount,
-          excludedOutOfWindowCount: data.excludedOutOfWindowCount,
-        });
-      } else {
-        setResult({ kind: "ton_kho", rows: data.rows, skippedNonNegativeCount: data.skippedNonNegativeCount });
-      }
+      setResult({ rows: data.rows, skippedNonNegativeCount: data.skippedNonNegativeCount });
       setLastFileName(file.name);
     } catch (e: any) {
       setError(e.message);
@@ -3162,44 +3120,17 @@ function TransferKhoView() {
       <div className="view-header">
         <div>
           <h1>Chuyển kho Shopee</h1>
-          {mode === "shopee" ? (
-            <p>
-              Tải lên file <b>&quot;Order.shipping&quot;</b> export từ Shopee (không dùng &quot;Order.all&quot; — file
-              đó gồm cả đơn Chờ giao hàng/Đã hủy dễ tính dư) — <b>chọn khoảng ngày đặt hàng rộng hơn mức cần</b> (lùi
-              ít nhất 5-7 ngày trước ngày làm việc cần tính, xuất dư không sao) vì có đơn đặt từ nhiều ngày trước vẫn
-              giao đúng vào ngày đang xét, xuất thiếu sẽ tính hụt. Đối chiếu theo cột &quot;Tên Shopee&quot; của
-              từng sản phẩm, chỉ tính đơn đã bán chắc chắn (loại &quot;Chờ giao hàng&quot; và đơn còn trong hạn được
-              yêu cầu trả hàng/hoàn tiền) và đúng <b>ngày làm việc đã chọn</b> theo &quot;Thời gian giao hàng&quot;,
-              rồi tự tải về file phiếu chuyển kho Kho mặc định → SHOPEE sẵn sàng nhập vào MISA.
-            </p>
-          ) : (
-            <p>
-              Tải lên file <b>&quot;Tổng hợp tồn kho&quot;</b> export từ MISA, lọc theo <b>Kho: SHOPEE</b>. Những mã
-              hàng hóa có <b>Cuối kỳ âm</b> (đã Xuất kho nhiều hơn đã từng Nhập kho — tức còn nợ chuyển kho) sẽ được
-              tính số lượng cần chuyển kho đúng bằng phần âm đó để đưa tồn kho SHOPEE về 0, rồi tự tải về file phiếu
-              chuyển kho Kho mặc định → SHOPEE sẵn sàng nhập vào MISA.
-            </p>
-          )}
+          <p>
+            Tải lên file <b>&quot;Tổng hợp tồn kho&quot;</b> export từ MISA, lọc theo <b>Kho: SHOPEE</b>. Những mã
+            hàng hóa có <b>Cuối kỳ âm</b> (đã Xuất kho nhiều hơn đã từng Nhập kho — tức còn nợ chuyển kho) sẽ được
+            tính số lượng cần chuyển kho đúng bằng phần âm đó để đưa tồn kho SHOPEE về 0, rồi tự tải về file phiếu
+            chuyển kho Kho mặc định → SHOPEE sẵn sàng nhập vào MISA.
+          </p>
         </div>
       </div>
 
-      <div className="panel" style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-        <button className={`btn ${mode === "shopee" ? "btn-primary" : "btn-quiet"}`} onClick={() => switchMode("shopee")}>
-          Từ đơn hàng Shopee
-        </button>
-        <button className={`btn ${mode === "ton_kho" ? "btn-primary" : "btn-quiet"}`} onClick={() => switchMode("ton_kho")}>
-          Từ Tổng hợp tồn kho
-        </button>
-      </div>
-
       <div className="panel">
-        <h3>{mode === "shopee" ? "Chọn ngày làm việc và tải file đơn hàng" : "Tải file Tổng hợp tồn kho"}</h3>
-        {mode === "shopee" && (
-          <label className="field" style={{ maxWidth: 220, marginBottom: 12 }}>
-            Ngày làm việc
-            <input type="date" value={targetDate} onChange={(e) => setTargetDate(e.target.value)} />
-          </label>
-        )}
+        <h3>Tải file Tổng hợp tồn kho</h3>
         <input
           type="file"
           accept=".xlsx"
@@ -3210,110 +3141,15 @@ function TransferKhoView() {
             if (file) handleFile(file);
           }}
         />
-        <button
-          className="btn btn-primary"
-          onClick={() => fileInputRef.current?.click()}
-          disabled={uploading || (mode === "shopee" && !targetDate)}
-        >
-          {uploading ? "Đang xử lý..." : mode === "shopee" ? "Chọn file đơn hàng" : "Chọn file Tổng hợp tồn kho"}
+        <button className="btn btn-primary" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
+          {uploading ? "Đang xử lý..." : "Chọn file Tổng hợp tồn kho"}
         </button>
         {error && (
           <p style={{ color: "var(--danger)", marginTop: 10, fontSize: "var(--text-body-sm)" }}>{error}</p>
         )}
       </div>
 
-      {result && result.kind === "shopee" && (
-        <>
-          <div className="kpi-grid">
-            <div className="kpi-card">
-              <div className="label">File vừa xử lý</div>
-              <div className="value" style={{ fontSize: 15 }}>{lastFileName}</div>
-            </div>
-            <div className="kpi-card">
-              <div className="label">Mã hàng hóa cần chuyển kho</div>
-              <div className="value">{result.rows.length}</div>
-            </div>
-            <div className="kpi-card">
-              <div className="label">Chưa khớp Tên Shopee</div>
-              <div className={`value${result.unmatched.length > 0 ? " accent" : ""}`}>{result.unmatched.length}</div>
-            </div>
-            <div className="kpi-card">
-              <div className="label">Loại — còn &quot;Chờ giao hàng&quot;</div>
-              <div className="value">{result.excludedPendingCount}</div>
-            </div>
-            <div className="kpi-card">
-              <div className="label">Loại — còn hạn trả hàng</div>
-              <div className="value">{result.excludedReturnWindowCount}</div>
-            </div>
-            <div className="kpi-card">
-              <div className="label">Loại — ngoài khoảng ngày đã chọn</div>
-              <div className="value">{result.excludedOutOfWindowCount}</div>
-            </div>
-          </div>
-
-          <div className="table-card">
-            <table className="product-table" style={{ width: "100%" }}>
-              <thead>
-                <tr>
-                  <th>Mã hàng hóa</th>
-                  <th>Tên hàng hóa</th>
-                  <th>Đơn vị tính</th>
-                  <th>Số lượng</th>
-                </tr>
-              </thead>
-              <tbody>
-                {result.rows.length === 0 ? (
-                  <tr>
-                    <td colSpan={4} className="empty-state">
-                      Không có mã hàng hóa nào khớp được — xem danh sách bên dưới để bổ sung Tên Shopee.
-                    </td>
-                  </tr>
-                ) : (
-                  result.rows.map((r) => (
-                    <tr key={r.ma_noi_bo}>
-                      <td>{r.ma_noi_bo}</td>
-                      <td>{r.ten_hang_hoa}</td>
-                      <td>{r.dvt ?? ""}</td>
-                      <td>{r.so_luong}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          {result.unmatched.length > 0 && (
-            <div className="table-card" style={{ marginTop: 18 }}>
-              <div style={{ padding: "12px 16px 0" }}>
-                <span className="pill pill-warm">
-                  <span className="dot" />
-                  Cần bổ sung cột &quot;Tên Shopee&quot; cho các dòng sau
-                </span>
-              </div>
-              <table className="product-table" style={{ width: "100%" }}>
-                <thead>
-                  <tr>
-                    <th>Tên sản phẩm (Shopee)</th>
-                    <th>Tên phân loại hàng</th>
-                    <th>Số lượng</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {result.unmatched.map((u, i) => (
-                    <tr key={i}>
-                      <td>{u.ten_san_pham}</td>
-                      <td>{u.ten_phan_loai ?? ""}</td>
-                      <td>{u.so_luong}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </>
-      )}
-
-      {result && result.kind === "ton_kho" && (
+      {result && (
         <>
           <div className="kpi-grid">
             <div className="kpi-card">
