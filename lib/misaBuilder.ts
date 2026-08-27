@@ -43,7 +43,9 @@ function buildRow(rIdx: number, values: Record<string, string>, numValues: Recor
   return parts.join("");
 }
 
-function itemToRowSpecs(item: Product) {
+export type MisaExportMode = "new" | "add_unit_only";
+
+function itemToRowSpecs(item: Product, mode: MisaExportMode) {
   const ma = item.ma_noi_bo;
   // KHÁC file Cập nhật (misaUpdateBuilder.ts): ở đây KHÔNG đòi gia_thung phải
   // có sẵn — chỉ cần đã biết quy_cach+ty_le (tức đã biết SẼ bán theo Thùng,
@@ -77,7 +79,14 @@ function itemToRowSpecs(item: Product) {
   };
   const parentNum: Record<string, number | null> = { H: item.gia_ban, J: 8 };
 
-  const specs: [Record<string, string>, Record<string, number | null | undefined>][] = [[parentValues, parentNum]];
+  // mode "add_unit_only": mã cha ĐÃ tồn tại sẵn trên MISA — gửi lại dòng cha
+  // sẽ bị MISA từ chối ("Mã hàng hóa đã tồn tại") và kéo theo từ chối luôn cả
+  // dòng con Thùng/Hộp đi kèm ("...vui lòng sử dụng tính năng nhập khẩu cập
+  // nhật") — xác nhận bằng lỗi thật (801/805 dòng lỗi khi xuất lẫn cả 2 loại
+  // trong 1 lần). Chỉ gửi đúng dòng con (F: ma vẫn tham chiếu đúng mã cha có
+  // sẵn) để MISA thêm cấp đơn vị còn thiếu mà không đụng tới dòng cha.
+  const specs: [Record<string, string>, Record<string, number | null | undefined>][] =
+    mode === "new" ? [[parentValues, parentNum]] : [];
 
   // Sinh trước cấp Hộp rồi tới cấp Thùng — khớp thứ tự Gói → Hộp → Thùng.
   // Cả 2 đều là dòng "con" độc lập tham chiếu thẳng về mã cha (F: ma), không
@@ -124,10 +133,10 @@ function itemToRowSpecs(item: Product) {
   return specs;
 }
 
-export async function buildMisaFile(items: Product[]): Promise<Buffer> {
+export async function buildMisaFile(items: Product[], mode: MisaExportMode = "new"): Promise<Buffer> {
   const allSpecs: [Record<string, string>, Record<string, number | null | undefined>][] = [];
   for (const it of items) {
-    allSpecs.push(...itemToRowSpecs(it));
+    allSpecs.push(...itemToRowSpecs(it, mode));
   }
   const newRows = allSpecs.map(([v, nv], i) => buildRow(6 + i, v, nv)).join("");
 

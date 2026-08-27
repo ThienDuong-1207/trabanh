@@ -152,7 +152,7 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
   const [approvingAll, setApprovingAll] = useState(false);
   const [completeDraftTarget, setCompleteDraftTarget] = useState<Product | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [exporting, setExporting] = useState<"misa" | "word" | "misa-update" | "vertical" | null>(null);
+  const [exporting, setExporting] = useState<"misa" | "misa-add-unit" | "word" | "misa-update" | "vertical" | null>(null);
   const [exportingRollLabel, setExportingRollLabel] = useState(false);
   const [quoteModalOpen, setQuoteModalOpen] = useState(false);
   const [exportingQuote, setExportingQuote] = useState(false);
@@ -603,17 +603,20 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
     }
   }, [someVisibleSelected, allVisibleSelected]);
 
-  async function doExport(kind: "misa" | "word" | "misa-update" | "vertical") {
+  async function doExport(kind: "misa" | "misa-add-unit" | "word" | "misa-update" | "vertical") {
     if (selected.size === 0) {
       alert("Chọn ít nhất 1 sản phẩm để xuất file.");
       return;
     }
     setExporting(kind);
     try {
-      const res = await fetch(`/api/export-${kind}`, {
+      const endpoint = kind === "misa-add-unit" ? "misa" : kind;
+      const body: Record<string, unknown> = { ids: Array.from(selected) };
+      if (kind === "misa-add-unit") body.mode = "add_unit_only";
+      const res = await fetch(`/api/export-${endpoint}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids: Array.from(selected) }),
+        body: JSON.stringify(body),
       });
       if (!res.ok) {
         const t = await res.text();
@@ -622,6 +625,7 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
       const blob = await res.blob();
       const filenames = {
         misa: "MISA_Nhap_khau_hang_hoa.xlsx",
+        "misa-add-unit": "MISA_Nhap_khau_bo_sung_don_vi.xlsx",
         word: "Bang_gia_block_7.7x4cm_Update.docx",
         "misa-update": "MISA_Cap_nhat_thong_tin.xlsx",
         vertical: "Bang_gia_dung.pdf",
@@ -1099,6 +1103,15 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
                   >
                     <SheetIcon />
                     Xuất MISA_Nhập khẩu hàng hóa
+                  </button>
+                  <button
+                    onClick={() => {
+                      setExportMenuOpen(false);
+                      doExport("misa-add-unit");
+                    }}
+                  >
+                    <SheetIcon />
+                    Xuất MISA_Bổ sung đơn vị (hàng đã có sẵn)
                   </button>
                   <button
                     onClick={() => {

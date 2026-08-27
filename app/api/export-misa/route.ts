@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseServer";
-import { buildMisaFile } from "@/lib/misaBuilder";
+import { buildMisaFile, MisaExportMode } from "@/lib/misaBuilder";
 import { Product } from "@/lib/types";
 
 export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
   try {
-    const { ids } = (await req.json()) as { ids: string[] };
+    const { ids, mode } = (await req.json()) as { ids: string[]; mode?: MisaExportMode };
     if (!ids || ids.length === 0) {
       return NextResponse.json({ error: "Chưa chọn sản phẩm nào" }, { status: 400 });
     }
@@ -16,11 +16,12 @@ export async function POST(req: NextRequest) {
     const { data, error } = await supabase.from("products").select("*, brand:brands(name)").in("id", ids);
     if (error) throw error;
 
-    const buf = await buildMisaFile(data as Product[]);
+    const buf = await buildMisaFile(data as Product[], mode === "add_unit_only" ? "add_unit_only" : "new");
+    const filename = mode === "add_unit_only" ? "MISA_Nhap_khau_bo_sung_don_vi.xlsx" : "MISA_Nhap_khau_hang_hoa.xlsx";
     return new NextResponse(new Uint8Array(buf), {
       headers: {
         "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        "Content-Disposition": `attachment; filename="MISA_Nhap_khau_hang_hoa.xlsx"`,
+        "Content-Disposition": `attachment; filename="${filename}"`,
       },
     });
   } catch (e: any) {
