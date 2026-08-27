@@ -1081,15 +1081,6 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
                   <button
                     onClick={() => {
                       setExportMenuOpen(false);
-                      doExport("misa-add-unit");
-                    }}
-                  >
-                    <SheetIcon />
-                    Xuất MISA_Bổ sung đơn vị (hàng đã có sẵn)
-                  </button>
-                  <button
-                    onClick={() => {
-                      setExportMenuOpen(false);
                       doExport("misa-update");
                     }}
                   >
