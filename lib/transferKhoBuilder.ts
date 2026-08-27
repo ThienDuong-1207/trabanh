@@ -68,11 +68,18 @@ async function writeTransferKhoWorkbook(rows: TransferKhoRow[]): Promise<Buffer>
 }
 
 // Đọc file MISA "Tổng hợp tồn kho" (báo cáo tồn kho lọc theo Kho: SHOPEE) —
-// mỗi mã hàng hóa lặp lại 2 dòng (1 dòng tên hàng hóa thật + 1 dòng phụ tên
-// "SHOPEE" giống hệt số liệu, do MISA tự chia theo kho khi báo cáo chỉ lọc 1
-// kho) — chỉ giữ dòng đầu tiên gặp của mỗi mã, bỏ dòng lặp. Đọc thẳng theo
+// mỗi mã hàng hóa in ra 2 dòng: 1 dòng TỔNG (cột Tên hàng hóa = tên sản phẩm
+// thật) và ngay dưới là dòng CHI TIẾT theo kho (cột Tên hàng hóa bị thay bằng
+// đúng tên kho "SHOPEE") — đây không phải 2 dòng trùng lặp để bỏ bớt 1, mà
+// dòng tổng = tổng của (các) dòng chi tiết theo từng kho bên dưới nó. Số
+// Xuất kho luôn phải lấy từ đúng dòng "SHOPEE" (không lấy dòng tổng), vì nếu
+// sau này file không còn lọc cứng theo đúng 1 kho, dòng tổng có thể cộng gộp
+// nhiều kho khác chứ không chỉ riêng SHOPEE. Tên hàng hóa/Đơn vị tính vẫn lấy
+// từ dòng tổng vì dòng "SHOPEE" không có tên sản phẩm thật. Đọc thẳng theo
 // tên cột (dò header, không phụ thuộc thứ tự cột) nên vẫn dùng được cả với
 // file rút gọn chỉ có 4 cột (Tên/Mã/ĐVT/Xuất kho), không cần Đầu kỳ/Cuối kỳ.
+const KHO_ROW_LABEL = "shopee";
+
 export async function parseTonKhoWorkbook(buffer: Buffer): Promise<TonKhoRow[]> {
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(buffer as unknown as ArrayBuffer);
@@ -105,34 +112,57 @@ export async function parseTonKhoWorkbook(buffer: Buffer): Promise<TonKhoRow[]> 
     );
   }
 
-  const rows: TonKhoRow[] = [];
-  const seen = new Set<string>();
+  type Acc = { ten_hang_hoa: string; dvt: string | null; xuatKhoShopee: number | null; xuatKhoTong: number | null };
+  const byMa = new Map<string, Acc>();
+  const order: string[] = [];
+
   for (let r = headerRow + 1; r <= sheet.rowCount; r++) {
     const row = sheet.getRow(r);
     const ma = cellText(row.getCell(colMa));
-    if (!ma || seen.has(ma)) continue;
+    if (!ma) continue;
     const xuatKho = Number(cellText(row.getCell(colXuatKho)));
     if (!Number.isFinite(xuatKho)) continue;
-    seen.add(ma);
-    rows.push({
-      ma_noi_bo: ma,
-      ten_hang_hoa: colTen ? cellText(row.getCell(colTen)) : "",
-      dvt: colDvt ? cellText(row.getCell(colDvt)) || null : null,
-      xuat_kho: xuatKho,
-    });
+
+    const tenCell = colTen ? cellText(row.getCell(colTen)) : "";
+    const isKhoRow = tenCell.trim().toLowerCase() === KHO_ROW_LABEL;
+
+    let acc = byMa.get(ma);
+    if (!acc) {
+      acc = { ten_hang_hoa: "", dvt: colDvt ? cellText(row.getCell(colDvt)) || null : null, xuatKhoShopee: null, xuatKhoTong: null };
+      byMa.set(ma, acc);
+      order.push(ma);
+    }
+    if (isKhoRow) {
+      acc.xuatKhoShopee = xuatKho;
+    } else {
+      acc.ten_hang_hoa = tenCell;
+      acc.xuatKhoTong = xuatKho;
+    }
   }
-  return rows;
+
+  // Ưu tiên đúng dòng "SHOPEE"; nếu vì lý do gì đó không có dòng đó (file
+  // không theo đúng cấu trúc thường gặp), tạm dùng dòng tổng để không mất
+  // hẳn dữ liệu, còn hơn bỏ sót cả mã.
+  return order.map((ma) => {
+    const acc = byMa.get(ma)!;
+    return {
+      ma_noi_bo: ma,
+      ten_hang_hoa: acc.ten_hang_hoa,
+      dvt: acc.dvt,
+      xuat_kho: acc.xuatKhoShopee ?? acc.xuatKhoTong ?? 0,
+    };
+  });
 }
 
 // Số lượng cần chuyển kho = đúng bằng số đã "Xuất kho" trong ngày — không
 // dùng Đầu kỳ/Cuối kỳ nữa (theo yêu cầu: chỉ tính đúng số đã bán ra hôm đó,
 // không cộng dồn công nợ chuyển kho từ các ngày trước).
 export async function buildTransferKhoFromTonKho(tonKhoRows: TonKhoRow[]): Promise<TransferKhoFromTonKhoResult> {
-  const positive = tonKhoRows.filter((r) => r.xuat_kho > 0);
-  const rows: TransferKhoRow[] = positive
+  const nonZero = tonKhoRows.filter((r) => r.xuat_kho !== 0);
+  const rows: TransferKhoRow[] = nonZero
     .map((r) => ({ ma_noi_bo: r.ma_noi_bo, ten_hang_hoa: r.ten_hang_hoa, dvt: r.dvt, so_luong: r.xuat_kho }))
     .sort((a, b) => a.ma_noi_bo.localeCompare(b.ma_noi_bo));
 
   const file = await writeTransferKhoWorkbook(rows);
-  return { file, rows, skippedZeroCount: tonKhoRows.length - positive.length };
+  return { file, rows, skippedZeroCount: tonKhoRows.length - nonZero.length };
 }
