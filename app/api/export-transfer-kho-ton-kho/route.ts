@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
           detail: {
             fileName: file.name,
             maCount: result.rows.length,
-            skippedNonNegativeCount: result.skippedNonNegativeCount,
+            skippedZeroCount: result.skippedZeroCount,
           },
         });
       }
@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
       file: result.file.toString("base64"),
       filename: `Nhap_khau_chi_tiet_hang_hoa_chuyen_kho_${today}.xlsx`,
       rows: result.rows,
-      skippedNonNegativeCount: result.skippedNonNegativeCount,
+      skippedZeroCount: result.skippedZeroCount,
     });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });

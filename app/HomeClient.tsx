@@ -3047,7 +3047,7 @@ function InventoryView() {
 type TransferKhoRow = { ma_noi_bo: string; ten_hang_hoa: string; dvt: string | null; so_luong: number };
 type TransferKhoResult = {
   rows: TransferKhoRow[];
-  skippedNonNegativeCount: number;
+  skippedZeroCount: number;
 };
 
 function TransferKhoView() {
@@ -3078,7 +3078,7 @@ function TransferKhoView() {
       const blob = new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
       downloadBlob(blob, data.filename);
 
-      setResult({ rows: data.rows, skippedNonNegativeCount: data.skippedNonNegativeCount });
+      setResult({ rows: data.rows, skippedZeroCount: data.skippedZeroCount });
       setLastFileName(file.name);
     } catch (e: any) {
       setError(e.message);
@@ -3094,10 +3094,9 @@ function TransferKhoView() {
         <div>
           <h1>Chuyển kho Shopee</h1>
           <p>
-            Tải lên file <b>&quot;Tổng hợp tồn kho&quot;</b> export từ MISA, lọc theo <b>Kho: SHOPEE</b>. Những mã
-            hàng hóa có <b>Cuối kỳ âm</b> (đã Xuất kho nhiều hơn đã từng Nhập kho — tức còn nợ chuyển kho) sẽ được
-            tính số lượng cần chuyển kho đúng bằng phần âm đó để đưa tồn kho SHOPEE về 0, rồi tự tải về file phiếu
-            chuyển kho Kho mặc định → SHOPEE sẵn sàng nhập vào MISA.
+            Tải lên file <b>&quot;Tổng hợp tồn kho&quot;</b> export từ MISA, lọc theo <b>Kho: SHOPEE</b> (chỉ cần có
+            cột &quot;Xuất kho&quot;, không cần Đầu kỳ/Cuối kỳ). Số lượng cần chuyển kho = đúng số đã Xuất kho trong
+            ngày cho từng mã, rồi tự tải về file phiếu chuyển kho Kho mặc định → SHOPEE sẵn sàng nhập vào MISA.
           </p>
         </div>
       </div>
@@ -3134,8 +3133,8 @@ function TransferKhoView() {
               <div className="value">{result.rows.length}</div>
             </div>
             <div className="kpi-card">
-              <div className="label">Mã đã đủ (Cuối kỳ ≥ 0)</div>
-              <div className="value">{result.skippedNonNegativeCount}</div>
+              <div className="label">Mã có Xuất kho = 0</div>
+              <div className="value">{result.skippedZeroCount}</div>
             </div>
           </div>
 

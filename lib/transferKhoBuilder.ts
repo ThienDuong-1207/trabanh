@@ -21,13 +21,13 @@ export type TonKhoRow = {
   ma_noi_bo: string;
   ten_hang_hoa: string;
   dvt: string | null;
-  cuoi_ky: number;
+  xuat_kho: number;
 };
 
 export type TransferKhoFromTonKhoResult = {
   file: Buffer;
   rows: TransferKhoRow[];
-  skippedNonNegativeCount: number; // số mã có Cuối kỳ >= 0, không cần chuyển thêm
+  skippedZeroCount: number; // số mã có Xuất kho = 0, không cần chuyển
 };
 
 function cellText(cell: ExcelJS.Cell): string {
@@ -71,9 +71,8 @@ async function writeTransferKhoWorkbook(rows: TransferKhoRow[]): Promise<Buffer>
 // mỗi mã hàng hóa lặp lại 2 dòng (1 dòng tên hàng hóa thật + 1 dòng phụ tên
 // "SHOPEE" giống hệt số liệu, do MISA tự chia theo kho khi báo cáo chỉ lọc 1
 // kho) — chỉ giữ dòng đầu tiên gặp của mỗi mã, bỏ dòng lặp. Đọc thẳng theo
-// tên cột (dò header, không phụ thuộc thứ tự cột) nên không bị ảnh hưởng bởi
-// việc MISA ẩn sẵn cột Đầu kỳ/Nhập kho/Cuối kỳ trong file xuất — ẩn cột chỉ
-// ảnh hưởng hiển thị, dữ liệu vẫn đọc được bình thường.
+// tên cột (dò header, không phụ thuộc thứ tự cột) nên vẫn dùng được cả với
+// file rút gọn chỉ có 4 cột (Tên/Mã/ĐVT/Xuất kho), không cần Đầu kỳ/Cuối kỳ.
 export async function parseTonKhoWorkbook(buffer: Buffer): Promise<TonKhoRow[]> {
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(buffer as unknown as ArrayBuffer);
@@ -83,7 +82,7 @@ export async function parseTonKhoWorkbook(buffer: Buffer): Promise<TonKhoRow[]> 
   let colTen: number | undefined;
   let colMa: number | undefined;
   let colDvt: number | undefined;
-  let colCuoiKy: number | undefined;
+  let colXuatKho: number | undefined;
   let headerRow = -1;
   for (let r = 1; r <= Math.min(10, sheet.rowCount); r++) {
     const found = new Map<string, number>();
@@ -91,18 +90,18 @@ export async function parseTonKhoWorkbook(buffer: Buffer): Promise<TonKhoRow[]> 
       const text = cellText(cell);
       if (text) found.set(text, colNumber);
     });
-    if (found.has("Mã hàng hóa") && found.has("Cuối kỳ")) {
+    if (found.has("Mã hàng hóa") && found.has("Xuất kho")) {
       headerRow = r;
       colTen = found.get("Tên hàng hóa");
       colMa = found.get("Mã hàng hóa");
       colDvt = found.get("Đơn vị tính");
-      colCuoiKy = found.get("Cuối kỳ");
+      colXuatKho = found.get("Xuất kho");
       break;
     }
   }
-  if (headerRow === -1 || !colMa || !colCuoiKy) {
+  if (headerRow === -1 || !colMa || !colXuatKho) {
     throw new Error(
-      'File không đúng định dạng "Tổng hợp tồn kho" MISA — thiếu cột "Mã hàng hóa"/"Cuối kỳ" (nhớ bấm hiện lại cột nếu đang ẩn trước khi kiểm tra thủ công, code vẫn đọc được dù ẩn)'
+      'File không đúng định dạng "Tổng hợp tồn kho" MISA — thiếu cột "Mã hàng hóa"/"Xuất kho"'
     );
   }
 
@@ -112,29 +111,28 @@ export async function parseTonKhoWorkbook(buffer: Buffer): Promise<TonKhoRow[]> 
     const row = sheet.getRow(r);
     const ma = cellText(row.getCell(colMa));
     if (!ma || seen.has(ma)) continue;
-    const cuoiKy = Number(cellText(row.getCell(colCuoiKy)));
-    if (!Number.isFinite(cuoiKy)) continue;
+    const xuatKho = Number(cellText(row.getCell(colXuatKho)));
+    if (!Number.isFinite(xuatKho)) continue;
     seen.add(ma);
     rows.push({
       ma_noi_bo: ma,
       ten_hang_hoa: colTen ? cellText(row.getCell(colTen)) : "",
       dvt: colDvt ? cellText(row.getCell(colDvt)) || null : null,
-      cuoi_ky: cuoiKy,
+      xuat_kho: xuatKho,
     });
   }
   return rows;
 }
 
-// Số lượng cần chuyển kho = trị tuyệt đối phần Cuối kỳ âm, để đưa tồn kho
-// SHOPEE về đúng 0 — Cuối kỳ âm nghĩa là đã "Xuất kho" (bán) nhiều hơn đã
-// từng "Nhập kho" (chuyển vào) cho mã đó, tức còn nợ chuyển kho đúng bằng
-// đúng phần âm này (xem giải thích đã thống nhất với người dùng).
+// Số lượng cần chuyển kho = đúng bằng số đã "Xuất kho" trong ngày — không
+// dùng Đầu kỳ/Cuối kỳ nữa (theo yêu cầu: chỉ tính đúng số đã bán ra hôm đó,
+// không cộng dồn công nợ chuyển kho từ các ngày trước).
 export async function buildTransferKhoFromTonKho(tonKhoRows: TonKhoRow[]): Promise<TransferKhoFromTonKhoResult> {
-  const negative = tonKhoRows.filter((r) => r.cuoi_ky < 0);
-  const rows: TransferKhoRow[] = negative
-    .map((r) => ({ ma_noi_bo: r.ma_noi_bo, ten_hang_hoa: r.ten_hang_hoa, dvt: r.dvt, so_luong: -r.cuoi_ky }))
+  const positive = tonKhoRows.filter((r) => r.xuat_kho > 0);
+  const rows: TransferKhoRow[] = positive
+    .map((r) => ({ ma_noi_bo: r.ma_noi_bo, ten_hang_hoa: r.ten_hang_hoa, dvt: r.dvt, so_luong: r.xuat_kho }))
     .sort((a, b) => a.ma_noi_bo.localeCompare(b.ma_noi_bo));
 
   const file = await writeTransferKhoWorkbook(rows);
-  return { file, rows, skippedNonNegativeCount: tonKhoRows.length - negative.length };
+  return { file, rows, skippedZeroCount: tonKhoRows.length - positive.length };
 }
