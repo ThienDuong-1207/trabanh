@@ -1863,6 +1863,14 @@ function MiniLineChart({ points, color }: { points: { t: number; v: number }[]; 
 // dùng cho báo cáo — giới hạn 3000 dòng gần nhất là đủ dư dùng ở quy mô hiện
 // tại (~66 dòng); nếu về sau lịch sử phình to hơn nhiều, biểu đồ tháng/top 10
 // có thể thiếu vài dòng cũ nhất, chấp nhận được cho 1 trang tổng quan nhanh.
+
+// "YYYY-MM" theo giờ máy khách, dùng làm giá trị mặc định cho ô chọn tháng
+// báo cáo (không dùng toISOString() vì đó là giờ UTC).
+function currentMonthKey(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
 function DashboardView({ products, pendingCount }: { products: Product[]; pendingCount: number }) {
   const missingPrice = products.filter((p) => !p.gia_ban).length;
 
@@ -1895,18 +1903,29 @@ function DashboardView({ products, pendingCount }: { products: Product[]; pendin
   }, [products]);
   const maxCount = Math.max(1, ...byCategory.map((c) => c.count));
 
-  const recentPriceChanges = useMemo(() => historyRows.slice(0, 8), [historyRows]);
+  const [reportMonth, setReportMonth] = useState(currentMonthKey);
+  const reportMonthLabel = useMemo(() => {
+    const [y, m] = reportMonth.split("-");
+    return `${m}/${y}`;
+  }, [reportMonth]);
 
-  // Sản phẩm mới trong tháng — dùng created_at (thêm cho mục đích này), sản
-  // phẩm cũ trước khi có cột này sẽ có created_at null nên tự động không lọt
-  // vào đây, đúng ý nghĩa "mới thêm" chứ không phải "toàn bộ danh mục".
+  // Chỉ lọc theo tháng chọn cho 2 khối dựa trên lịch sử đã lưu (price_history,
+  // created_at) — số liệu chính xác cho mọi tháng quá khứ. Các KPI "Tổng sản
+  // phẩm"/"Thiếu giá bán lẻ" phía trên vẫn là số hiện tại (snapshot sống),
+  // không có bản ghi lưu theo từng tháng nên không lùi được theo tháng chọn.
+  const recentPriceChanges = useMemo(
+    () => historyRows.filter((h) => h.changed_at.slice(0, 7) === reportMonth),
+    [historyRows, reportMonth]
+  );
+
+  // Sản phẩm mới trong tháng đã chọn — dùng created_at (thêm cho mục đích
+  // này), sản phẩm cũ trước khi có cột này sẽ có created_at null nên tự động
+  // không lọt vào đây, đúng ý nghĩa "mới thêm" chứ không phải "toàn bộ danh mục".
   const newProductsThisMonth = useMemo(() => {
-    const now = new Date();
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     return products
-      .filter((p) => p.created_at && new Date(p.created_at) >= monthStart)
+      .filter((p) => p.created_at && p.created_at.slice(0, 7) === reportMonth)
       .sort((a, b) => new Date(b.created_at as string).getTime() - new Date(a.created_at as string).getTime());
-  }, [products]);
+  }, [products, reportMonth]);
 
   // Luôn dựng đủ 12 tháng gần nhất (kể cả tháng chưa có thay đổi giá nào =
   // cột rỗng) để trục thời gian nhất quán, không co giãn theo dữ liệu có sẵn.
@@ -1958,6 +1977,10 @@ function DashboardView({ products, pendingCount }: { products: Product[]; pendin
           <h1>Báo cáo</h1>
           <p>Tổng quan nhanh về danh mục sản phẩm và tình trạng thay đổi giá.</p>
         </div>
+        <label className="field" style={{ maxWidth: 180 }}>
+          Xem theo tháng
+          <input type="month" value={reportMonth} max={currentMonthKey()} onChange={(e) => setReportMonth(e.target.value)} />
+        </label>
       </div>
 
       <div className="kpi-grid">
@@ -1994,11 +2017,11 @@ function DashboardView({ products, pendingCount }: { products: Product[]; pendin
         </div>
 
         <div className="panel">
-          <h3>Thay đổi giá gần đây</h3>
+          <h3>Thay đổi giá tháng {reportMonthLabel}</h3>
           <div className="panel-scroll">
             {historyLoading && <p style={{ color: "var(--muted)", fontSize: 8.4 }}>Đang tải...</p>}
             {!historyLoading && recentPriceChanges.length === 0 && (
-              <p style={{ color: "var(--muted)", fontSize: 8.4 }}>Chưa có lịch sử thay đổi giá.</p>
+              <p style={{ color: "var(--muted)", fontSize: 8.4 }}>Chưa có thay đổi giá nào trong tháng này.</p>
             )}
             {recentPriceChanges.map((h) => {
               const banChanged = h.gia_ban_old !== h.gia_ban_new;
@@ -2023,7 +2046,7 @@ function DashboardView({ products, pendingCount }: { products: Product[]; pendin
         </div>
 
         <div className="panel">
-          <h3>Sản phẩm mới trong tháng</h3>
+          <h3>Sản phẩm mới tháng {reportMonthLabel}</h3>
           <div className="panel-scroll">
             {newProductsThisMonth.length === 0 && (
               <p style={{ color: "var(--muted)", fontSize: 8.4 }}>Chưa có sản phẩm mới trong tháng này.</p>
