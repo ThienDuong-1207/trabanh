@@ -53,6 +53,14 @@ function sortForInventory(items: Product[]): Product[] {
     const groupA = inventoryGroupLabel(a);
     const groupB = inventoryGroupLabel(b);
     if (groupA !== groupB) return TRA_SUBGROUP_ORDER.indexOf(groupA) - TRA_SUBGROUP_ORDER.indexOf(groupB);
+    // Trong cùng 1 mục, gom theo thương hiệu trước rồi mới tới tên hàng hóa —
+    // sản phẩm không có thương hiệu xếp xuống cuối thay vì lẫn lộn đầu danh
+    // sách (chuỗi rỗng vốn xếp trước mọi tên thật theo localeCompare).
+    const brandA = a.brand?.name || "";
+    const brandB = b.brand?.name || "";
+    if (!brandA !== !brandB) return brandA ? -1 : 1;
+    const brandDiff = brandA.localeCompare(brandB, "vi");
+    if (brandDiff !== 0) return brandDiff;
     return a.ten_hang_hoa.localeCompare(b.ten_hang_hoa, "vi");
   });
 }
