@@ -31,10 +31,28 @@ export function getWorkingDays(startDateStr: string, count: number): Date[] {
   return days;
 }
 
+// Riêng nhóm "Trà" tách thêm 3 mục con theo từ khóa trong tên hàng hóa — các
+// nhóm hàng khác không đổi, vẫn in 1 mục như cũ. Thứ tự cố định: Trà rời →
+// Trà Icetea → Trà gói.
+const TRA_ICETEA_KEYWORD = "hòa tan";
+const TRA_GOI_KEYWORD = "túi lọc";
+const TRA_SUBGROUP_ORDER = ["Trà rời", "Trà Icetea", "Trà gói"];
+
+function inventoryGroupLabel(p: Product): string {
+  if (p.category_sheet !== "Trà") return p.category_sheet;
+  const name = p.ten_hang_hoa.toLowerCase();
+  if (name.includes(TRA_ICETEA_KEYWORD)) return "Trà Icetea";
+  if (name.includes(TRA_GOI_KEYWORD)) return "Trà gói";
+  return "Trà rời";
+}
+
 function sortForInventory(items: Product[]): Product[] {
   return [...items].sort((a, b) => {
     const catDiff = CATEGORY_ORDER.indexOf(a.category_sheet) - CATEGORY_ORDER.indexOf(b.category_sheet);
     if (catDiff !== 0) return catDiff;
+    const groupA = inventoryGroupLabel(a);
+    const groupB = inventoryGroupLabel(b);
+    if (groupA !== groupB) return TRA_SUBGROUP_ORDER.indexOf(groupA) - TRA_SUBGROUP_ORDER.indexOf(groupB);
     return a.ten_hang_hoa.localeCompare(b.ten_hang_hoa, "vi");
   });
 }
@@ -87,17 +105,18 @@ export async function buildInventoryCheckPdf(items: Product[], startDateStr: str
   // hàng đầu tiên sau tiêu đề nhóm luôn thống nhất không tô màu.
   const STRIPE_FILL = "#F4F4F4";
 
-  let lastCategory: string | null = null;
+  let lastGroup: string | null = null;
   let categoryIndex = 0;
   let rowInCategory = 0;
   for (const p of sorted) {
-    if (p.category_sheet !== lastCategory) {
+    const group = inventoryGroupLabel(p);
+    if (group !== lastGroup) {
       categoryIndex++;
       rowInCategory = 0;
       const emptyCells = Array.from({ length: NUM_DAY_COLS }, () => ({}));
       tableBody.push([
         {
-          text: `${toRoman(categoryIndex)}. ${p.category_sheet}:`,
+          text: `${toRoman(categoryIndex)}. ${group}:`,
           bold: true,
           italics: true,
           decoration: "underline",
@@ -106,7 +125,7 @@ export async function buildInventoryCheckPdf(items: Product[], startDateStr: str
         },
         ...emptyCells,
       ]);
-      lastCategory = p.category_sheet;
+      lastGroup = group;
     }
     const fillColor = rowInCategory % 2 === 1 ? STRIPE_FILL : undefined;
     tableBody.push([
