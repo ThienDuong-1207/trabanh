@@ -139,29 +139,6 @@ const tableBorder = {
 const TABLE_FONT_SIZE = 9.5;
 const TABLE_HEADER_FONT_SIZE = 9;
 
-// Gộp ô dọc (rowSpan) cho 1 cột giá khi nhiều dòng SẢN PHẨM liên tiếp có
-// đúng cùng 1 giá trị — bỏ qua dòng tiêu đề nhóm hàng (values[i] undefined,
-// không nối chuỗi xuyên qua) và dòng chưa có giá (null → hiện "Liên hệ",
-// không coi là "cùng giá" với nhau).
-function mergeEqualPriceRuns(tableBody: any[][], values: (number | null | undefined)[], col: number) {
-  let i = 0;
-  while (i < values.length) {
-    const v = values[i];
-    if (v === undefined || v === null) {
-      i++;
-      continue;
-    }
-    let j = i + 1;
-    while (j < values.length && values[j] === v) j++;
-    const span = j - i;
-    if (span > 1) {
-      tableBody[i][col] = { ...tableBody[i][col], rowSpan: span };
-      for (let k = i + 1; k < j; k++) tableBody[k][col] = {};
-    }
-    i = j;
-  }
-}
-
 export async function buildQuotePdf(items: Product[], info: QuoteInfo): Promise<Buffer> {
   const sorted = sortForQuote(items);
 
@@ -187,15 +164,6 @@ export async function buildQuotePdf(items: Product[], info: QuoteInfo): Promise<
   let lastCategory: string | null = null;
   let categoryIndex = 0;
   let stt = 1;
-  // Song song với tableBody: giá trị giá lẻ/giá thùng thật của từng dòng (để
-  // gộp ô dọc bên dưới) — undefined ở dòng tiêu đề cột/nhóm hàng (không phải
-  // dòng sản phẩm, không được gộp xuyên qua). Bắt đầu với 1 phần tử undefined
-  // khớp với dòng tiêu đề cột (STT/TÊN SẢN PHẨM/...) đã có sẵn trong
-  // tableBody — thiếu phần tử này làm lệch chỉ số 1 dòng so với tableBody,
-  // khiến hàm gộp phía dưới ghi rowSpan nhầm sang đúng dòng tiêu đề nhóm hàng
-  // (colSpan, cell rỗng "{}") thay vì dòng sản phẩm, làm pdfmake vỡ layout.
-  const rawGiaBan: (number | null | undefined)[] = [undefined];
-  const rawGiaThung: (number | null | undefined)[] = [undefined];
   for (const p of sorted) {
     if (p.category_sheet !== lastCategory) {
       categoryIndex++;
@@ -214,8 +182,6 @@ export async function buildQuotePdf(items: Product[], info: QuoteInfo): Promise<
         {},
         {},
       ]);
-      rawGiaBan.push(undefined);
-      rawGiaThung.push(undefined);
       lastCategory = p.category_sheet;
     }
     tableBody.push([
@@ -225,18 +191,8 @@ export async function buildQuotePdf(items: Product[], info: QuoteInfo): Promise<
       { text: formatPrice(p.gia_ban), alignment: "right", fontSize: TABLE_FONT_SIZE },
       { text: formatPrice(p.gia_thung), alignment: "right", fontSize: TABLE_FONT_SIZE },
     ]);
-    rawGiaBan.push(p.gia_ban);
-    rawGiaThung.push(p.gia_thung);
     stt++;
   }
-  // Mỗi sản phẩm vẫn giữ đúng STT/tên/quy cách riêng — chỉ gộp ô hiển thị của
-  // cột giá khi nhiều dòng LIÊN TIẾP cùng đúng 1 giá trị, cho dễ nhìn (vd
-  // nhiều vị/size khác nhau của cùng thương hiệu bán cùng 1 mức giá). Giá lẻ
-  // và giá thùng gộp độc lập nhau — 1 cột có thể gộp dù cột kia không trùng.
-  // Bỏ qua dòng chưa có giá (null → "Liên hệ"): thiếu giá không phải "cùng 1
-  // mức giá", gộp chung sẽ gây hiểu lầm.
-  mergeEqualPriceRuns(tableBody, rawGiaBan, 3);
-  mergeEqualPriceRuns(tableBody, rawGiaThung, 4);
 
   const logo = fs.existsSync(LOGO_PATH)
     ? { image: LOGO_PATH, fit: [130, 45] as [number, number], alignment: "right" as const }
