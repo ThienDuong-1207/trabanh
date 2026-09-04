@@ -7,7 +7,6 @@ export const SKIP_SHEETS = new Set([
   "HUONG DAN",
   "Master (Tổng hợp)",
   "Hướng dẫn nhập khẩu (MISA)",
-  "Công cụ dụng cụ",
 ]);
 
 export const COLUMN_TO_FIELD: Record<string, string> = {
@@ -104,9 +103,10 @@ export async function importProductsFromWorkbook(buffer: Buffer, mode: ImportMod
   for (const worksheet of workbook.worksheets) {
     const name = worksheet.name;
     // So khớp cả tên gốc lẫn tên đã cắt hậu tố trong ngoặc (vd sheet thật tên
-    // "Công cụ dụng cụ(DC)" phải khớp entry "Công cụ dụng cụ" trong SKIP_SHEETS) —
-    // nếu chỉ so khớp chính xác, sheet có hậu tố sẽ lọt qua bước skip rồi vẫn
-    // được resolveCategoryName() công nhận là category hợp lệ và bị nhập nhầm.
+    // "Master (Tổng hợp)(2)" phải khớp entry "Master (Tổng hợp)" trong
+    // SKIP_SHEETS) — nếu chỉ so khớp chính xác, sheet có hậu tố sẽ lọt qua
+    // bước skip rồi vẫn được resolveCategoryName() công nhận là category hợp
+    // lệ và bị nhập nhầm.
     const strippedName = name.replace(/\s*\([^)]*\)\s*$/, "").trim();
     if (SKIP_SHEETS.has(name) || SKIP_SHEETS.has(strippedName)) continue;
     const category = resolveCategoryName(name);
