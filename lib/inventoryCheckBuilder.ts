@@ -33,15 +33,15 @@ export function getWorkingDays(startDateStr: string, count: number): Date[] {
 
 // Riêng nhóm "Trà" tách thêm 3 mục con theo từ khóa trong tên hàng hóa — các
 // nhóm hàng khác không đổi, vẫn in 1 mục như cũ. Thứ tự cố định: Trà rời →
-// Trà Icetea → Trà gói.
+// Trà hòa tan → Trà gói.
 const TRA_ICETEA_KEYWORD = "hòa tan";
 const TRA_GOI_KEYWORD = "túi lọc";
-const TRA_SUBGROUP_ORDER = ["Trà rời", "Trà Icetea", "Trà gói"];
+const TRA_SUBGROUP_ORDER = ["Trà rời", "Trà hòa tan", "Trà gói"];
 
 function inventoryGroupLabel(p: Product): string {
   if (p.category_sheet !== "Trà") return p.category_sheet;
   const name = p.ten_hang_hoa.toLowerCase();
-  if (name.includes(TRA_ICETEA_KEYWORD)) return "Trà Icetea";
+  if (name.includes(TRA_ICETEA_KEYWORD)) return "Trà hòa tan";
   if (name.includes(TRA_GOI_KEYWORD)) return "Trà gói";
   return "Trà rời";
 }
