@@ -5,11 +5,16 @@ import path from "path";
 // hãng/Giao hỏa tốc/Tư vấn miễn phí") — tách 1 lần từ ảnh mẫu thật
 // ("Bột Cacao Lúa Mạch MILO (1KG) - Khung.webp") bằng cách xoá vùng ảnh sản
 // phẩm + nền trắng, chỉ giữ lại phần viền/logo/icon dạng PNG nền trong suốt.
-// Canvas vuông 1080x1080, vùng đặt ảnh sản phẩm là ô (250,209)-(641,996) đo
-// trực tiếp từ ảnh mẫu đó.
+// Canvas vuông 1080x1080.
 const OVERLAY_PATH = path.join(process.cwd(), "public", "templates", "khung_overlay.png");
 const CANVAS_SIZE = 1080;
-const PRODUCT_BOX = { left: 250, top: 209, width: 391, height: 787 };
+// Vùng đặt ảnh sản phẩm — nới rộng ra gần hết diện tích trống thật sự có
+// trên khung (chỉ né logo góc trên trái, kết thúc y=132, và cụm icon bên
+// phải, bắt đầu x=894), thay vì bó theo đúng tỉ lệ cao/hẹp riêng của bịch
+// MILO trong ảnh mẫu (391x787) như trước. Ảnh cao/hẹp vẫn ra kích thước gần
+// như cũ (bị giới hạn bởi chiều cao), còn ảnh ngang/thấp giờ tận dụng được
+// bề ngang rộng hơn hẳn, không còn bị co nhỏ lại nữa.
+const PRODUCT_BOX = { left: 40, top: 150, width: 810, height: 870 };
 
 // Hậu tố dùng để nhận biết ảnh đã có khung ("Tên.webp" -> "Tên - Khung.webp")
 // và để suy ra tên file output — theo đúng quy ước đặt tên trong ảnh mẫu.
