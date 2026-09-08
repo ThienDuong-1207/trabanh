@@ -18,7 +18,7 @@ import { ACTION_LABELS } from "@/lib/activityLabels";
 import { stripXlsxDrawings } from "@/lib/stripXlsxDrawings";
 import PasswordChecklist from "@/components/PasswordChecklist";
 
-type View = "hanghoa" | "tonkho" | "baocao" | "duyetgia" | "users" | "activitylog" | "chuyenkho";
+type View = "hanghoa" | "tonkho" | "baocao" | "duyetgia" | "users" | "activitylog" | "chuyenkho" | "khunganh";
 export type Role = "sales" | "accountant" | "admin";
 
 // Tạm ẩn nav "Quản lý tồn kho" theo yêu cầu — đổi thành true để hiện lại.
@@ -1392,6 +1392,7 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
         {activeView === "users" && role === "admin" && <UserManagementView currentUserId={userId} />}
         {activeView === "activitylog" && <ActivityLogView role={role} />}
         {activeView === "chuyenkho" && <TransferKhoView />}
+        {activeView === "khunganh" && <ImageFrameView />}
       </main>
     </div>
   );
@@ -1712,6 +1713,10 @@ function Sidebar({
         <button className={`nav-item${activeView === "chuyenkho" ? " active" : ""}`} onClick={() => onChange("chuyenkho")}>
           <TruckIcon />
           Chuyển kho Shopee
+        </button>
+        <button className={`nav-item${activeView === "khunganh" ? " active" : ""}`} onClick={() => onChange("khunganh")}>
+          <ImageIcon />
+          Tạo khung ảnh
         </button>
         {role === "admin" && (
           <button className={`nav-item${activeView === "users" ? " active" : ""}`} onClick={() => onChange("users")}>
@@ -3197,6 +3202,130 @@ function TransferKhoView() {
   );
 }
 
+type ImageFrameResult = {
+  createdCount: number;
+  skippedCount: number;
+  createdNames: string[];
+  skippedNames: string[];
+  failedNames: string[];
+};
+
+function ImageFrameView() {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<ImageFrameResult | null>(null);
+
+  async function handleFiles(files: FileList) {
+    setUploading(true);
+    setError(null);
+    try {
+      const form = new FormData();
+      Array.from(files).forEach((f) => form.append("files", f));
+      const res = await fetch("/api/frame-product-images", { method: "POST", body: form });
+      let data: any;
+      try {
+        data = await res.json();
+      } catch {
+        throw new Error(`Máy chủ phản hồi không hợp lệ (mã lỗi ${res.status}). Vui lòng thử lại sau.`);
+      }
+      if (!res.ok) throw new Error(data.error || "Xử lý ảnh thất bại");
+
+      if (data.createdCount > 0) {
+        const byteChars = atob(data.file);
+        const bytes = new Uint8Array(byteChars.length);
+        for (let i = 0; i < byteChars.length; i++) bytes[i] = byteChars.charCodeAt(i);
+        const blob = new Blob([bytes], { type: "application/zip" });
+        downloadBlob(blob, data.filename);
+      }
+
+      setResult({
+        createdCount: data.createdCount,
+        skippedCount: data.skippedCount,
+        createdNames: data.createdNames,
+        skippedNames: data.skippedNames,
+        failedNames: data.failedNames,
+      });
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
+
+  return (
+    <div className="app">
+      <div className="view-header">
+        <div>
+          <h1>Tạo khung ảnh</h1>
+          <p>
+            Chọn 1 thư mục ảnh sản phẩm. Ảnh nào <b>chưa có bản khung</b> (chưa có file cùng tên kèm hậu tố
+            &quot; - Khung&quot;) sẽ được tự động ghép khung + logo và tải về dưới dạng file ZIP — ảnh đã có khung sẵn
+            sẽ được bỏ qua, không tạo lại.
+          </p>
+        </div>
+      </div>
+
+      <div className="panel">
+        <h3>Chọn thư mục ảnh</h3>
+        <input
+          type="file"
+          accept="image/*"
+          multiple
+          // @ts-expect-error -- webkitdirectory không có trong type chuẩn nhưng được hỗ trợ trên trình duyệt Chromium
+          webkitdirectory=""
+          ref={fileInputRef}
+          style={{ display: "none" }}
+          onChange={(e) => {
+            const files = e.target.files;
+            if (files && files.length > 0) handleFiles(files);
+          }}
+        />
+        <button className="btn btn-primary" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
+          {uploading ? "Đang xử lý..." : "Chọn thư mục ảnh"}
+        </button>
+        {error && <p style={{ color: "var(--danger)", marginTop: 10, fontSize: "var(--text-body-sm)" }}>{error}</p>}
+      </div>
+
+      {result && (
+        <>
+          <div className="kpi-grid">
+            <div className="kpi-card">
+              <div className="label">Đã tạo khung mới</div>
+              <div className="value">{result.createdCount}</div>
+            </div>
+            <div className="kpi-card">
+              <div className="label">Đã có khung — bỏ qua</div>
+              <div className="value">{result.skippedCount}</div>
+            </div>
+            <div className="kpi-card">
+              <div className="label">Lỗi</div>
+              <div className={`value${result.failedNames.length > 0 ? " accent" : ""}`}>{result.failedNames.length}</div>
+            </div>
+          </div>
+
+          {result.failedNames.length > 0 && (
+            <div className="table-card" style={{ marginTop: 18 }}>
+              <div style={{ padding: "12px 16px 0" }}>
+                <span className="pill pill-warm">
+                  <span className="dot" />
+                  Ảnh xử lý lỗi
+                </span>
+              </div>
+              <div className="panel-scroll" style={{ padding: "8px 16px 16px" }}>
+                {result.failedNames.map((n, i) => (
+                  <div key={i}>{n}</div>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 // Trùng lặp có chủ đích với lib/inventoryCheckBuilder.ts (không import thẳng
 // từ đó — file đó có import pdfmake/pdfFonts phía server, đưa vào bundle
 // client sẽ vỡ vì dùng process.cwd()/fs). Chỉ cần hàm thuần này để tính ngày
@@ -4275,6 +4404,15 @@ function TruckIcon() {
       <path d="M14 10h4l4 3.5V17h-8z" />
       <circle cx="6" cy="19" r="1.8" />
       <circle cx="17" cy="19" r="1.8" />
+    </svg>
+  );
+}
+function ImageIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="3" width="18" height="18" rx="2" />
+      <circle cx="8.5" cy="8.5" r="1.5" />
+      <path d="M21 15l-5-5L5 21" />
     </svg>
   );
 }

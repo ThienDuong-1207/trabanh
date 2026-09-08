@@ -19,7 +19,8 @@
     "next": "14.2.5",
     "pdfmake": "^0.3.11",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "sharp": "^0.35.4"
   },
   "devDependencies": {
     "@types/node": "^20.14.0",
