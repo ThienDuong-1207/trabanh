@@ -3211,7 +3211,7 @@ type ImageFrameResult = {
 };
 
 function ImageFrameView() {
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const filesInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ImageFrameResult | null>(null);
@@ -3250,7 +3250,7 @@ function ImageFrameView() {
       setError(e.message);
     } finally {
       setUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
+      if (filesInputRef.current) filesInputRef.current.value = "";
     }
   }
 
@@ -3260,7 +3260,7 @@ function ImageFrameView() {
         <div>
           <h1>Tạo khung ảnh</h1>
           <p>
-            Chọn 1 thư mục ảnh sản phẩm. Ảnh nào <b>chưa có bản khung</b> (chưa có file cùng tên kèm hậu tố
+            Chọn nhiều file ảnh sản phẩm. Ảnh nào <b>chưa có bản khung</b> (chưa có file cùng tên kèm hậu tố
             &quot; - Khung&quot;) sẽ được tự động ghép khung + logo và tải về dưới dạng file ZIP — ảnh đã có khung sẵn
             sẽ được bỏ qua, không tạo lại.
           </p>
@@ -3268,22 +3268,20 @@ function ImageFrameView() {
       </div>
 
       <div className="panel">
-        <h3>Chọn thư mục ảnh</h3>
+        <h3>Chọn ảnh</h3>
         <input
           type="file"
           accept="image/*"
           multiple
-          // @ts-expect-error -- webkitdirectory không có trong type chuẩn nhưng được hỗ trợ trên trình duyệt Chromium
-          webkitdirectory=""
-          ref={fileInputRef}
+          ref={filesInputRef}
           style={{ display: "none" }}
           onChange={(e) => {
             const files = e.target.files;
             if (files && files.length > 0) handleFiles(files);
           }}
         />
-        <button className="btn btn-primary" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
-          {uploading ? "Đang xử lý..." : "Chọn thư mục ảnh"}
+        <button className="btn btn-primary" onClick={() => filesInputRef.current?.click()} disabled={uploading}>
+          {uploading ? "Đang xử lý..." : "Chọn nhiều file ảnh"}
         </button>
         {error && <p style={{ color: "var(--danger)", marginTop: 10, fontSize: "var(--text-body-sm)" }}>{error}</p>}
       </div>
