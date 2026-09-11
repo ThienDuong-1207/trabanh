@@ -155,6 +155,7 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
   const [exporting, setExporting] = useState<"misa" | "misa-add-unit" | "word" | "misa-update" | "vertical" | null>(null);
   const [exportingRollLabel, setExportingRollLabel] = useState(false);
   const [quoteModalOpen, setQuoteModalOpen] = useState(false);
+  const [quoteFormat, setQuoteFormat] = useState<"pdf" | "excel">("pdf");
   const [exportingQuote, setExportingQuote] = useState(false);
   const [inventoryModalOpen, setInventoryModalOpen] = useState(false);
   const [exportingInventory, setExportingInventory] = useState(false);
@@ -683,7 +684,8 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
   async function doExportQuote(fields: QuoteFormFields) {
     setExportingQuote(true);
     try {
-      const res = await fetch("/api/export-quote", {
+      const endpoint = quoteFormat === "excel" ? "/api/export-quote-excel" : "/api/export-quote";
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ids: Array.from(selected), ...fields }),
@@ -697,7 +699,8 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
       // (không qua header Content-Disposition của server), nên có dấu tiếng
       // Việt vẫn hiển thị đúng, không lo lỗi encoding header như file MISA.
       const [yyyy, mm, dd] = (fields.date || new Date().toISOString().slice(0, 10)).split("-");
-      downloadBlob(blob, `Bảng báo giá ${dd}-${mm}-${yyyy.slice(2)}.pdf`);
+      const ext = quoteFormat === "excel" ? "xlsx" : "pdf";
+      downloadBlob(blob, `Bảng báo giá ${dd}-${mm}-${yyyy.slice(2)}.${ext}`);
       setQuoteModalOpen(false);
     } catch (e: any) {
       alert("Xuất báo giá thất bại: " + e.message);
@@ -1108,11 +1111,22 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
                   <button
                     onClick={() => {
                       setExportMenuOpen(false);
+                      setQuoteFormat("pdf");
                       setQuoteModalOpen(true);
                     }}
                   >
                     <QuoteIcon />
                     Xuất báo giá (PDF)
+                  </button>
+                  <button
+                    onClick={() => {
+                      setExportMenuOpen(false);
+                      setQuoteFormat("excel");
+                      setQuoteModalOpen(true);
+                    }}
+                  >
+                    <SheetIcon />
+                    Xuất báo giá (Excel)
                   </button>
                   <button
                     onClick={() => {
@@ -1350,6 +1364,7 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
 
       {quoteModalOpen && (
         <QuoteForm
+          format={quoteFormat}
           selectedCount={selected.size}
           submitting={exportingQuote}
           onCancel={() => setQuoteModalOpen(false)}
@@ -3604,11 +3619,13 @@ type QuoteFormFields = {
 };
 
 function QuoteForm({
+  format,
   selectedCount,
   submitting,
   onCancel,
   onSubmit,
 }: {
+  format: "pdf" | "excel";
   selectedCount: number;
   submitting: boolean;
   onCancel: () => void;
@@ -3622,10 +3639,12 @@ function QuoteForm({
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
+  const formatLabel = format === "excel" ? "Excel" : "PDF";
+
   return (
     <div className="modal-backdrop" onClick={(e) => e.target === e.currentTarget && onCancel()}>
       <div className="modal">
-        <h2>Xuất báo giá (PDF)</h2>
+        <h2>Xuất báo giá ({formatLabel})</h2>
         <p className="modal-sub">{selectedCount} sản phẩm đã chọn sẽ đưa vào bảng báo giá.</p>
 
         <div className="field-group">
@@ -3641,7 +3660,7 @@ function QuoteForm({
             Hủy
           </button>
           <button className="btn btn-primary" disabled={submitting} onClick={() => onSubmit(form)}>
-            {submitting ? "Đang xuất..." : "Xuất PDF"}
+            {submitting ? "Đang xuất..." : `Xuất ${formatLabel}`}
           </button>
         </div>
       </div>

@@ -21,27 +21,28 @@ export type QuoteInfo = {
   date?: string | null; // yyyy-mm-dd
 };
 
-// Thông tin công ty cố định cho phần đầu trang (letterhead).
-const COMPANY_INFO = [
+// Thông tin công ty cố định cho phần đầu trang (letterhead) — export để dùng
+// chung cho cả bản Excel (quoteExcelBuilder.ts), giữ đúng 1 nguồn duy nhất.
+export const COMPANY_INFO = [
   "TIỆM TRÀ BÁNH (CN TÂN CẢNG)",
   "Số 5 Ung Văn Khiêm, phường Thạnh Mỹ Tây, TP Hồ Chí Minh, Việt Nam",
   "Số điện thoại: 0906.363.395 (ZALO) - 0902.331.361",
   "Website: trabanh.com",
 ];
 
-const LOGO_PATH = path.join(process.cwd(), "public", "templates", "logo.png");
+export const LOGO_PATH = path.join(process.cwd(), "public", "templates", "logo.png");
 
 const ROMAN_NUMERALS = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII", "XIII", "XIV", "XV"];
-function toRoman(n: number): string {
+export function toRoman(n: number): string {
   return ROMAN_NUMERALS[n - 1] ?? String(n);
 }
 
-function formatPrice(n: number | null) {
+export function formatPrice(n: number | null) {
   if (n === null || n === undefined) return "";
   return Math.round(n).toLocaleString("vi-VN").replace(/,/g, ".");
 }
 
-function formatDateLine(dateStr?: string | null) {
+export function formatDateLine(dateStr?: string | null) {
   const d = dateStr ? new Date(dateStr + "T00:00:00") : new Date();
   return `Cập nhật đến ngày ${d.getDate()} tháng ${d.getMonth() + 1} năm ${d.getFullYear()}`;
 }
@@ -51,7 +52,7 @@ function formatDateLine(dateStr?: string | null) {
 // giả định dvt_cap_2 đã có sẵn số lượng. extractUnitFromQuyCach phòng
 // trường hợp dữ liệu cũ/nhập tay vẫn còn dạng "Hộp (12 gói)" (tránh lặp số
 // lượng 2 lần trong 1 câu).
-function formatHopUnit(p: Product): string | null {
+export function formatHopUnit(p: Product): string | null {
   if (!p.dvt_cap_2 || !p.ty_le_cap_2 || !p.dvt) return null;
   return `${extractUnitFromQuyCach(p.dvt_cap_2)} (${p.ty_le_cap_2} ${p.dvt})`;
 }
@@ -59,7 +60,7 @@ function formatHopUnit(p: Product): string | null {
 // Gộp quy cách 2 cấp đóng gói (Thùng + Hộp trung gian, nếu có) thành 1 dòng
 // mô tả cho khách xem, vd "Thùng (10 hộp), Hộp (12 Gói)" — sản phẩm thường
 // (2 cấp, không có dvt_cap_2) chỉ hiện đúng quy_cach sẵn có.
-function formatQuyCach(p: Product): string {
+export function formatQuyCach(p: Product): string {
   const parts = [p.quy_cach, formatHopUnit(p)].filter((s): s is string => Boolean(s));
   return parts.join(", ");
 }
@@ -93,7 +94,7 @@ function nameCell(p: Product) {
 // (sau mọi thương hiệu có tên), sắp theo tên A-Z. Trong 1 thương hiệu, sản
 // phẩm chưa có giá bán lẻ (null — hiện "Liên hệ") vẫn bị đẩy xuống cuối
 // nhóm thương hiệu đó, dù giá đang sắp giảm dần hay tăng dần.
-function sortForQuote(items: Product[]): Product[] {
+export function sortForQuote(items: Product[]): Product[] {
   return [...items].sort((a, b) => {
     const catDiff = QUOTE_CATEGORY_ORDER.indexOf(a.category_sheet) - QUOTE_CATEGORY_ORDER.indexOf(b.category_sheet);
     if (catDiff !== 0) return catDiff;
