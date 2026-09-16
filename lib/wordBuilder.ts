@@ -74,7 +74,11 @@ const OLD_PRICE_SIZE_HALF = 24; // 12pt
 // phía trên khi in thật (lỗi thực tế gặp phải, không phải chỉ trên màn hình
 // xem trước) — luôn tính theo công thức này, không hardcode số cố định nữa.
 const OLD_PRICE_LINE = Math.round((OLD_PRICE_SIZE_HALF / 2) * 1.15 * 20); // 276 twips
-const OLD_PRICE_GAP_AFTER = 10; // twips
+// Khoảng trống giờ dồn vào TRƯỚC giá cũ (giữa tên sản phẩm và giá cũ), gần
+// như bỏ hẳn khoảng cách SAU giá cũ (giữa giá cũ và giá mới) — theo đúng yêu
+// cầu "giá cũ và giá mới gần nhau hơn" thay vì giá cũ dính sát tên sản phẩm.
+const OLD_PRICE_GAP_BEFORE = 60; // twips
+const OLD_PRICE_GAP_AFTER = 0; // twips
 
 function estimatePriceWidthUnits(price: string): number {
   let units = 0;
@@ -101,9 +105,16 @@ function priceFontSizeHalf(price: string, extraZoneDxa: number) {
 // rather than stuck right under the title.
 const FIXED_ZONES_DXA = CELL_MARGIN_TOP + TITLE_LINE + BOTTOM_LINE + CELL_MARGIN_BOTTOM;
 
-function priceSpacingDxa(priceSizeHalf: number, extraZoneDxa: number): { before: number; after: number } {
+// `tightBefore`: dùng cho tem "đổi giá" — muốn giá cũ và giá mới nằm SÁT
+// nhau, khoảng trống dôi ra dồn hết xuống dưới (giữa giá mới và dòng mã
+// vạch) thay vì chia đều 2 bên như tem thường (before=0 thay vì chia đôi
+// leftover).
+function priceSpacingDxa(priceSizeHalf: number, extraZoneDxa: number, tightBefore = false): { before: number; after: number } {
   const priceLineDxa = Math.round((priceSizeHalf / 2) * 1.15 * 20);
   const leftover = Math.max(0, BLOCK_H - FIXED_ZONES_DXA - extraZoneDxa - priceLineDxa);
+  if (tightBefore) {
+    return { before: 0, after: Math.max(PRICE_SPACING_AFTER, leftover) };
+  }
   const before = Math.floor(leftover / 2);
   const after = Math.max(PRICE_SPACING_AFTER, leftover - before);
   return { before, after };
@@ -141,13 +152,13 @@ function buildCell(item: WordLabelItem | null, mode: WordLabelMode) {
   // mới co lại nhường chỗ đúng bằng vùng đó (mode "normal" truyền
   // extraZoneDxa=0, tái lập chính xác công thức/kích cỡ cũ, không đổi gì).
   const hasOldPrice = mode === "price_change" && item.gia_ban_old != null;
-  const extraZoneDxa = hasOldPrice ? OLD_PRICE_LINE + OLD_PRICE_GAP_AFTER : 0;
+  const extraZoneDxa = hasOldPrice ? OLD_PRICE_GAP_BEFORE + OLD_PRICE_LINE + OLD_PRICE_GAP_AFTER : 0;
 
   const oldPricePara = hasOldPrice
     ? new Paragraph({
         alignment: AlignmentType.LEFT,
         indent: { left: BOTTOM_INDENT }, // khớp lề trái với dòng mã vạch/đơn vị bên dưới
-        spacing: { after: OLD_PRICE_GAP_AFTER, line: OLD_PRICE_LINE, lineRule: "exact" },
+        spacing: { before: OLD_PRICE_GAP_BEFORE, after: OLD_PRICE_GAP_AFTER, line: OLD_PRICE_LINE, lineRule: "exact" },
         children: [
           new TextRun({
             text: formatPrice(item.gia_ban_old!),
@@ -163,7 +174,7 @@ function buildCell(item: WordLabelItem | null, mode: WordLabelMode) {
 
   const priceStr = formatPrice(item.gia_ban);
   const priceSize = priceFontSizeHalf(priceStr, extraZoneDxa);
-  const { before: priceBefore, after: priceAfter } = priceSpacingDxa(priceSize, extraZoneDxa);
+  const { before: priceBefore, after: priceAfter } = priceSpacingDxa(priceSize, extraZoneDxa, hasOldPrice);
   const pricePara = new Paragraph({
     alignment: AlignmentType.CENTER,
     spacing: { before: priceBefore, after: priceAfter },
