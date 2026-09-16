@@ -711,6 +711,26 @@ label.field input:disabled { opacity: 0.6; }
 
 .modal-actions { display: flex; justify-content: flex-end; gap: 5px; margin-top: 4px; padding-top: 9px; border-top: 1px solid var(--border); }
 
+/* Modal "Xuất file" — cố tình to hơn hẳn các modal khác (nhiều tab/option hơn,
+   cần dễ đọc/dễ bấm khi thao tác nhanh lúc in tem/xuất báo giá), không đụng
+   tới kích thước mặc định của các modal còn lại. */
+.modal-export { width: min(600px, 100%); padding: 26px 30px 24px; }
+.modal-export h2 { font-size: 17px; margin-bottom: 6px; }
+.modal-export .modal-sub { font-size: 13px; margin-bottom: 18px; }
+.modal-export .segmented { font-size: 13px; }
+.modal-export .segmented button { padding: 8px 16px; }
+.modal-export .field-group { margin-bottom: 18px; }
+.modal-export label.field { font-size: 12px; gap: 5px; }
+.modal-export label.field input, .modal-export label.field select {
+  font-size: 14px; padding: 9px 12px;
+}
+.modal-export .field-group label:not(.field) { font-size: 13px; }
+.modal-export .field-group input[type="radio"], .modal-export .field-group input[type="checkbox"] {
+  width: 15px; height: 15px;
+}
+.modal-export .modal-actions { margin-top: 8px; padding-top: 14px; }
+.modal-export .modal-actions .btn { font-size: 13px; padding: 9px 20px; }
+
 
 .pagination-bar { display: flex; align-items: center; justify-content: center; gap: 11px; margin-top: 4px; font-size: var(--text-meta); color: var(--muted); }
 

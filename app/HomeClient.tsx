@@ -3640,7 +3640,7 @@ function ExportModal({
 
   return (
     <div className="modal-backdrop" onClick={(e) => e.target === e.currentTarget && onCancel()}>
-      <div className="modal">
+      <div className="modal modal-export">
         <h2>Xuất file</h2>
         <p className="modal-sub">{selectedCount} sản phẩm đã chọn.</p>
 
