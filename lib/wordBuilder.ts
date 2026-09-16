@@ -64,14 +64,17 @@ const SEPARATOR_WIDTH_EM = 0.278;
 const PRICE_BOX_WIDTH_PT = ((BLOCK_W / DXA_PER_CM) - 0.24) * 28.3465;
 
 // Old-price line ("tem đổi giá" mode only) — struck-through, red, smaller
-// than the title, shown right above the current price.
-const OLD_PRICE_SIZE_HALF = 28; // 14pt
-// Line height phải đủ chỗ cho cỡ chữ 14pt (cùng hệ số 1.15 dùng cho dòng giá
-// chính bên dưới) — trước đó cố định 190 twips (~9.5pt), THẤP HƠN cỡ chữ,
-// khiến "exact" line height ép chữ tràn/đè lên dòng tiêu đề phía trên khi in
-// thật (lỗi thực tế gặp phải, không phải chỉ trên màn hình xem trước).
-const OLD_PRICE_LINE = Math.round((OLD_PRICE_SIZE_HALF / 2) * 1.15 * 20); // 322 twips
-const OLD_PRICE_GAP_AFTER = 20; // twips
+// than the title, căn trái (khớp lề dòng mã vạch bên dưới), nằm ngay trên
+// giá mới. Cỡ chữ + khoảng cách thu nhỏ hết mức còn đọc được để nhường không
+// gian cho giá mới (số to) — không phải giá trị đo từ 1 file mẫu cố định.
+const OLD_PRICE_SIZE_HALF = 24; // 12pt
+// Line height phải đủ chỗ cho cỡ chữ (cùng hệ số 1.15 dùng cho dòng giá
+// chính bên dưới) — từng cố định 190 twips (~9.5pt), THẤP HƠN cỡ chữ 14pt
+// dùng lúc đó, khiến "exact" line height ép chữ tràn/đè lên dòng tiêu đề
+// phía trên khi in thật (lỗi thực tế gặp phải, không phải chỉ trên màn hình
+// xem trước) — luôn tính theo công thức này, không hardcode số cố định nữa.
+const OLD_PRICE_LINE = Math.round((OLD_PRICE_SIZE_HALF / 2) * 1.15 * 20); // 276 twips
+const OLD_PRICE_GAP_AFTER = 10; // twips
 
 function estimatePriceWidthUnits(price: string): number {
   let units = 0;
@@ -142,7 +145,8 @@ function buildCell(item: WordLabelItem | null, mode: WordLabelMode) {
 
   const oldPricePara = hasOldPrice
     ? new Paragraph({
-        alignment: AlignmentType.CENTER,
+        alignment: AlignmentType.LEFT,
+        indent: { left: BOTTOM_INDENT }, // khớp lề trái với dòng mã vạch/đơn vị bên dưới
         spacing: { after: OLD_PRICE_GAP_AFTER, line: OLD_PRICE_LINE, lineRule: "exact" },
         children: [
           new TextRun({
