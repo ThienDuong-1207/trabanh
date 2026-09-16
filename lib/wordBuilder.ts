@@ -66,7 +66,11 @@ const PRICE_BOX_WIDTH_PT = ((BLOCK_W / DXA_PER_CM) - 0.24) * 28.3465;
 // Old-price line ("tem đổi giá" mode only) — struck-through, red, smaller
 // than the title, shown right above the current price.
 const OLD_PRICE_SIZE_HALF = 28; // 14pt
-const OLD_PRICE_LINE = 190; // twips
+// Line height phải đủ chỗ cho cỡ chữ 14pt (cùng hệ số 1.15 dùng cho dòng giá
+// chính bên dưới) — trước đó cố định 190 twips (~9.5pt), THẤP HƠN cỡ chữ,
+// khiến "exact" line height ép chữ tràn/đè lên dòng tiêu đề phía trên khi in
+// thật (lỗi thực tế gặp phải, không phải chỉ trên màn hình xem trước).
+const OLD_PRICE_LINE = Math.round((OLD_PRICE_SIZE_HALF / 2) * 1.15 * 20); // 322 twips
 const OLD_PRICE_GAP_AFTER = 20; // twips
 
 function estimatePriceWidthUnits(price: string): number {
