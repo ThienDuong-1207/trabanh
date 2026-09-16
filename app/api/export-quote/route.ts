@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseServer";
-import { buildQuotePdf, QuoteInfo } from "@/lib/quoteBuilder";
+import { applySavoTamixCaseOverride, buildQuotePdf, QuoteInfo } from "@/lib/quoteBuilder";
 import { Product } from "@/lib/types";
 
 export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
   try {
-    const { ids, ...info } = (await req.json()) as { ids: string[] } & QuoteInfo;
+    const { ids, savoTamixCaseOverride, ...info } = (await req.json()) as { ids: string[]; savoTamixCaseOverride?: boolean } & QuoteInfo;
     if (!ids || ids.length === 0) {
       return NextResponse.json({ error: "Chưa chọn sản phẩm nào" }, { status: 400 });
     }
@@ -16,7 +16,8 @@ export async function POST(req: NextRequest) {
     const { data, error } = await supabase.from("products").select("*, brand:brands(name)").in("id", ids);
     if (error) throw error;
 
-    const buf = await buildQuotePdf(data as Product[], info);
+    const items = savoTamixCaseOverride ? applySavoTamixCaseOverride(data as Product[]) : (data as Product[]);
+    const buf = await buildQuotePdf(items, info);
     return new NextResponse(new Uint8Array(buf), {
       headers: {
         "Content-Type": "application/pdf",

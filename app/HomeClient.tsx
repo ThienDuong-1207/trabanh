@@ -154,8 +154,9 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [exporting, setExporting] = useState<"misa" | "misa-add-unit" | "word" | "word-price-change" | "misa-update" | "vertical" | null>(null);
   const [exportingRollLabel, setExportingRollLabel] = useState(false);
+  const [blockGiaModalOpen, setBlockGiaModalOpen] = useState(false);
+  const [misaModalOpen, setMisaModalOpen] = useState(false);
   const [quoteModalOpen, setQuoteModalOpen] = useState(false);
-  const [quoteFormat, setQuoteFormat] = useState<"pdf" | "excel">("pdf");
   const [exportingQuote, setExportingQuote] = useState(false);
   const [inventoryModalOpen, setInventoryModalOpen] = useState(false);
   const [exportingInventory, setExportingInventory] = useState(false);
@@ -694,11 +695,12 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
   async function doExportQuote(fields: QuoteFormFields) {
     setExportingQuote(true);
     try {
-      const endpoint = quoteFormat === "excel" ? "/api/export-quote-excel" : "/api/export-quote";
+      const endpoint = fields.format === "excel" ? "/api/export-quote-excel" : "/api/export-quote";
+      const { format, ...body } = fields;
       const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids: Array.from(selected), ...fields }),
+        body: JSON.stringify({ ids: Array.from(selected), ...body }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => null);
@@ -709,7 +711,7 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
       // (không qua header Content-Disposition của server), nên có dấu tiếng
       // Việt vẫn hiển thị đúng, không lo lỗi encoding header như file MISA.
       const [yyyy, mm, dd] = (fields.date || new Date().toISOString().slice(0, 10)).split("-");
-      const ext = quoteFormat === "excel" ? "xlsx" : "pdf";
+      const ext = fields.format === "excel" ? "xlsx" : "pdf";
       downloadBlob(blob, `Bảng báo giá ${dd}-${mm}-${yyyy.slice(2)}.${ext}`);
       setQuoteModalOpen(false);
     } catch (e: any) {
@@ -717,6 +719,19 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
     } finally {
       setExportingQuote(false);
     }
+  }
+
+  async function doExportBlockGia(kind: "block-normal" | "block-discount" | "roll-5x3" | "vertical") {
+    setBlockGiaModalOpen(false);
+    if (kind === "block-normal") await doExport("word");
+    else if (kind === "block-discount") await doExport("word-price-change");
+    else if (kind === "roll-5x3") await doExportRollLabel();
+    else await doExport("vertical");
+  }
+
+  async function doExportMisa(kind: "misa" | "misa-add-unit" | "misa-update") {
+    setMisaModalOpen(false);
+    await doExport(kind);
   }
 
   async function doExportInventoryCheck(fields: InventoryCheckFormFields) {
@@ -1085,76 +1100,29 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
                   <button
                     onClick={() => {
                       setExportMenuOpen(false);
-                      doExport("misa");
+                      setMisaModalOpen(true);
                     }}
                   >
                     <SheetIcon />
-                    Xuất MISA_Nhập khẩu hàng hóa
+                    Xuất MISA
                   </button>
                   <button
                     onClick={() => {
                       setExportMenuOpen(false);
-                      doExport("misa-update");
-                    }}
-                  >
-                    <SheetIcon />
-                    Xuất cập nhật MISA
-                  </button>
-                  <button
-                    onClick={() => {
-                      setExportMenuOpen(false);
-                      doExport("word");
+                      setBlockGiaModalOpen(true);
                     }}
                   >
                     <DocIcon />
-                    Block giá 7.7x4cm
+                    Block giá
                   </button>
                   <button
                     onClick={() => {
                       setExportMenuOpen(false);
-                      doExport("word-price-change");
-                    }}
-                  >
-                    <DocIcon />
-                    Block giá 7.7x4cm (đổi giá)
-                  </button>
-                  <button
-                    onClick={() => {
-                      setExportMenuOpen(false);
-                      doExport("vertical");
-                    }}
-                  >
-                    <DocIcon />
-                    Bảng giá đứng
-                  </button>
-                  <button
-                    onClick={() => {
-                      setExportMenuOpen(false);
-                      setQuoteFormat("pdf");
                       setQuoteModalOpen(true);
                     }}
                   >
                     <QuoteIcon />
-                    Xuất báo giá (PDF)
-                  </button>
-                  <button
-                    onClick={() => {
-                      setExportMenuOpen(false);
-                      setQuoteFormat("excel");
-                      setQuoteModalOpen(true);
-                    }}
-                  >
-                    <SheetIcon />
-                    Xuất báo giá (Excel)
-                  </button>
-                  <button
-                    onClick={() => {
-                      setExportMenuOpen(false);
-                      doExportRollLabel();
-                    }}
-                  >
-                    <SheetIcon />
-                    Xuất tem cuộn 5x3cm
+                    Xuất báo giá
                   </button>
                   <button
                     onClick={() => {
@@ -1381,9 +1349,20 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
         />
       )}
 
+      {blockGiaModalOpen && (
+        <BlockGiaForm
+          submitting={exporting !== null || exportingRollLabel}
+          onCancel={() => setBlockGiaModalOpen(false)}
+          onSubmit={doExportBlockGia}
+        />
+      )}
+
+      {misaModalOpen && (
+        <MisaExportForm submitting={exporting !== null} onCancel={() => setMisaModalOpen(false)} onSubmit={doExportMisa} />
+      )}
+
       {quoteModalOpen && (
         <QuoteForm
-          format={quoteFormat}
           selectedCount={selected.size}
           submitting={exportingQuote}
           onCancel={() => setQuoteModalOpen(false)}
@@ -3635,16 +3614,16 @@ function withCurrent(options: (string | number)[], current: string): string[] {
 
 type QuoteFormFields = {
   date: string; // yyyy-mm-dd
+  format: "pdf" | "excel";
+  savoTamixCaseOverride: boolean;
 };
 
 function QuoteForm({
-  format,
   selectedCount,
   submitting,
   onCancel,
   onSubmit,
 }: {
-  format: "pdf" | "excel";
   selectedCount: number;
   submitting: boolean;
   onCancel: () => void;
@@ -3652,18 +3631,20 @@ function QuoteForm({
 }) {
   const [form, setForm] = useState<QuoteFormFields>({
     date: new Date().toISOString().slice(0, 10),
+    format: "pdf",
+    savoTamixCaseOverride: false,
   });
 
-  function set<K extends keyof QuoteFormFields>(key: K, value: string) {
+  function set<K extends keyof QuoteFormFields>(key: K, value: QuoteFormFields[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
-  const formatLabel = format === "excel" ? "Excel" : "PDF";
+  const formatLabel = form.format === "excel" ? "Excel" : "PDF";
 
   return (
     <div className="modal-backdrop" onClick={(e) => e.target === e.currentTarget && onCancel()}>
       <div className="modal">
-        <h2>Xuất báo giá ({formatLabel})</h2>
+        <h2>Xuất báo giá</h2>
         <p className="modal-sub">{selectedCount} sản phẩm đã chọn sẽ đưa vào bảng báo giá.</p>
 
         <div className="field-group">
@@ -3672,6 +3653,24 @@ function QuoteForm({
               <input type="date" value={form.date} onChange={(e) => set("date", e.target.value)} />
             </Field>
           </div>
+          <label className="field" style={{ flexDirection: "row", alignItems: "center", gap: 16, marginTop: 4 }}>
+            <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <input type="radio" name="quote-format" checked={form.format === "pdf"} onChange={() => set("format", "pdf")} />
+              PDF
+            </span>
+            <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <input type="radio" name="quote-format" checked={form.format === "excel"} onChange={() => set("format", "excel")} />
+              Excel
+            </span>
+          </label>
+          <label className="field" style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 10 }}>
+            <input
+              type="checkbox"
+              checked={form.savoTamixCaseOverride}
+              onChange={(e) => set("savoTamixCaseOverride", e.target.checked)}
+            />
+            Tính giá thùng SAVO/TAMIX = giá bán × số lượng (thay vì giá thùng mặc định)
+          </label>
         </div>
 
         <div className="modal-actions">
@@ -3680,6 +3679,128 @@ function QuoteForm({
           </button>
           <button className="btn btn-primary" disabled={submitting} onClick={() => onSubmit(form)}>
             {submitting ? "Đang xuất..." : `Xuất ${formatLabel}`}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+type BlockGiaKind = "block-normal" | "block-discount" | "block-combo" | "roll-5x3" | "vertical";
+
+function BlockGiaForm({
+  submitting,
+  onCancel,
+  onSubmit,
+}: {
+  submitting: boolean;
+  onCancel: () => void;
+  onSubmit: (kind: "block-normal" | "block-discount" | "roll-5x3" | "vertical") => void;
+}) {
+  const [kind, setKind] = useState<BlockGiaKind>("block-normal");
+
+  const options: { value: BlockGiaKind; label: string; disabled?: boolean }[] = [
+    { value: "block-normal", label: "Block 7.7x4cm" },
+    { value: "block-discount", label: "Block 7.7x4cm (giá giảm)" },
+    { value: "block-combo", label: "Block 7.7x4cm (giá combo) — sắp có", disabled: true },
+    { value: "roll-5x3", label: "Block 5x3cm" },
+    { value: "vertical", label: "Giá đứng" },
+  ];
+
+  function handleSubmit() {
+    if (kind === "block-combo") return;
+    onSubmit(kind);
+  }
+
+  return (
+    <div className="modal-backdrop" onClick={(e) => e.target === e.currentTarget && onCancel()}>
+      <div className="modal">
+        <h2>Block giá</h2>
+        <div className="field-group">
+          {options.map((opt) => (
+            <label
+              key={opt.value}
+              className="field"
+              style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8, opacity: opt.disabled ? 0.5 : 1 }}
+            >
+              <input
+                type="radio"
+                name="block-gia-kind"
+                checked={kind === opt.value}
+                disabled={opt.disabled}
+                onChange={() => setKind(opt.value)}
+              />
+              {opt.label}
+            </label>
+          ))}
+        </div>
+        <div className="modal-actions">
+          <button className="btn" onClick={onCancel} disabled={submitting}>
+            Hủy
+          </button>
+          <button className="btn btn-primary" disabled={submitting || kind === "block-combo"} onClick={handleSubmit}>
+            {submitting ? "Đang xuất..." : "Xuất"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MisaExportForm({
+  submitting,
+  onCancel,
+  onSubmit,
+}: {
+  submitting: boolean;
+  onCancel: () => void;
+  onSubmit: (kind: "misa" | "misa-add-unit" | "misa-update") => void;
+}) {
+  const [topKind, setTopKind] = useState<"import" | "update">("import");
+  const [importSub, setImportSub] = useState<"new" | "add_unit">("new");
+
+  function handleSubmit() {
+    if (topKind === "update") onSubmit("misa-update");
+    else onSubmit(importSub === "new" ? "misa" : "misa-add-unit");
+  }
+
+  return (
+    <div className="modal-backdrop" onClick={(e) => e.target === e.currentTarget && onCancel()}>
+      <div className="modal">
+        <h2>Xuất MISA</h2>
+        <div className="field-group">
+          <label className="field" style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 }}>
+            <input type="radio" name="misa-top" checked={topKind === "import"} onChange={() => setTopKind("import")} />
+            Nhập khẩu thông tin
+          </label>
+          {topKind === "import" && (
+            <div style={{ marginLeft: 24, marginBottom: 8 }}>
+              <label className="field" style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                <input type="radio" name="misa-import-sub" checked={importSub === "new"} onChange={() => setImportSub("new")} />
+                Tạo mới
+              </label>
+              <label className="field" style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <input
+                  type="radio"
+                  name="misa-import-sub"
+                  checked={importSub === "add_unit"}
+                  onChange={() => setImportSub("add_unit")}
+                />
+                Bổ sung đơn vị (hàng đã có sẵn trên MISA)
+              </label>
+            </div>
+          )}
+          <label className="field" style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <input type="radio" name="misa-top" checked={topKind === "update"} onChange={() => setTopKind("update")} />
+            Cập nhật thông tin
+          </label>
+        </div>
+        <div className="modal-actions">
+          <button className="btn" onClick={onCancel} disabled={submitting}>
+            Hủy
+          </button>
+          <button className="btn btn-primary" disabled={submitting} onClick={handleSubmit}>
+            {submitting ? "Đang xuất..." : "Xuất"}
           </button>
         </div>
       </div>

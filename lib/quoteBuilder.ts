@@ -14,6 +14,20 @@ const QUOTE_CATEGORY_ORDER = [
   "Trân châu", "Mứt", "Đồ lon", "Mặt hàng khác", "Trà", "Công cụ dụng cụ",
 ];
 
+// Riêng 2 thương hiệu SAVO/TAMIX: giá thùng lưu sẵn trong hệ thống không
+// đáng tin (không có chiết khấu mua sỉ thật, chỉ là giá lẻ nhân số lượng) —
+// khi bật tùy chọn này lúc xuất báo giá, tính lại "sống" = giá bán × tỷ lệ
+// quy đổi thay vì lấy đúng cột gia_thung đã lưu. Chỉ áp dụng đúng 2 thương
+// hiệu này; các thương hiệu khác luôn giữ nguyên giá thùng đã lưu.
+const CASE_PRICE_OVERRIDE_BRANDS = new Set(["SAVO", "TAMIX"]);
+
+export function applySavoTamixCaseOverride(items: Product[]): Product[] {
+  return items.map((p) => {
+    if (!CASE_PRICE_OVERRIDE_BRANDS.has(p.brand?.name ?? "") || !p.gia_ban || !p.ty_le) return p;
+    return { ...p, gia_thung: p.gia_ban * p.ty_le };
+  });
+}
+
 // Chuyển sang dạng bảng giá niêm yết chung (không phải báo giá riêng theo
 // từng khách) — theo mẫu thiết kế thật của tiệm, không còn thu thập tên/địa
 // chỉ/điện thoại khách hàng nữa, chỉ còn ngày báo giá.
