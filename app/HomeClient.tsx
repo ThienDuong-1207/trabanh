@@ -154,11 +154,8 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [exporting, setExporting] = useState<"misa" | "misa-add-unit" | "word" | "word-price-change" | "misa-update" | "vertical" | null>(null);
   const [exportingRollLabel, setExportingRollLabel] = useState(false);
-  const [blockGiaModalOpen, setBlockGiaModalOpen] = useState(false);
-  const [misaModalOpen, setMisaModalOpen] = useState(false);
-  const [quoteModalOpen, setQuoteModalOpen] = useState(false);
+  const [exportModalOpen, setExportModalOpen] = useState(false);
   const [exportingQuote, setExportingQuote] = useState(false);
-  const [inventoryModalOpen, setInventoryModalOpen] = useState(false);
   const [exportingInventory, setExportingInventory] = useState(false);
   const [exportingAll, setExportingAll] = useState<"category" | "brand" | "word" | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
@@ -167,10 +164,8 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
   const [importOnlyNew, setImportOnlyNew] = useState(false);
   const [formTarget, setFormTarget] = useState<Product | null>(null);
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
-  const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const moreMenuRef = useRef<HTMLDivElement>(null);
-  const exportMenuRef = useRef<HTMLDivElement>(null);
   const selectAllCheckboxRef = useRef<HTMLInputElement>(null);
 
   const loadProducts = useCallback(async () => {
@@ -239,7 +234,6 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
   useEffect(() => {
     function onClickOutside(e: MouseEvent) {
       if (moreMenuRef.current && !moreMenuRef.current.contains(e.target as Node)) setMoreMenuOpen(false);
-      if (exportMenuRef.current && !exportMenuRef.current.contains(e.target as Node)) setExportMenuOpen(false);
     }
     document.addEventListener("click", onClickOutside);
     return () => document.removeEventListener("click", onClickOutside);
@@ -713,7 +707,7 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
       const [yyyy, mm, dd] = (fields.date || new Date().toISOString().slice(0, 10)).split("-");
       const ext = fields.format === "excel" ? "xlsx" : "pdf";
       downloadBlob(blob, `Bảng báo giá ${dd}-${mm}-${yyyy.slice(2)}.${ext}`);
-      setQuoteModalOpen(false);
+      setExportModalOpen(false);
     } catch (e: any) {
       alert("Xuất báo giá thất bại: " + e.message);
     } finally {
@@ -722,7 +716,7 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
   }
 
   async function doExportBlockGia(kind: "block-normal" | "block-discount" | "roll-5x3" | "vertical") {
-    setBlockGiaModalOpen(false);
+    setExportModalOpen(false);
     if (kind === "block-normal") await doExport("word");
     else if (kind === "block-discount") await doExport("word-price-change");
     else if (kind === "roll-5x3") await doExportRollLabel();
@@ -730,7 +724,7 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
   }
 
   async function doExportMisa(kind: "misa" | "misa-add-unit" | "misa-update") {
-    setMisaModalOpen(false);
+    setExportModalOpen(false);
     await doExport(kind);
   }
 
@@ -750,7 +744,7 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
       const days = getWorkingDaysClient(fields.startDate, 12);
       const fmt = (d: Date) => `${String(d.getDate()).padStart(2, "0")}-${String(d.getMonth() + 1).padStart(2, "0")}-${d.getFullYear()}`;
       downloadBlob(blob, `Phiếu kiểm kho_${fmt(days[0])}_${fmt(days[days.length - 1])}.pdf`);
-      setInventoryModalOpen(false);
+      setExportModalOpen(false);
     } catch (e: any) {
       alert("Xuất phiếu kiểm kho thất bại: " + e.message);
     } finally {
@@ -1086,63 +1080,20 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
             Bỏ chọn
           </button>
           <div className="toolbar-spacer" />
-          <div className="menu-wrap" ref={exportMenuRef}>
-              <button
-                className="btn btn-primary"
-                disabled={exporting !== null || exportingRollLabel}
-                onClick={() => setExportMenuOpen((v) => !v)}
-              >
-                {exporting !== null || exportingRollLabel ? "Đang xuất..." : "Xuất file"}
-                <ChevronDownIcon />
-              </button>
-              {exportMenuOpen && (
-                <div className="menu">
-                  <button
-                    onClick={() => {
-                      setExportMenuOpen(false);
-                      setMisaModalOpen(true);
-                    }}
-                  >
-                    <SheetIcon />
-                    Xuất MISA
-                  </button>
-                  <button
-                    onClick={() => {
-                      setExportMenuOpen(false);
-                      setBlockGiaModalOpen(true);
-                    }}
-                  >
-                    <DocIcon />
-                    Block giá
-                  </button>
-                  <button
-                    onClick={() => {
-                      setExportMenuOpen(false);
-                      setQuoteModalOpen(true);
-                    }}
-                  >
-                    <QuoteIcon />
-                    Xuất báo giá
-                  </button>
-                  <button
-                    onClick={() => {
-                      setExportMenuOpen(false);
-                      setInventoryModalOpen(true);
-                    }}
-                  >
-                    <DocIcon />
-                    Phiếu kiểm kho (PDF)
-                  </button>
-                </div>
-              )}
-            </div>
-            {tab === "pending" && (
-              <button className="btn btn-danger" disabled={dismissing} onClick={dismissPending}>
-                {dismissing ? "Đang xử lý..." : "Bỏ chờ xuất file"}
-              </button>
-            )}
-          </div>
-        )}
+          <button
+            className="btn btn-primary"
+            disabled={exporting !== null || exportingRollLabel}
+            onClick={() => setExportModalOpen(true)}
+          >
+            {exporting !== null || exportingRollLabel ? "Đang xuất..." : "Xuất file"}
+          </button>
+          {tab === "pending" && (
+            <button className="btn btn-danger" disabled={dismissing} onClick={dismissPending}>
+              {dismissing ? "Đang xử lý..." : "Bỏ chờ xuất file"}
+            </button>
+          )}
+        </div>
+      )}
 
       <div className="table-card">
         <div className="table-scroll" ref={tableScrollRef}>
@@ -1349,33 +1300,17 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
         />
       )}
 
-      {blockGiaModalOpen && (
-        <BlockGiaForm
-          submitting={exporting !== null || exportingRollLabel}
-          onCancel={() => setBlockGiaModalOpen(false)}
-          onSubmit={doExportBlockGia}
-        />
-      )}
-
-      {misaModalOpen && (
-        <MisaExportForm submitting={exporting !== null} onCancel={() => setMisaModalOpen(false)} onSubmit={doExportMisa} />
-      )}
-
-      {quoteModalOpen && (
-        <QuoteForm
+      {exportModalOpen && (
+        <ExportModal
           selectedCount={selected.size}
-          submitting={exportingQuote}
-          onCancel={() => setQuoteModalOpen(false)}
-          onSubmit={doExportQuote}
-        />
-      )}
-
-      {inventoryModalOpen && (
-        <InventoryCheckForm
-          selectedCount={selected.size}
-          submitting={exportingInventory}
-          onCancel={() => setInventoryModalOpen(false)}
-          onSubmit={doExportInventoryCheck}
+          submittingMisaOrBlock={exporting !== null || exportingRollLabel}
+          submittingQuote={exportingQuote}
+          submittingInventory={exportingInventory}
+          onCancel={() => setExportModalOpen(false)}
+          onSubmitMisa={doExportMisa}
+          onSubmitBlockGia={doExportBlockGia}
+          onSubmitQuote={doExportQuote}
+          onSubmitInventory={doExportInventoryCheck}
         />
       )}
 
@@ -3618,195 +3553,7 @@ type QuoteFormFields = {
   savoTamixCaseOverride: boolean;
 };
 
-function QuoteForm({
-  selectedCount,
-  submitting,
-  onCancel,
-  onSubmit,
-}: {
-  selectedCount: number;
-  submitting: boolean;
-  onCancel: () => void;
-  onSubmit: (fields: QuoteFormFields) => void;
-}) {
-  const [form, setForm] = useState<QuoteFormFields>({
-    date: new Date().toISOString().slice(0, 10),
-    format: "pdf",
-    savoTamixCaseOverride: false,
-  });
-
-  function set<K extends keyof QuoteFormFields>(key: K, value: QuoteFormFields[K]) {
-    setForm((prev) => ({ ...prev, [key]: value }));
-  }
-
-  const formatLabel = form.format === "excel" ? "Excel" : "PDF";
-
-  return (
-    <div className="modal-backdrop" onClick={(e) => e.target === e.currentTarget && onCancel()}>
-      <div className="modal">
-        <h2>Xuất báo giá</h2>
-        <p className="modal-sub">{selectedCount} sản phẩm đã chọn sẽ đưa vào bảng báo giá.</p>
-
-        <div className="field-group">
-          <div className="field-grid">
-            <Field label="Ngày báo giá">
-              <input type="date" value={form.date} onChange={(e) => set("date", e.target.value)} />
-            </Field>
-          </div>
-          <label className="field" style={{ flexDirection: "row", alignItems: "center", gap: 16, marginTop: 4 }}>
-            <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <input type="radio" name="quote-format" checked={form.format === "pdf"} onChange={() => set("format", "pdf")} />
-              PDF
-            </span>
-            <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <input type="radio" name="quote-format" checked={form.format === "excel"} onChange={() => set("format", "excel")} />
-              Excel
-            </span>
-          </label>
-          <label className="field" style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 10 }}>
-            <input
-              type="checkbox"
-              checked={form.savoTamixCaseOverride}
-              onChange={(e) => set("savoTamixCaseOverride", e.target.checked)}
-            />
-            Tính giá thùng SAVO/TAMIX = giá bán × số lượng (thay vì giá thùng mặc định)
-          </label>
-        </div>
-
-        <div className="modal-actions">
-          <button className="btn" onClick={onCancel} disabled={submitting}>
-            Hủy
-          </button>
-          <button className="btn btn-primary" disabled={submitting} onClick={() => onSubmit(form)}>
-            {submitting ? "Đang xuất..." : `Xuất ${formatLabel}`}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 type BlockGiaKind = "block-normal" | "block-discount" | "block-combo" | "roll-5x3" | "vertical";
-
-function BlockGiaForm({
-  submitting,
-  onCancel,
-  onSubmit,
-}: {
-  submitting: boolean;
-  onCancel: () => void;
-  onSubmit: (kind: "block-normal" | "block-discount" | "roll-5x3" | "vertical") => void;
-}) {
-  const [kind, setKind] = useState<BlockGiaKind>("block-normal");
-
-  const options: { value: BlockGiaKind; label: string; disabled?: boolean }[] = [
-    { value: "block-normal", label: "Block 7.7x4cm" },
-    { value: "block-discount", label: "Block 7.7x4cm (giá giảm)" },
-    { value: "block-combo", label: "Block 7.7x4cm (giá combo) — sắp có", disabled: true },
-    { value: "roll-5x3", label: "Block 5x3cm" },
-    { value: "vertical", label: "Giá đứng" },
-  ];
-
-  function handleSubmit() {
-    if (kind === "block-combo") return;
-    onSubmit(kind);
-  }
-
-  return (
-    <div className="modal-backdrop" onClick={(e) => e.target === e.currentTarget && onCancel()}>
-      <div className="modal">
-        <h2>Block giá</h2>
-        <div className="field-group">
-          {options.map((opt) => (
-            <label
-              key={opt.value}
-              className="field"
-              style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8, opacity: opt.disabled ? 0.5 : 1 }}
-            >
-              <input
-                type="radio"
-                name="block-gia-kind"
-                checked={kind === opt.value}
-                disabled={opt.disabled}
-                onChange={() => setKind(opt.value)}
-              />
-              {opt.label}
-            </label>
-          ))}
-        </div>
-        <div className="modal-actions">
-          <button className="btn" onClick={onCancel} disabled={submitting}>
-            Hủy
-          </button>
-          <button className="btn btn-primary" disabled={submitting || kind === "block-combo"} onClick={handleSubmit}>
-            {submitting ? "Đang xuất..." : "Xuất"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function MisaExportForm({
-  submitting,
-  onCancel,
-  onSubmit,
-}: {
-  submitting: boolean;
-  onCancel: () => void;
-  onSubmit: (kind: "misa" | "misa-add-unit" | "misa-update") => void;
-}) {
-  const [topKind, setTopKind] = useState<"import" | "update">("import");
-  const [importSub, setImportSub] = useState<"new" | "add_unit">("new");
-
-  function handleSubmit() {
-    if (topKind === "update") onSubmit("misa-update");
-    else onSubmit(importSub === "new" ? "misa" : "misa-add-unit");
-  }
-
-  return (
-    <div className="modal-backdrop" onClick={(e) => e.target === e.currentTarget && onCancel()}>
-      <div className="modal">
-        <h2>Xuất MISA</h2>
-        <div className="field-group">
-          <label className="field" style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 }}>
-            <input type="radio" name="misa-top" checked={topKind === "import"} onChange={() => setTopKind("import")} />
-            Nhập khẩu thông tin
-          </label>
-          {topKind === "import" && (
-            <div style={{ marginLeft: 24, marginBottom: 8 }}>
-              <label className="field" style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                <input type="radio" name="misa-import-sub" checked={importSub === "new"} onChange={() => setImportSub("new")} />
-                Tạo mới
-              </label>
-              <label className="field" style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                <input
-                  type="radio"
-                  name="misa-import-sub"
-                  checked={importSub === "add_unit"}
-                  onChange={() => setImportSub("add_unit")}
-                />
-                Bổ sung đơn vị (hàng đã có sẵn trên MISA)
-              </label>
-            </div>
-          )}
-          <label className="field" style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-            <input type="radio" name="misa-top" checked={topKind === "update"} onChange={() => setTopKind("update")} />
-            Cập nhật thông tin
-          </label>
-        </div>
-        <div className="modal-actions">
-          <button className="btn" onClick={onCancel} disabled={submitting}>
-            Hủy
-          </button>
-          <button className="btn btn-primary" disabled={submitting} onClick={handleSubmit}>
-            {submitting ? "Đang xuất..." : "Xuất"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 type InventoryCheckFormFields = {
   startDate: string; // yyyy-mm-dd
@@ -3823,41 +3570,202 @@ function nextMonday(): string {
   return d.toISOString().slice(0, 10);
 }
 
-function InventoryCheckForm({
+type ExportTab = "misa" | "block" | "quote" | "inventory";
+
+// 1 modal duy nhất cho toàn bộ "Xuất file" — các loại xuất trước đây mỗi loại
+// 1 modal riêng, giờ gộp thành các tab (Segmented) trong cùng 1 form: chọn
+// tab nào, đúng các option của loại đó hiện ra, bấm "Xuất" ở dưới cùng chạy
+// đúng loại đang chọn. Mỗi tab tự giữ state riêng (không mất lựa chọn khi
+// chuyển qua lại giữa các tab trong cùng 1 lần mở modal).
+function ExportModal({
   selectedCount,
-  submitting,
+  submittingMisaOrBlock,
+  submittingQuote,
+  submittingInventory,
   onCancel,
-  onSubmit,
+  onSubmitMisa,
+  onSubmitBlockGia,
+  onSubmitQuote,
+  onSubmitInventory,
 }: {
   selectedCount: number;
-  submitting: boolean;
+  submittingMisaOrBlock: boolean;
+  submittingQuote: boolean;
+  submittingInventory: boolean;
   onCancel: () => void;
-  onSubmit: (fields: InventoryCheckFormFields) => void;
+  onSubmitMisa: (kind: "misa" | "misa-add-unit" | "misa-update") => void;
+  onSubmitBlockGia: (kind: "block-normal" | "block-discount" | "roll-5x3" | "vertical") => void;
+  onSubmitQuote: (fields: QuoteFormFields) => void;
+  onSubmitInventory: (fields: InventoryCheckFormFields) => void;
 }) {
-  const [form, setForm] = useState<InventoryCheckFormFields>({ startDate: nextMonday() });
+  const [tab, setTab] = useState<ExportTab>("quote");
+
+  const [misaTopKind, setMisaTopKind] = useState<"import" | "update">("import");
+  const [misaImportSub, setMisaImportSub] = useState<"new" | "add_unit">("new");
+
+  const [blockKind, setBlockKind] = useState<BlockGiaKind>("block-normal");
+  const blockOptions: { value: BlockGiaKind; label: string; disabled?: boolean }[] = [
+    { value: "block-normal", label: "Block 7.7x4cm" },
+    { value: "block-discount", label: "Block 7.7x4cm (giá giảm)" },
+    { value: "block-combo", label: "Block 7.7x4cm (giá combo) — sắp có", disabled: true },
+    { value: "roll-5x3", label: "Block 5x3cm" },
+    { value: "vertical", label: "Giá đứng" },
+  ];
+
+  const [quoteForm, setQuoteForm] = useState<QuoteFormFields>({
+    date: new Date().toISOString().slice(0, 10),
+    format: "pdf",
+    savoTamixCaseOverride: false,
+  });
+  function setQuoteField<K extends keyof QuoteFormFields>(key: K, value: QuoteFormFields[K]) {
+    setQuoteForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  const [inventoryStartDate, setInventoryStartDate] = useState(nextMonday());
+
+  const submitting = submittingMisaOrBlock || submittingQuote || submittingInventory;
+
+  function handleSubmit() {
+    if (tab === "misa") {
+      onSubmitMisa(misaTopKind === "update" ? "misa-update" : misaImportSub === "new" ? "misa" : "misa-add-unit");
+    } else if (tab === "block") {
+      if (blockKind === "block-combo") return;
+      onSubmitBlockGia(blockKind);
+    } else if (tab === "quote") {
+      onSubmitQuote(quoteForm);
+    } else {
+      onSubmitInventory({ startDate: inventoryStartDate });
+    }
+  }
 
   return (
     <div className="modal-backdrop" onClick={(e) => e.target === e.currentTarget && onCancel()}>
       <div className="modal">
-        <h2>Xuất phiếu kiểm kho (PDF)</h2>
-        <p className="modal-sub">
-          {selectedCount} sản phẩm đã chọn sẽ đưa vào phiếu — 12 ngày kiểm kho (Thứ 2 - Thứ 7, bỏ qua Chủ nhật) tính từ ngày bắt đầu.
-        </p>
+        <h2>Xuất file</h2>
+        <p className="modal-sub">{selectedCount} sản phẩm đã chọn.</p>
+
+        <Segmented
+          style={{ marginBottom: 16 }}
+          items={[
+            { key: "misa", label: "MISA", active: tab === "misa", onClick: () => setTab("misa") },
+            { key: "block", label: "Block giá", active: tab === "block", onClick: () => setTab("block") },
+            { key: "quote", label: "Báo giá", active: tab === "quote", onClick: () => setTab("quote") },
+            { key: "inventory", label: "Kiểm kho", active: tab === "inventory", onClick: () => setTab("inventory") },
+          ]}
+        />
 
         <div className="field-group">
-          <div className="field-grid">
-            <Field label="Ngày bắt đầu (nên là Thứ 2)">
-              <input type="date" value={form.startDate} onChange={(e) => setForm({ startDate: e.target.value })} />
-            </Field>
-          </div>
+          {tab === "misa" && (
+            <>
+              <label className="field" style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                <input type="radio" name="misa-top" checked={misaTopKind === "import"} onChange={() => setMisaTopKind("import")} />
+                Nhập khẩu thông tin
+              </label>
+              {misaTopKind === "import" && (
+                <div style={{ marginLeft: 24, marginBottom: 8 }}>
+                  <label className="field" style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                    <input
+                      type="radio"
+                      name="misa-import-sub"
+                      checked={misaImportSub === "new"}
+                      onChange={() => setMisaImportSub("new")}
+                    />
+                    Tạo mới
+                  </label>
+                  <label className="field" style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                    <input
+                      type="radio"
+                      name="misa-import-sub"
+                      checked={misaImportSub === "add_unit"}
+                      onChange={() => setMisaImportSub("add_unit")}
+                    />
+                    Bổ sung đơn vị (hàng đã có sẵn trên MISA)
+                  </label>
+                </div>
+              )}
+              <label className="field" style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <input type="radio" name="misa-top" checked={misaTopKind === "update"} onChange={() => setMisaTopKind("update")} />
+                Cập nhật thông tin
+              </label>
+            </>
+          )}
+
+          {tab === "block" &&
+            blockOptions.map((opt) => (
+              <label
+                key={opt.value}
+                className="field"
+                style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8, opacity: opt.disabled ? 0.5 : 1 }}
+              >
+                <input
+                  type="radio"
+                  name="block-gia-kind"
+                  checked={blockKind === opt.value}
+                  disabled={opt.disabled}
+                  onChange={() => setBlockKind(opt.value)}
+                />
+                {opt.label}
+              </label>
+            ))}
+
+          {tab === "quote" && (
+            <>
+              <div className="field-grid">
+                <Field label="Ngày báo giá">
+                  <input type="date" value={quoteForm.date} onChange={(e) => setQuoteField("date", e.target.value)} />
+                </Field>
+              </div>
+              <label className="field" style={{ flexDirection: "row", alignItems: "center", gap: 16, marginTop: 4 }}>
+                <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <input
+                    type="radio"
+                    name="quote-format"
+                    checked={quoteForm.format === "pdf"}
+                    onChange={() => setQuoteField("format", "pdf")}
+                  />
+                  PDF
+                </span>
+                <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <input
+                    type="radio"
+                    name="quote-format"
+                    checked={quoteForm.format === "excel"}
+                    onChange={() => setQuoteField("format", "excel")}
+                  />
+                  Excel
+                </span>
+              </label>
+              <label className="field" style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 10 }}>
+                <input
+                  type="checkbox"
+                  checked={quoteForm.savoTamixCaseOverride}
+                  onChange={(e) => setQuoteField("savoTamixCaseOverride", e.target.checked)}
+                />
+                Tính giá thùng SAVO/TAMIX = giá bán × số lượng (thay vì giá thùng mặc định)
+              </label>
+            </>
+          )}
+
+          {tab === "inventory" && (
+            <>
+              <p className="modal-sub" style={{ marginTop: 0 }}>
+                12 ngày kiểm kho (Thứ 2 - Thứ 7, bỏ qua Chủ nhật) tính từ ngày bắt đầu.
+              </p>
+              <div className="field-grid">
+                <Field label="Ngày bắt đầu (nên là Thứ 2)">
+                  <input type="date" value={inventoryStartDate} onChange={(e) => setInventoryStartDate(e.target.value)} />
+                </Field>
+              </div>
+            </>
+          )}
         </div>
 
         <div className="modal-actions">
           <button className="btn" onClick={onCancel} disabled={submitting}>
             Hủy
           </button>
-          <button className="btn btn-primary" disabled={submitting} onClick={() => onSubmit(form)}>
-            {submitting ? "Đang xuất..." : "Xuất PDF"}
+          <button className="btn btn-primary" disabled={submitting || (tab === "block" && blockKind === "block-combo")} onClick={handleSubmit}>
+            {submitting ? "Đang xuất..." : "Xuất file"}
           </button>
         </div>
       </div>
