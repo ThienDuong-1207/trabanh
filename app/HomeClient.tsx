@@ -152,7 +152,7 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
   const [approvingAll, setApprovingAll] = useState(false);
   const [completeDraftTarget, setCompleteDraftTarget] = useState<Product | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [exporting, setExporting] = useState<"misa" | "misa-add-unit" | "word" | "misa-update" | "vertical" | null>(null);
+  const [exporting, setExporting] = useState<"misa" | "misa-add-unit" | "word" | "word-price-change" | "misa-update" | "vertical" | null>(null);
   const [exportingRollLabel, setExportingRollLabel] = useState(false);
   const [quoteModalOpen, setQuoteModalOpen] = useState(false);
   const [quoteFormat, setQuoteFormat] = useState<"pdf" | "excel">("pdf");
@@ -603,16 +603,17 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
     }
   }, [someVisibleSelected, allVisibleSelected]);
 
-  async function doExport(kind: "misa" | "misa-add-unit" | "word" | "misa-update" | "vertical") {
+  async function doExport(kind: "misa" | "misa-add-unit" | "word" | "word-price-change" | "misa-update" | "vertical") {
     if (selected.size === 0) {
       alert("Chọn ít nhất 1 sản phẩm để xuất file.");
       return;
     }
     setExporting(kind);
     try {
-      const endpoint = kind === "misa-add-unit" ? "misa" : kind;
+      const endpoint = kind === "misa-add-unit" ? "misa" : kind === "word-price-change" ? "word" : kind;
       const body: Record<string, unknown> = { ids: Array.from(selected) };
       if (kind === "misa-add-unit") body.mode = "add_unit_only";
+      if (kind === "word-price-change") body.mode = "price_change";
       const res = await fetch(`/api/export-${endpoint}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -622,15 +623,24 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
         const t = await res.text();
         throw new Error(t);
       }
+      const skippedHeader = res.headers.get("X-Skipped-Products");
       const blob = await res.blob();
       const filenames = {
         misa: "MISA_Nhap_khau_hang_hoa.xlsx",
         "misa-add-unit": "MISA_Nhap_khau_bo_sung_don_vi.xlsx",
         word: "Bang_gia_block_7.7x4cm_Update.docx",
+        "word-price-change": "Bang_gia_block_7.7x4cm_Doi_gia.docx",
         "misa-update": "MISA_Cap_nhat_thong_tin.xlsx",
         vertical: "Bang_gia_dung.pdf",
       };
       downloadBlob(blob, filenames[kind]);
+      if (skippedHeader) {
+        const skippedNames: string[] = JSON.parse(decodeURIComponent(skippedHeader));
+        alert(
+          `Bỏ qua ${skippedNames.length} sản phẩm chưa từng đổi giá bán lẻ (không có "giá cũ" để in):\n` +
+            skippedNames.join("\n")
+        );
+      }
 
       const now = new Date().toISOString();
       const { error } = await supabase
@@ -1098,6 +1108,15 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
                   >
                     <DocIcon />
                     Block giá 7.7x4cm
+                  </button>
+                  <button
+                    onClick={() => {
+                      setExportMenuOpen(false);
+                      doExport("word-price-change");
+                    }}
+                  >
+                    <DocIcon />
+                    Block giá 7.7x4cm (đổi giá)
                   </button>
                   <button
                     onClick={() => {

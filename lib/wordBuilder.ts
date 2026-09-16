@@ -1,9 +1,7 @@
-import fs from "fs";
-import path from "path";
 import {
   Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
   WidthType, BorderStyle, AlignmentType, VerticalAlign,
-  HeightRule, PageOrientation, TableLayoutType, Tab, ImageRun,
+  HeightRule, PageOrientation, TableLayoutType, Tab,
 } from "docx";
 import { Product } from "./types";
 import { fixDuplicateDocPrIds } from "./docxFixup";
@@ -53,8 +51,10 @@ const UNIT_SIZE_HALF = 18; // 9pt
 // zones (top margin, title line, the gap after the price, the bottom line,
 // and the tightened bottom margin) — instead of a fixed conservative
 // budget, so the price grows to fill the block rather than leaving empty
-// space above the barcode/unit line.
-const PRICE_ZONE_PT = (BLOCK_H - CELL_MARGIN_TOP - TITLE_LINE - PRICE_SPACING_AFTER - BOTTOM_LINE - CELL_MARGIN_BOTTOM) / 20;
+// space above the barcode/unit line. `extraZoneDxa` reserves additional room
+// above the price for the old-price line in "price_change" mode (0 in
+// "normal" mode, which reproduces the original single-zone calibration
+// exactly).
 const SAFETY = 1.15;
 const DIGIT_WIDTH_EM = 0.556;
 const SEPARATOR_WIDTH_EM = 0.278;
@@ -63,15 +63,25 @@ const SEPARATOR_WIDTH_EM = 0.278;
 // 62pt/5-char, 51.5pt/7-char) when combined with the glyph widths above.
 const PRICE_BOX_WIDTH_PT = ((BLOCK_W / DXA_PER_CM) - 0.24) * 28.3465;
 
+// Old-price line ("tem đổi giá" mode only) — struck-through, red, smaller
+// than the title, shown right above the current price.
+const OLD_PRICE_SIZE_HALF = 28; // 14pt
+const OLD_PRICE_LINE = 190; // twips
+const OLD_PRICE_GAP_AFTER = 20; // twips
+
 function estimatePriceWidthUnits(price: string): number {
   let units = 0;
   for (const ch of price) units += /[.,]/.test(ch) ? SEPARATOR_WIDTH_EM : DIGIT_WIDTH_EM;
   return units;
 }
 
-function priceFontSizeHalf(price: string) {
+function priceZonePt(extraZoneDxa: number): number {
+  return (BLOCK_H - CELL_MARGIN_TOP - TITLE_LINE - PRICE_SPACING_AFTER - BOTTOM_LINE - CELL_MARGIN_BOTTOM - extraZoneDxa) / 20;
+}
+
+function priceFontSizeHalf(price: string, extraZoneDxa: number) {
   const sizeFromWidth = PRICE_BOX_WIDTH_PT / (estimatePriceWidthUnits(price) * SAFETY);
-  const sizeFromHeight = PRICE_ZONE_PT / (1.15 * SAFETY);
+  const sizeFromHeight = priceZonePt(extraZoneDxa) / (1.15 * SAFETY);
   return Math.round(Math.min(sizeFromWidth, sizeFromHeight) * 2);
 }
 
@@ -84,27 +94,12 @@ function priceFontSizeHalf(price: string) {
 // rather than stuck right under the title.
 const FIXED_ZONES_DXA = CELL_MARGIN_TOP + TITLE_LINE + BOTTOM_LINE + CELL_MARGIN_BOTTOM;
 
-function priceSpacingDxa(priceSizeHalf: number): { before: number; after: number } {
+function priceSpacingDxa(priceSizeHalf: number, extraZoneDxa: number): { before: number; after: number } {
   const priceLineDxa = Math.round((priceSizeHalf / 2) * 1.15 * 20);
-  const leftover = Math.max(0, BLOCK_H - FIXED_ZONES_DXA - priceLineDxa);
+  const leftover = Math.max(0, BLOCK_H - FIXED_ZONES_DXA - extraZoneDxa - priceLineDxa);
   const before = Math.floor(leftover / 2);
   const after = Math.max(PRICE_SPACING_AFTER, leftover - before);
   return { before, after };
-}
-
-const LOGO_PATH = path.join(process.cwd(), "public", "templates", "logo.png");
-const LOGO_DISPLAY_W = 68; // px; reference logo is 857250 EMU wide (~2.38cm)
-const LOGO_DISPLAY_H = 22; // px; reference logo is 276225 EMU tall (~0.77cm)
-
-function logoImageRun() {
-  if (!fs.existsSync(LOGO_PATH)) return null;
-  // Inline (flows with the header text), matching the reference — the
-  // previous version absolutely-positioned the logo over the page instead.
-  return new ImageRun({
-    type: "png",
-    data: fs.readFileSync(LOGO_PATH),
-    transformation: { width: LOGO_DISPLAY_W, height: LOGO_DISPLAY_H },
-  });
 }
 
 const noBorder = { style: BorderStyle.NONE, size: 0, color: "FFFFFF" };
@@ -119,7 +114,7 @@ function formatPrice(n: number) {
   return Math.round(n).toLocaleString("vi-VN").replace(/,/g, ".");
 }
 
-function buildCell(item: Product | null) {
+function buildCell(item: WordLabelItem | null, mode: WordLabelMode) {
   if (!item || !item.gia_ban) {
     return new TableCell({
       width: { size: BLOCK_W, type: WidthType.DXA },
@@ -134,9 +129,33 @@ function buildCell(item: Product | null) {
     children: [new TextRun({ text: name, bold: true, font: FONT, size: TITLE_SIZE_HALF })],
   });
 
+  // Tem "đổi giá": thêm 1 dòng giá cũ gạch ngang màu đỏ ngay trên giá mới —
+  // chiếm thêm 1 vùng cố định (OLD_PRICE_LINE + khoảng cách sau), nên giá
+  // mới co lại nhường chỗ đúng bằng vùng đó (mode "normal" truyền
+  // extraZoneDxa=0, tái lập chính xác công thức/kích cỡ cũ, không đổi gì).
+  const hasOldPrice = mode === "price_change" && item.gia_ban_old != null;
+  const extraZoneDxa = hasOldPrice ? OLD_PRICE_LINE + OLD_PRICE_GAP_AFTER : 0;
+
+  const oldPricePara = hasOldPrice
+    ? new Paragraph({
+        alignment: AlignmentType.CENTER,
+        spacing: { after: OLD_PRICE_GAP_AFTER, line: OLD_PRICE_LINE, lineRule: "exact" },
+        children: [
+          new TextRun({
+            text: formatPrice(item.gia_ban_old!),
+            bold: true,
+            strike: true,
+            color: "FF0000",
+            font: FONT,
+            size: OLD_PRICE_SIZE_HALF,
+          }),
+        ],
+      })
+    : null;
+
   const priceStr = formatPrice(item.gia_ban);
-  const priceSize = priceFontSizeHalf(priceStr);
-  const { before: priceBefore, after: priceAfter } = priceSpacingDxa(priceSize);
+  const priceSize = priceFontSizeHalf(priceStr, extraZoneDxa);
+  const { before: priceBefore, after: priceAfter } = priceSpacingDxa(priceSize, extraZoneDxa);
   const pricePara = new Paragraph({
     alignment: AlignmentType.CENTER,
     spacing: { before: priceBefore, after: priceAfter },
@@ -159,17 +178,17 @@ function buildCell(item: Product | null) {
     verticalAlign: VerticalAlign.TOP,
     margins: { top: CELL_MARGIN_TOP, bottom: CELL_MARGIN_BOTTOM, left: CELL_MARGIN_SIDE, right: CELL_MARGIN_SIDE },
     borders: cellBorderThin,
-    children: [titlePara, pricePara, bottomLine],
+    children: [titlePara, ...(oldPricePara ? [oldPricePara] : []), pricePara, bottomLine],
   });
 }
 
-function buildPage(label: string, items: (Product | null)[]) {
+function buildPage(label: string, items: (WordLabelItem | null)[], mode: WordLabelMode) {
   const rows: TableRow[] = [];
   let idx = 0;
   for (let r = 0; r < ROWS; r++) {
     const cells: TableCell[] = [];
     for (let c = 0; c < COLS; c++) {
-      cells.push(buildCell(items[idx] ?? null));
+      cells.push(buildCell(items[idx] ?? null, mode));
       idx += 1;
     }
     rows.push(new TableRow({ height: { value: BLOCK_H, rule: HeightRule.ATLEAST }, children: cells }));
@@ -182,15 +201,9 @@ function buildPage(label: string, items: (Product | null)[]) {
     rows,
   });
 
-  const logo = logoImageRun();
-  const headerChildren = [
-    ...(logo ? [logo] : []),
-    new TextRun({ text: `  ${label}`, bold: true, font: FONT, size: 24 }),
-  ];
-
   return [
     new Paragraph({
-      children: headerChildren,
+      children: [new TextRun({ text: label, bold: true, font: FONT, size: 24 })],
       spacing: { after: 200 },
       border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: "000000", space: 4 } },
     }),
@@ -198,17 +211,21 @@ function buildPage(label: string, items: (Product | null)[]) {
   ];
 }
 
-export async function buildWordFile(items: Product[]): Promise<Buffer> {
+export type WordLabelMode = "normal" | "price_change";
+export type WordLabelItem = Product & { gia_ban_old?: number | null };
+
+export async function buildWordFile(items: WordLabelItem[], mode: WordLabelMode = "normal"): Promise<Buffer> {
   const priced = items.filter((it) => it.gia_ban);
   const PER_PAGE = COLS * ROWS;
   const sections = [];
   let pageNum = 0;
   const today = new Date().toLocaleDateString("vi-VN");
+  const labelPrefix = mode === "price_change" ? "Bảng giá đổi giá" : "Cập nhật giá";
 
   for (let i = 0; i < priced.length; i += PER_PAGE) {
     pageNum += 1;
     const chunk = priced.slice(i, i + PER_PAGE);
-    const label = `Cập nhật giá ${today} - Trang ${String(pageNum).padStart(2, "0")}`;
+    const label = `${labelPrefix} ${today} - Trang ${String(pageNum).padStart(2, "0")}`;
     sections.push({
       properties: {
         page: {
@@ -219,7 +236,7 @@ export async function buildWordFile(items: Product[]): Promise<Buffer> {
           margin: { top: MARGIN, bottom: MARGIN, left: MARGIN, right: MARGIN },
         },
       },
-      children: buildPage(label, chunk),
+      children: buildPage(label, chunk, mode),
     });
   }
 
