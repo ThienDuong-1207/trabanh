@@ -11,7 +11,7 @@ import { extractUnitFromQuyCach } from "./suggestionLists";
 // phẩm bán trực tiếp, tách riêng khỏi mọi nhóm hàng khác).
 const QUOTE_CATEGORY_ORDER = [
   "Sữa đặc", "Sữa tươi", "Kem đông lạnh", "Syrup", "Bột",
-  "Trân châu", "Mứt", "Đồ lon", "Mặt hàng khác", "Trà", "Công cụ dụng cụ",
+  "Trân châu", "Mứt", "Đồ lon", "Mặt hàng khác", "Sốt", "Trà", "Công cụ dụng cụ",
 ];
 
 // Riêng 2 thương hiệu SAVO/TAMIX: giá thùng lưu sẵn trong hệ thống không

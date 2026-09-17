@@ -101,5 +101,5 @@ export type Notification = {
 
 export const CATEGORY_ORDER = [
   "Trà", "Sữa tươi", "Sữa đặc", "Kem đông lạnh", "Syrup", "Bột",
-  "Trân châu", "Mứt", "Đồ lon", "Mặt hàng khác", "Công cụ dụng cụ",
+  "Trân châu", "Mứt", "Đồ lon", "Mặt hàng khác", "Sốt", "Công cụ dụng cụ",
 ];
