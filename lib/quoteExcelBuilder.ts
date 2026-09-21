@@ -11,7 +11,7 @@ import {
   formatDateLine,
   formatHopUnit,
   formatPrice,
-  formatQuyCach,
+  quyCachDisplay,
   sortForQuote,
   toRoman,
 } from "./quoteBuilder";
@@ -120,7 +120,7 @@ export async function buildQuoteExcel(items: Product[], info: QuoteInfo): Promis
     excelRow.getCell(1).alignment = { horizontal: "center" };
     excelRow.getCell(2).value = nameValue;
     excelRow.getCell(2).alignment = { horizontal: "left", wrapText: true, vertical: "top" };
-    excelRow.getCell(3).value = formatQuyCach(p);
+    excelRow.getCell(3).value = quyCachDisplay(p, lang);
     excelRow.getCell(3).alignment = { horizontal: "left", vertical: "top", wrapText: true };
     excelRow.getCell(4).value = formatPrice(p.gia_ban);
     excelRow.getCell(4).alignment = { horizontal: "right", vertical: "top" };

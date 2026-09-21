@@ -44,6 +44,13 @@ export type Product = {
   // dịch sai tên thương hiệu/đơn vị.
   ten_en: string | null;
   ten_zh: string | null;
+  // Quy cách đóng gói (chuỗi hiển thị hoàn chỉnh, vd "Thùng (10 gói)") dịch
+  // sẵn cho báo giá tiếng Anh/Trung — cache tự động, không có ô sửa tay
+  // riêng (khác ten_en/ten_zh) vì đây là chuỗi suy ra từ nhiều trường khác,
+  // sửa lại 1 trong các trường gốc (quy_cach/dvt_cap_2...) không tự cập
+  // nhật lại bản dịch này.
+  quy_cach_en: string | null;
+  quy_cach_zh: string | null;
 };
 
 // Shape sent from the product create/edit form: same editable fields as
@@ -51,7 +58,17 @@ export type Product = {
 // of `brand_id` (the API resolves-or-creates the brand row by name).
 export type ProductInput = Omit<
   Product,
-  "id" | "brand_id" | "brand" | "updated_at" | "last_exported_at" | "is_draft" | "created_at" | "is_combo" | "gia_goc"
+  | "id"
+  | "brand_id"
+  | "brand"
+  | "updated_at"
+  | "last_exported_at"
+  | "is_draft"
+  | "created_at"
+  | "is_combo"
+  | "gia_goc"
+  | "quy_cach_en"
+  | "quy_cach_zh"
 > & {
   brand: string | null;
 };

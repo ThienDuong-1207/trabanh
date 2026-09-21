@@ -142,6 +142,16 @@ export function formatQuyCach(p: Product): string {
   return parts.join(", ");
 }
 
+// Bản tiếng Anh/Trung của cột QUY CÁCH (SPECIFICATION) — dùng cache
+// quy_cach_en/quy_cach_zh (lib/productTranslation.ts) nếu đã có, không tự
+// ghép lại từ formatQuyCach(p) vì bản dịch là 1 chuỗi hoàn chỉnh, ghép thêm
+// formatHopUnit(p) (chưa dịch) vào sẽ ra câu lẫn lộn 2 ngôn ngữ.
+export function quyCachDisplay(p: Product, lang: QuoteLang): string {
+  if (lang === "en" && p.quy_cach_en) return p.quy_cach_en;
+  if (lang === "zh" && p.quy_cach_zh) return p.quy_cach_zh;
+  return formatQuyCach(p);
+}
+
 // Sản phẩm bán 3 cấp (có giá Hộp) không có cột giá riêng — thay vào đó chèn
 // 1 dòng ghi chú nhỏ ngay dưới tên sản phẩm, để khách thấy ngay giá Hộp gắn
 // liền với đúng sản phẩm đó thay vì phải dò một cột giá riêng.
@@ -271,7 +281,7 @@ export async function buildQuotePdf(items: Product[], info: QuoteInfo): Promise<
     tableBody.push([
       { text: String(stt), alignment: "center", fontSize: TABLE_FONT_SIZE },
       nameCell(p),
-      { text: formatQuyCach(p), alignment: "left", fontSize: TABLE_FONT_SIZE },
+      { text: quyCachDisplay(p, lang), alignment: "left", fontSize: TABLE_FONT_SIZE },
       { text: formatPrice(p.gia_ban), alignment: "right", fontSize: TABLE_FONT_SIZE },
       { text: formatPrice(p.gia_thung), alignment: "right", fontSize: TABLE_FONT_SIZE },
     ]);

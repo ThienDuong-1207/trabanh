@@ -411,3 +411,10 @@ create policy "Người đã được cấp quyền dùng combo_items" on combo_
 -- tên thương hiệu/đơn vị, sửa xong sẽ không bị ghi đè lại nữa.
 alter table products add column if not exists ten_en text;
 alter table products add column if not exists ten_zh text;
+
+-- Quy cách đóng gói dịch sẵn (chuỗi hiển thị hoàn chỉnh, vd "Case (10 packs)")
+-- cho cột SPECIFICATION của báo giá tiếng Anh/Trung — cache tự động cùng lúc
+-- với ten_en/ten_zh, không có ô sửa tay riêng (suy ra từ nhiều trường gốc
+-- nên sửa 1 trường gốc không tự cập nhật lại bản dịch này).
+alter table products add column if not exists quy_cach_en text;
+alter table products add column if not exists quy_cach_zh text;

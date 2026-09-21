@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseServer";
-import { applySavoTamixCaseOverride, buildQuotePdf, QuoteInfo } from "@/lib/quoteBuilder";
+import { applySavoTamixCaseOverride, buildQuotePdf, formatQuyCach, QuoteInfo } from "@/lib/quoteBuilder";
 import { resolveQuoteItemNames } from "@/lib/productTranslation";
 import { Product } from "@/lib/types";
 
@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
 
     let items = savoTamixCaseOverride ? applySavoTamixCaseOverride(data as Product[]) : (data as Product[]);
     if (info.lang === "en" || info.lang === "zh") {
-      items = await resolveQuoteItemNames(items, info.lang);
+      items = await resolveQuoteItemNames(items, info.lang, formatQuyCach);
     }
     const buf = await buildQuotePdf(items, info);
     return new NextResponse(new Uint8Array(buf), {
