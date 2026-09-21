@@ -602,7 +602,8 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
 
   async function doExport(
     kind: "misa" | "misa-add-unit" | "word" | "word-price-change" | "misa-update" | "vertical",
-    promo?: { from: string; to: string }
+    promo?: { from: string; to: string },
+    promoItems?: { id: string; giaGoc: number | null; giaKm: number | null }[]
   ) {
     if (selected.size === 0) {
       alert("Chọn ít nhất 1 sản phẩm để xuất file.");
@@ -619,6 +620,7 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
           body.promoFrom = promo.from;
           body.promoTo = promo.to;
         }
+        body.promoItems = promoItems ?? [];
       }
       const res = await fetch(`/api/export-${endpoint}`, {
         method: "POST",
@@ -642,8 +644,12 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
       downloadBlob(blob, filenames[kind]);
       if (skippedHeader) {
         const skippedNames: string[] = JSON.parse(decodeURIComponent(skippedHeader));
+        const reason =
+          kind === "word-price-change"
+            ? `Bỏ qua ${skippedNames.length} sản phẩm chưa nhập giá khuyến mãi:\n`
+            : `Bỏ qua ${skippedNames.length} sản phẩm chưa từng đổi giá bán lẻ (không có "giá cũ" để in):\n`;
         alert(
-          `Bỏ qua ${skippedNames.length} sản phẩm chưa từng đổi giá bán lẻ (không có "giá cũ" để in):\n` +
+          reason +
             skippedNames.join("\n")
         );
       }
@@ -726,10 +732,14 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
     }
   }
 
-  async function doExportBlockGia(kind: "block-normal" | "block-discount" | "roll-5x3" | "vertical", promo?: { from: string; to: string }) {
+  async function doExportBlockGia(
+    kind: "block-normal" | "block-discount" | "roll-5x3" | "vertical",
+    promo?: { from: string; to: string },
+    promoItems?: { id: string; giaGoc: number | null; giaKm: number | null }[]
+  ) {
     setExportModalOpen(false);
     if (kind === "block-normal") await doExport("word");
-    else if (kind === "block-discount") await doExport("word-price-change", promo);
+    else if (kind === "block-discount") await doExport("word-price-change", promo, promoItems);
     else if (kind === "roll-5x3") await doExportRollLabel();
     else await doExport("vertical");
   }
@@ -1342,7 +1352,7 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
 
       {exportModalOpen && (
         <ExportModal
-          selectedCount={selected.size}
+          selectedProducts={products.filter((p) => selected.has(p.id))}
           submittingMisaOrBlock={exporting !== null || exportingRollLabel}
           submittingQuote={exportingQuote}
           submittingInventory={exportingInventory}
@@ -3840,7 +3850,7 @@ type ExportTab = "misa" | "block" | "quote" | "inventory";
 // đúng loại đang chọn. Mỗi tab tự giữ state riêng (không mất lựa chọn khi
 // chuyển qua lại giữa các tab trong cùng 1 lần mở modal).
 function ExportModal({
-  selectedCount,
+  selectedProducts,
   submittingMisaOrBlock,
   submittingQuote,
   submittingInventory,
@@ -3850,16 +3860,21 @@ function ExportModal({
   onSubmitQuote,
   onSubmitInventory,
 }: {
-  selectedCount: number;
+  selectedProducts: Product[];
   submittingMisaOrBlock: boolean;
   submittingQuote: boolean;
   submittingInventory: boolean;
   onCancel: () => void;
   onSubmitMisa: (kind: "misa" | "misa-add-unit" | "misa-update") => void;
-  onSubmitBlockGia: (kind: "block-normal" | "block-discount" | "roll-5x3" | "vertical", promo?: { from: string; to: string }) => void;
+  onSubmitBlockGia: (
+    kind: "block-normal" | "block-discount" | "roll-5x3" | "vertical",
+    promo?: { from: string; to: string },
+    promoItems?: { id: string; giaGoc: number | null; giaKm: number | null }[]
+  ) => void;
   onSubmitQuote: (fields: QuoteFormFields) => void;
   onSubmitInventory: (fields: InventoryCheckFormFields) => void;
 }) {
+  const selectedCount = selectedProducts.length;
   const [tab, setTab] = useState<ExportTab>("quote");
 
   const [misaTopKind, setMisaTopKind] = useState<"import" | "update">("import");
@@ -3874,6 +3889,21 @@ function ExportModal({
   ];
   const [promoFrom, setPromoFrom] = useState("");
   const [promoTo, setPromoTo] = useState("");
+  // Giá gốc/giá khuyến mãi nhập tay riêng cho từng sản phẩm — chỉ dùng để in
+  // tem đợt này, không ghi ngược lại gia_ban/gia_goc thật trong dữ liệu. Giá
+  // gốc mặc định lấy tham chiếu từ giá bán hiện tại (combo lấy gia_goc đã lưu
+  // nếu có), giá khuyến mãi để trống buộc phải tự nhập cho từng dòng.
+  const [promoPrices, setPromoPrices] = useState<Record<string, { giaGoc: string; giaKm: string }>>(() =>
+    Object.fromEntries(
+      selectedProducts.map((p) => [
+        p.id,
+        { giaGoc: (p.is_combo ? p.gia_goc ?? p.gia_ban : p.gia_ban)?.toString() ?? "", giaKm: "" },
+      ])
+    )
+  );
+  function setPromoPrice(id: string, field: "giaGoc" | "giaKm", value: string) {
+    setPromoPrices((prev) => ({ ...prev, [id]: { ...prev[id], [field]: value } }));
+  }
 
   const [quoteForm, setQuoteForm] = useState<QuoteFormFields>({
     date: new Date().toISOString().slice(0, 10),
@@ -3893,7 +3923,15 @@ function ExportModal({
       onSubmitMisa(misaTopKind === "update" ? "misa-update" : misaImportSub === "new" ? "misa" : "misa-add-unit");
     } else if (tab === "block") {
       const promo = blockKind === "block-discount" && promoFrom && promoTo ? { from: promoFrom, to: promoTo } : undefined;
-      onSubmitBlockGia(blockKind, promo);
+      const promoItems =
+        blockKind === "block-discount"
+          ? selectedProducts.map((p) => ({
+              id: p.id,
+              giaGoc: promoPrices[p.id]?.giaGoc ? Number(promoPrices[p.id].giaGoc) : null,
+              giaKm: promoPrices[p.id]?.giaKm ? Number(promoPrices[p.id].giaKm) : null,
+            }))
+          : undefined;
+      onSubmitBlockGia(blockKind, promo, promoItems);
     } else if (tab === "quote") {
       onSubmitQuote(quoteForm);
     } else {
@@ -3972,14 +4010,57 @@ function ExportModal({
                 </label>
               ))}
               {blockKind === "block-discount" && (
-                <div className="field-grid" style={{ marginTop: 8 }}>
-                  <Field label="Khuyến mãi từ ngày (tùy chọn)">
-                    <input type="date" value={promoFrom} onChange={(e) => setPromoFrom(e.target.value)} />
-                  </Field>
-                  <Field label="Đến ngày">
-                    <input type="date" value={promoTo} onChange={(e) => setPromoTo(e.target.value)} />
-                  </Field>
-                </div>
+                <>
+                  <div className="field-grid" style={{ marginTop: 8 }}>
+                    <Field label="Khuyến mãi từ ngày (tùy chọn)">
+                      <input type="date" value={promoFrom} onChange={(e) => setPromoFrom(e.target.value)} />
+                    </Field>
+                    <Field label="Đến ngày">
+                      <input type="date" value={promoTo} onChange={(e) => setPromoTo(e.target.value)} />
+                    </Field>
+                  </div>
+
+                  <p className="modal-sub" style={{ marginTop: 12, marginBottom: 6 }}>
+                    Giá gốc/giá khuyến mãi chỉ dùng để in tem đợt này, không đổi giá thật của sản phẩm/combo.
+                  </p>
+                  <div style={{ maxHeight: 260, overflowY: "auto", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)" }}>
+                    <table style={{ width: "100%" }}>
+                      <thead>
+                        <tr>
+                          <th style={{ textAlign: "left", padding: "6px 9px" }}>Sản phẩm</th>
+                          <th style={{ width: 110, padding: "6px 9px" }}>Giá gốc</th>
+                          <th style={{ width: 110, padding: "6px 9px" }}>Giá khuyến mãi</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {selectedProducts.map((p) => (
+                          <tr key={p.id}>
+                            <td style={{ padding: "4px 9px" }}>
+                              {p.ten_hang_hoa}
+                              {p.is_combo && <span className="pill pill-primary" style={{ marginLeft: 6 }}>Combo</span>}
+                            </td>
+                            <td style={{ padding: "4px 6px" }}>
+                              <input
+                                type="number"
+                                value={promoPrices[p.id]?.giaGoc ?? ""}
+                                onChange={(e) => setPromoPrice(p.id, "giaGoc", e.target.value)}
+                                style={{ width: "100%" }}
+                              />
+                            </td>
+                            <td style={{ padding: "4px 6px" }}>
+                              <input
+                                type="number"
+                                value={promoPrices[p.id]?.giaKm ?? ""}
+                                onChange={(e) => setPromoPrice(p.id, "giaKm", e.target.value)}
+                                style={{ width: "100%" }}
+                              />
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
               )}
             </>
           )}

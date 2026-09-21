@@ -5,6 +5,8 @@ import { Product } from "@/lib/types";
 
 export const runtime = "nodejs";
 
+type PromoItemInput = { id: string; giaGoc: number | null; giaKm: number | null };
+
 export async function POST(req: NextRequest) {
   try {
     const {
@@ -12,7 +14,14 @@ export async function POST(req: NextRequest) {
       mode: rawMode,
       promoFrom,
       promoTo,
-    } = (await req.json()) as { ids: string[]; mode?: string; promoFrom?: string; promoTo?: string };
+      promoItems,
+    } = (await req.json()) as {
+      ids: string[];
+      mode?: string;
+      promoFrom?: string;
+      promoTo?: string;
+      promoItems?: PromoItemInput[];
+    };
     if (!ids || ids.length === 0) {
       return NextResponse.json({ error: "Chưa chọn sản phẩm nào" }, { status: 400 });
     }
@@ -23,56 +32,29 @@ export async function POST(req: NextRequest) {
     const { data, error } = await supabase.from("products").select("*").in("id", ids);
     if (error) throw error;
 
-    // Combo dùng gia_goc của chính nó làm "giá cũ" gạch ngang — không phải
-    // giá đã đổi thật sự (price_history), nên không tra price_history cho
-    // combo, và hiển thị ở CẢ 2 mode (không riêng "price_change").
-    let items: WordLabelItem[] = (data as Product[]).map((p) =>
-      p.is_combo && p.gia_goc != null ? { ...p, gia_ban_old: p.gia_goc } : p
-    );
+    let items: WordLabelItem[];
     let skippedNames: string[] = [];
 
     if (mode === "price_change") {
-      const realProductIds = (data as Product[]).filter((p) => !p.is_combo).map((p) => p.id);
-      // Lấy đúng 1 lần đổi giá bán lẻ GẦN NHẤT của mỗi mã (bỏ qua các dòng
-      // price_history chỉ đổi giá thùng, gia_ban_old === gia_ban_new lúc đó)
-      // — mã nào chưa từng thật sự đổi giá bán lẻ thì không có "giá cũ" để
-      // in, bị loại khỏi tem đợt này thay vì in sai/thiếu.
-      const { data: history, error: histErr } =
-        realProductIds.length > 0
-          ? await supabase
-              .from("price_history")
-              .select("product_id, gia_ban_old, gia_ban_new, changed_at")
-              .in("product_id", realProductIds)
-              .order("changed_at", { ascending: false })
-          : { data: [], error: null };
-      if (histErr) throw histErr;
-
-      const oldPriceByProduct = new Map<string, number>();
-      for (const h of history ?? []) {
-        const productId = h.product_id as string;
-        if (oldPriceByProduct.has(productId)) continue;
-        const oldPrice = h.gia_ban_old as number | null;
-        const newPrice = h.gia_ban_new as number | null;
-        if (oldPrice === null || newPrice === null || oldPrice === newPrice) continue;
-        oldPriceByProduct.set(productId, oldPrice);
-      }
-
+      // Giá gốc/giá khuyến mãi nhập tay trực tiếp trên form lúc xuất (không
+      // ghi ngược lại products) — không còn tự tra price_history nữa: sản
+      // phẩm/combo nào không có giá khuyến mãi được nhập thì bỏ qua, thay vì
+      // tự suy ra "giá cũ" từ lịch sử đổi giá thật.
+      const overrideById = new Map((promoItems ?? []).map((it) => [it.id, it]));
       const eligible: WordLabelItem[] = [];
       for (const p of data as Product[]) {
-        // Combo: giữ nguyên (đã gán gia_ban_old = gia_goc ở trên nếu có),
-        // không loại khỏi đợt tem dù không có price_history.
-        if (p.is_combo) {
-          eligible.push(p.gia_goc != null ? { ...p, gia_ban_old: p.gia_goc } : p);
-          continue;
-        }
-        const oldPrice = oldPriceByProduct.get(p.id);
-        if (oldPrice === undefined) {
+        const override = overrideById.get(p.id);
+        if (!override || override.giaKm == null) {
           skippedNames.push(p.ten_hang_hoa);
           continue;
         }
-        eligible.push({ ...p, gia_ban_old: oldPrice });
+        eligible.push({ ...p, gia_ban: override.giaKm, gia_ban_old: override.giaGoc });
       }
       items = eligible;
+    } else {
+      // Mode thường: combo dùng gia_goc của chính nó làm "giá cũ" gạch ngang
+      // tự động, không cần nhập tay — sản phẩm thật không đổi hành vi.
+      items = (data as Product[]).map((p) => (p.is_combo && p.gia_goc != null ? { ...p, gia_ban_old: p.gia_goc } : p));
     }
 
     const buf = await buildWordFile(items, mode, promo);
