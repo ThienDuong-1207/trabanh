@@ -600,7 +600,10 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
     }
   }, [someVisibleSelected, allVisibleSelected]);
 
-  async function doExport(kind: "misa" | "misa-add-unit" | "word" | "word-price-change" | "misa-update" | "vertical") {
+  async function doExport(
+    kind: "misa" | "misa-add-unit" | "word" | "word-price-change" | "misa-update" | "vertical",
+    promo?: { from: string; to: string }
+  ) {
     if (selected.size === 0) {
       alert("Chọn ít nhất 1 sản phẩm để xuất file.");
       return;
@@ -610,7 +613,13 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
       const endpoint = kind === "misa-add-unit" ? "misa" : kind === "word-price-change" ? "word" : kind;
       const body: Record<string, unknown> = { ids: Array.from(selected) };
       if (kind === "misa-add-unit") body.mode = "add_unit_only";
-      if (kind === "word-price-change") body.mode = "price_change";
+      if (kind === "word-price-change") {
+        body.mode = "price_change";
+        if (promo) {
+          body.promoFrom = promo.from;
+          body.promoTo = promo.to;
+        }
+      }
       const res = await fetch(`/api/export-${endpoint}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -626,7 +635,7 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
         misa: "MISA_Nhap_khau_hang_hoa.xlsx",
         "misa-add-unit": "MISA_Nhap_khau_bo_sung_don_vi.xlsx",
         word: "Bang_gia_block_7.7x4cm_Update.docx",
-        "word-price-change": "Bang_gia_block_7.7x4cm_Doi_gia.docx",
+        "word-price-change": "Bang_gia_block_7.7x4cm_Khuyen_mai.docx",
         "misa-update": "MISA_Cap_nhat_thong_tin.xlsx",
         vertical: "Bang_gia_dung.pdf",
       };
@@ -717,10 +726,10 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
     }
   }
 
-  async function doExportBlockGia(kind: "block-normal" | "block-discount" | "roll-5x3" | "vertical") {
+  async function doExportBlockGia(kind: "block-normal" | "block-discount" | "roll-5x3" | "vertical", promo?: { from: string; to: string }) {
     setExportModalOpen(false);
     if (kind === "block-normal") await doExport("word");
-    else if (kind === "block-discount") await doExport("word-price-change");
+    else if (kind === "block-discount") await doExport("word-price-change", promo);
     else if (kind === "roll-5x3") await doExportRollLabel();
     else await doExport("vertical");
   }
@@ -967,6 +976,7 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
           {CATEGORY_ORDER.map((c) => (
             <option key={c}>{c}</option>
           ))}
+          <option>Combo</option>
         </select>
         <select value={brandFilter} onChange={(e) => setBrandFilter(e.target.value)}>
           <option>Tất cả</option>
@@ -3841,7 +3851,7 @@ function ExportModal({
   submittingInventory: boolean;
   onCancel: () => void;
   onSubmitMisa: (kind: "misa" | "misa-add-unit" | "misa-update") => void;
-  onSubmitBlockGia: (kind: "block-normal" | "block-discount" | "roll-5x3" | "vertical") => void;
+  onSubmitBlockGia: (kind: "block-normal" | "block-discount" | "roll-5x3" | "vertical", promo?: { from: string; to: string }) => void;
   onSubmitQuote: (fields: QuoteFormFields) => void;
   onSubmitInventory: (fields: InventoryCheckFormFields) => void;
 }) {
@@ -3853,10 +3863,12 @@ function ExportModal({
   const [blockKind, setBlockKind] = useState<BlockGiaKind>("block-normal");
   const blockOptions: { value: BlockGiaKind; label: string; disabled?: boolean }[] = [
     { value: "block-normal", label: "Block 7.7x4cm" },
-    { value: "block-discount", label: "Block 7.7x4cm (giá giảm)" },
+    { value: "block-discount", label: "Block 7.7x4cm (khuyến mãi)" },
     { value: "roll-5x3", label: "Block 5x3cm" },
     { value: "vertical", label: "Giá đứng" },
   ];
+  const [promoFrom, setPromoFrom] = useState("");
+  const [promoTo, setPromoTo] = useState("");
 
   const [quoteForm, setQuoteForm] = useState<QuoteFormFields>({
     date: new Date().toISOString().slice(0, 10),
@@ -3875,7 +3887,8 @@ function ExportModal({
     if (tab === "misa") {
       onSubmitMisa(misaTopKind === "update" ? "misa-update" : misaImportSub === "new" ? "misa" : "misa-add-unit");
     } else if (tab === "block") {
-      onSubmitBlockGia(blockKind);
+      const promo = blockKind === "block-discount" && promoFrom && promoTo ? { from: promoFrom, to: promoTo } : undefined;
+      onSubmitBlockGia(blockKind, promo);
     } else if (tab === "quote") {
       onSubmitQuote(quoteForm);
     } else {
@@ -3935,23 +3948,36 @@ function ExportModal({
             </>
           )}
 
-          {tab === "block" &&
-            blockOptions.map((opt) => (
-              <label
-                key={opt.value}
-                className="field"
-                style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8, opacity: opt.disabled ? 0.5 : 1 }}
-              >
-                <input
-                  type="radio"
-                  name="block-gia-kind"
-                  checked={blockKind === opt.value}
-                  disabled={opt.disabled}
-                  onChange={() => setBlockKind(opt.value)}
-                />
-                {opt.label}
-              </label>
-            ))}
+          {tab === "block" && (
+            <>
+              {blockOptions.map((opt) => (
+                <label
+                  key={opt.value}
+                  className="field"
+                  style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8, opacity: opt.disabled ? 0.5 : 1 }}
+                >
+                  <input
+                    type="radio"
+                    name="block-gia-kind"
+                    checked={blockKind === opt.value}
+                    disabled={opt.disabled}
+                    onChange={() => setBlockKind(opt.value)}
+                  />
+                  {opt.label}
+                </label>
+              ))}
+              {blockKind === "block-discount" && (
+                <div className="field-grid" style={{ marginTop: 8 }}>
+                  <Field label="Khuyến mãi từ ngày (tùy chọn)">
+                    <input type="date" value={promoFrom} onChange={(e) => setPromoFrom(e.target.value)} />
+                  </Field>
+                  <Field label="Đến ngày">
+                    <input type="date" value={promoTo} onChange={(e) => setPromoTo(e.target.value)} />
+                  </Field>
+                </div>
+              )}
+            </>
+          )}
 
           {tab === "quote" && (
             <>

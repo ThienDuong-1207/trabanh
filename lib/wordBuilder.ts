@@ -83,6 +83,13 @@ const OLD_PRICE_LINE = Math.round((OLD_PRICE_SIZE_HALF / 2) * 1.15 * 20); // 276
 const OLD_PRICE_GAP_BEFORE = 36; // twips
 const OLD_PRICE_GAP_AFTER = 0; // twips
 
+// Dòng thời gian khuyến mãi ("mode khuyến mãi" + có ngày) — căn phải, chỉ
+// nằm ngay TRÊN chữ ĐVT (không kéo dài hết bề ngang, không đè lên phần mã
+// vạch bên trái), cỡ chữ nhỏ ngang dòng mã vạch. Đặt sát dòng mã vạch/ĐVT
+// (before/after = 0) vì bản chất là 1 cặp thông tin đi liền với ĐVT.
+const PROMO_SIZE_HALF = 15; // 7.5pt, bằng cỡ chữ mã vạch
+const PROMO_LINE = Math.round((PROMO_SIZE_HALF / 2) * 1.15 * 20);
+
 function estimatePriceWidthUnits(price: string): number {
   let units = 0;
   for (const ch of price) units += /[.,]/.test(ch) ? SEPARATOR_WIDTH_EM : DIGIT_WIDTH_EM;
@@ -156,7 +163,16 @@ function formatPrice(n: number) {
   return Math.round(n).toLocaleString("vi-VN").replace(/,/g, ".");
 }
 
-function buildCell(item: WordLabelItem | null, mode: WordLabelMode) {
+// "yyyy-mm-dd" (giá trị input type=date) -> "dd/mm" — bỏ năm để tiết kiệm
+// chỗ trên dòng nhỏ, đủ dùng cho khuyến mãi trong cùng 1 năm.
+function formatDdMm(dateStr: string): string {
+  const [, m, d] = dateStr.split("-");
+  return `${d}/${m}`;
+}
+
+export type PromoRange = { from: string; to: string };
+
+function buildCell(item: WordLabelItem | null, mode: WordLabelMode, promo?: PromoRange) {
   if (!item || !item.gia_ban) {
     return new TableCell({
       width: { size: BLOCK_W, type: WidthType.DXA },
@@ -181,7 +197,9 @@ function buildCell(item: WordLabelItem | null, mode: WordLabelMode) {
   // reservedDxa chỉ còn đúng vùng tên sản phẩm).
   const hasOldPrice = mode === "price_change" && item.gia_ban_old != null;
   const oldPriceZoneDxa = hasOldPrice ? OLD_PRICE_GAP_BEFORE + OLD_PRICE_LINE + OLD_PRICE_GAP_AFTER : 0;
-  const reservedDxa = titleZoneDxa + oldPriceZoneDxa;
+  const hasPromo = mode === "price_change" && !!promo;
+  const promoZoneDxa = hasPromo ? PROMO_LINE : 0;
+  const reservedDxa = titleZoneDxa + oldPriceZoneDxa + promoZoneDxa;
 
   const oldPricePara = hasOldPrice
     ? new Paragraph({
@@ -210,6 +228,15 @@ function buildCell(item: WordLabelItem | null, mode: WordLabelMode) {
     children: [new TextRun({ text: priceStr, bold: true, font: FONT, size: priceSize })],
   });
 
+  const promoPara = hasPromo
+    ? new Paragraph({
+        alignment: AlignmentType.RIGHT,
+        indent: { left: BOTTOM_INDENT, right: BOTTOM_INDENT },
+        spacing: { before: 0, after: 0, line: PROMO_LINE, lineRule: "exact" },
+        children: [new TextRun({ text: `${formatDdMm(promo!.from)} - ${formatDdMm(promo!.to)}`, font: FONT, size: PROMO_SIZE_HALF })],
+      })
+    : null;
+
   const bottomLine = new Paragraph({
     tabStops: [{ type: "right", position: BOTTOM_TAB_POS }],
     spacing: { line: BOTTOM_LINE, lineRule: "exact" },
@@ -226,17 +253,17 @@ function buildCell(item: WordLabelItem | null, mode: WordLabelMode) {
     verticalAlign: VerticalAlign.TOP,
     margins: { top: CELL_MARGIN_TOP, bottom: CELL_MARGIN_BOTTOM, left: CELL_MARGIN_SIDE, right: CELL_MARGIN_SIDE },
     borders: cellBorderThin,
-    children: [titlePara, ...(oldPricePara ? [oldPricePara] : []), pricePara, bottomLine],
+    children: [titlePara, ...(oldPricePara ? [oldPricePara] : []), pricePara, ...(promoPara ? [promoPara] : []), bottomLine],
   });
 }
 
-function buildPage(label: string, items: (WordLabelItem | null)[], mode: WordLabelMode) {
+function buildPage(label: string, items: (WordLabelItem | null)[], mode: WordLabelMode, promo?: PromoRange) {
   const rows: TableRow[] = [];
   let idx = 0;
   for (let r = 0; r < ROWS; r++) {
     const cells: TableCell[] = [];
     for (let c = 0; c < COLS; c++) {
-      cells.push(buildCell(items[idx] ?? null, mode));
+      cells.push(buildCell(items[idx] ?? null, mode, promo));
       idx += 1;
     }
     rows.push(new TableRow({ height: { value: BLOCK_H, rule: HeightRule.ATLEAST }, children: cells }));
@@ -271,13 +298,13 @@ export type WordLabelItem = {
   gia_ban_old?: number | null;
 };
 
-export async function buildWordFile(items: WordLabelItem[], mode: WordLabelMode = "normal"): Promise<Buffer> {
+export async function buildWordFile(items: WordLabelItem[], mode: WordLabelMode = "normal", promo?: PromoRange): Promise<Buffer> {
   const priced = items.filter((it) => it.gia_ban);
   const PER_PAGE = COLS * ROWS;
   const sections = [];
   let pageNum = 0;
   const today = new Date().toLocaleDateString("vi-VN");
-  const labelPrefix = mode === "price_change" ? "Bảng giá đổi giá" : "Cập nhật giá";
+  const labelPrefix = mode === "price_change" ? "Bảng giá khuyến mãi" : "Cập nhật giá";
 
   for (let i = 0; i < priced.length; i += PER_PAGE) {
     pageNum += 1;
@@ -293,7 +320,7 @@ export async function buildWordFile(items: WordLabelItem[], mode: WordLabelMode 
           margin: { top: MARGIN, bottom: MARGIN, left: MARGIN, right: MARGIN },
         },
       },
-      children: buildPage(label, chunk, mode),
+      children: buildPage(label, chunk, mode, promo),
     });
   }
 

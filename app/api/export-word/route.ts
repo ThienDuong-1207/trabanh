@@ -7,11 +7,17 @@ export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
   try {
-    const { ids, mode: rawMode } = (await req.json()) as { ids: string[]; mode?: string };
+    const {
+      ids,
+      mode: rawMode,
+      promoFrom,
+      promoTo,
+    } = (await req.json()) as { ids: string[]; mode?: string; promoFrom?: string; promoTo?: string };
     if (!ids || ids.length === 0) {
       return NextResponse.json({ error: "Chưa chọn sản phẩm nào" }, { status: 400 });
     }
     const mode: WordLabelMode = rawMode === "price_change" ? "price_change" : "normal";
+    const promo = mode === "price_change" && promoFrom && promoTo ? { from: promoFrom, to: promoTo } : undefined;
 
     const supabase = supabaseAdmin();
     const { data, error } = await supabase.from("products").select("*").in("id", ids);
@@ -54,9 +60,9 @@ export async function POST(req: NextRequest) {
       items = eligible;
     }
 
-    const buf = await buildWordFile(items, mode);
+    const buf = await buildWordFile(items, mode, promo);
     const filename =
-      mode === "price_change" ? "Bang_gia_block_7.7x4cm_Doi_gia.docx" : "Bang_gia_block_7.7x4cm_Update.docx";
+      mode === "price_change" ? "Bang_gia_block_7.7x4cm_Khuyen_mai.docx" : "Bang_gia_block_7.7x4cm_Update.docx";
     return new NextResponse(new Uint8Array(buf), {
       headers: {
         "Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
