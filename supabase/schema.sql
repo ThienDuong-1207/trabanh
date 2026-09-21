@@ -403,3 +403,11 @@ create policy "Người đã được cấp quyền dùng combo_items" on combo_
   for all
   using (exists (select 1 from profiles where id = auth.uid() and role is not null))
   with check (exists (select 1 from profiles where id = auth.uid() and role is not null));
+
+-- Giai đoạn 6: tên sản phẩm dịch sẵn (tiếng Anh/Trung) cho bảng báo giá
+-- (lib/quoteBuilder.ts) — dịch tự động qua Claude API lúc xuất báo giá lần
+-- đầu (lib/productTranslation.ts), lưu cache lại đây để lần sau không dịch
+-- lại; vẫn sửa tay được bình thường qua form Sửa sản phẩm nếu máy dịch sai
+-- tên thương hiệu/đơn vị, sửa xong sẽ không bị ghi đè lại nữa.
+alter table products add column if not exists ten_en text;
+alter table products add column if not exists ten_zh text;

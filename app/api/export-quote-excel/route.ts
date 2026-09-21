@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseServer";
 import { buildQuoteExcel } from "@/lib/quoteExcelBuilder";
 import { applySavoTamixCaseOverride, QuoteInfo } from "@/lib/quoteBuilder";
+import { resolveQuoteItemNames } from "@/lib/productTranslation";
 import { Product } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -17,7 +18,10 @@ export async function POST(req: NextRequest) {
     const { data, error } = await supabase.from("products").select("*, brand:brands(name)").in("id", ids);
     if (error) throw error;
 
-    const items = savoTamixCaseOverride ? applySavoTamixCaseOverride(data as Product[]) : (data as Product[]);
+    let items = savoTamixCaseOverride ? applySavoTamixCaseOverride(data as Product[]) : (data as Product[]);
+    if (info.lang === "en" || info.lang === "zh") {
+      items = await resolveQuoteItemNames(items, info.lang);
+    }
     const buf = await buildQuoteExcel(items, info);
     return new NextResponse(new Uint8Array(buf), {
       headers: {

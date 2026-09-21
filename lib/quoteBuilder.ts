@@ -150,20 +150,21 @@ export function formatQuyCach(p: Product): string {
 // ô khác cùng hàng (vd cột Quy cách) bị cắt mất dòng thứ 2 (đã gặp thực tế).
 // Cũng tránh ký tự mũi tên "↳": font Roboto nhúng trong file không có glyph
 // này, hiện ra thành ô vuông rỗng.
-// `font`: ép về Roboto khi bảng giá đang ở chế độ tiếng Trung — tên sản phẩm
-// vẫn tiếng Việt (không dịch), font Hán đã cắt gọn không có đủ dấu tiếng
-// Việt để hiển thị đúng.
-function nameCell(p: Product, font?: string) {
+// Đọc p.ten_hang_hoa trực tiếp — khi xuất bản Anh/Trung, route đã thay sẵn
+// giá trị này bằng tên đã dịch (ten_en/ten_zh) trước khi gọi buildQuotePdf,
+// nên hàm này không cần biết gì về ngôn ngữ. NotoSansSC (tiếng Trung) đã xác
+// nhận có đủ dấu tiếng Việt nên không cần ép font riêng nữa.
+function nameCell(p: Product) {
   const hopUnit = formatHopUnit(p);
   if (p.gia_hop && hopUnit) {
     return {
       stack: [
-        { text: p.ten_hang_hoa, fontSize: TABLE_FONT_SIZE, font },
-        { text: `- Giá ${hopUnit}: ${formatPrice(p.gia_hop)}đ`, italics: true, fontSize: TABLE_FONT_SIZE - 1.5, color: "#555555", margin: [0, 2, 0, 0], font },
+        { text: p.ten_hang_hoa, fontSize: TABLE_FONT_SIZE },
+        { text: `- Giá ${hopUnit}: ${formatPrice(p.gia_hop)}đ`, italics: true, fontSize: TABLE_FONT_SIZE - 1.5, color: "#555555", margin: [0, 2, 0, 0] },
       ],
     };
   }
-  return { text: p.ten_hang_hoa, alignment: "left", fontSize: TABLE_FONT_SIZE, font };
+  return { text: p.ten_hang_hoa, alignment: "left", fontSize: TABLE_FONT_SIZE };
 }
 
 // Áp dụng cho MỌI nhóm hàng (không riêng Syrup): trong mỗi nhóm hàng, sắp
@@ -224,11 +225,6 @@ export async function buildQuotePdf(items: Product[], info: QuoteInfo): Promise<
   const sorted = sortForQuote(items);
   const lang: QuoteLang = info.lang === "en" ? "en" : info.lang === "zh" ? "zh" : "vi";
   const labels = QUOTE_LABELS[lang];
-  // Bản tiếng Trung dùng font NotoSansSC (đặt làm defaultStyle bên dưới) cho
-  // toàn bộ chữ Hán cố định — nhưng tên sản phẩm/quy cách (vẫn tiếng Việt,
-  // không dịch) và địa chỉ tiệm phải ép về Roboto, vì font Hán đã cắt gọn
-  // không có đủ dấu tiếng Việt.
-  const vnTextFont = lang === "zh" ? "Roboto" : undefined;
 
   // Chèn 1 dòng tiêu đề tên nhóm hàng trước sản phẩm đầu tiên của mỗi nhóm
   // khác với nhóm ngay trước đó — STT vẫn đếm liên tục xuyên suốt bảng,
@@ -274,8 +270,8 @@ export async function buildQuotePdf(items: Product[], info: QuoteInfo): Promise<
     }
     tableBody.push([
       { text: String(stt), alignment: "center", fontSize: TABLE_FONT_SIZE },
-      nameCell(p, vnTextFont),
-      { text: formatQuyCach(p), alignment: "left", fontSize: TABLE_FONT_SIZE, font: vnTextFont },
+      nameCell(p),
+      { text: formatQuyCach(p), alignment: "left", fontSize: TABLE_FONT_SIZE },
       { text: formatPrice(p.gia_ban), alignment: "right", fontSize: TABLE_FONT_SIZE },
       { text: formatPrice(p.gia_thung), alignment: "right", fontSize: TABLE_FONT_SIZE },
     ]);
@@ -291,7 +287,7 @@ export async function buildQuotePdf(items: Product[], info: QuoteInfo): Promise<
       columns: [
         {
           width: "*",
-          stack: COMPANY_INFO.map((line, i) => ({ text: line, bold: i === 0, fontSize: i === 0 ? 11 : 10, font: vnTextFont })),
+          stack: COMPANY_INFO.map((line, i) => ({ text: line, bold: i === 0, fontSize: i === 0 ? 11 : 10 })),
         },
         ...(logo ? [{ width: 130, ...logo }] : []),
       ],

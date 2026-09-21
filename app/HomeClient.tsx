@@ -3756,6 +3756,8 @@ type FormState = {
   ten_shopee: string;
   xuat_xu: string;
   category_sheet: string;
+  ten_en: string;
+  ten_zh: string;
 };
 
 function productToFormState(p: Product | null): FormState {
@@ -3781,6 +3783,8 @@ function productToFormState(p: Product | null): FormState {
     ten_shopee: p?.ten_shopee ?? "",
     xuat_xu: p?.xuat_xu ?? "",
     category_sheet: p?.category_sheet ?? CATEGORY_ORDER[0],
+    ten_en: p?.ten_en ?? "",
+    ten_zh: p?.ten_zh ?? "",
   };
 }
 
@@ -3809,6 +3813,8 @@ function formStateToInput(f: FormState): ProductInput {
     ten_shopee: str(f.ten_shopee),
     xuat_xu: str(f.xuat_xu),
     category_sheet: f.category_sheet,
+    ten_en: str(f.ten_en),
+    ten_zh: str(f.ten_zh),
   };
 }
 
@@ -4720,6 +4726,21 @@ function ProductForm({
             </Field>
             <Field label="Mã nhóm thay thế">
               <input value={form.ma_nhom_thay_the} onChange={(e) => set("ma_nhom_thay_the", e.target.value)} />
+            </Field>
+          </div>
+        </div>
+
+        <div className="field-group">
+          <h3>Tên dịch (dùng cho báo giá tiếng Anh/Trung)</h3>
+          <p className="modal-sub" style={{ marginTop: 0 }}>
+            Để trống thì hệ thống tự dịch bằng Claude API lúc xuất báo giá và lưu lại vào đây — sửa tay ở đây nếu máy dịch sai.
+          </p>
+          <div className="field-grid">
+            <Field label="Tên tiếng Anh">
+              <input value={form.ten_en} onChange={(e) => set("ten_en", e.target.value)} />
+            </Field>
+            <Field label="Tên tiếng Trung">
+              <input value={form.ten_zh} onChange={(e) => set("ten_zh", e.target.value)} />
             </Field>
           </div>
         </div>

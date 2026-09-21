@@ -38,6 +38,12 @@ export type Product = {
   // Giá gốc (tham khảo) của combo, hiển thị gạch ngang trên tem cạnh giá bán
   // combo thực tế — chỉ có ý nghĩa với is_combo=true, ghi qua /api/combos*.
   gia_goc: number | null;
+  // Tên dịch cho bảng báo giá tiếng Anh/Trung (lib/quoteBuilder.ts) — tự
+  // dịch qua Claude API lúc xuất báo giá lần đầu rồi lưu cache vào đây
+  // (lib/productTranslation.ts), sửa tay được ở form Sửa sản phẩm nếu máy
+  // dịch sai tên thương hiệu/đơn vị.
+  ten_en: string | null;
+  ten_zh: string | null;
 };
 
 // Shape sent from the product create/edit form: same editable fields as
