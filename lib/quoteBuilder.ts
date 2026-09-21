@@ -33,7 +33,49 @@ export function applySavoTamixCaseOverride(items: Product[]): Product[] {
 // chỉ/điện thoại khách hàng nữa, chỉ còn ngày báo giá.
 export type QuoteInfo = {
   date?: string | null; // yyyy-mm-dd
+  lang?: "vi" | "en";
 };
+
+// Chỉ dịch được phần chữ cố định của khung bảng giá (tiêu đề, tên cột, ghi
+// chú, tên nhóm hàng) — TÊN SẢN PHẨM (ten_hang_hoa) không có bản tiếng Anh
+// trong dữ liệu, luôn giữ nguyên tiếng Việt dù chọn ngôn ngữ nào.
+export const QUOTE_LABELS = {
+  vi: {
+    title: "BẢNG GIÁ",
+    columns: ["STT", "TÊN SẢN PHẨM", "QUY CÁCH", "GIÁ LẺ", "GIÁ THÙNG"],
+    empty: "Không có sản phẩm nào trong danh sách đã chọn.",
+    notes: "Ghi chú:\n- Giá đã bao gồm VAT\n- Bảng giá có giá trị tại thời điểm báo giá (cho đến khi có thông báo mới)\n- Giá bán lẻ áp dụng tại Tiệm Trà&Bánh",
+  },
+  en: {
+    title: "PRICE LIST",
+    columns: ["No.", "PRODUCT NAME", "SPECIFICATION", "RETAIL PRICE", "CASE PRICE"],
+    empty: "No products in the selected list.",
+    notes: "Notes:\n- Price includes VAT\n- Valid at the time of quotation (until further notice)\n- Retail price applies at Tiệm Trà&Bánh",
+  },
+} as const;
+
+// Tên nhóm hàng dịch sẵn cho bản tiếng Anh — chỉ áp dụng cho dòng tiêu đề
+// nhóm hàng trong bảng giá (vd "I. Tea:"), không đổi category_sheet lưu
+// trong dữ liệu.
+export const CATEGORY_TRANSLATIONS: Record<string, string> = {
+  "Trà": "Tea",
+  "Sữa tươi": "Fresh Milk",
+  "Sữa đặc": "Condensed Milk",
+  "Kem đông lạnh": "Ice Cream",
+  "Syrup": "Syrup",
+  "Bột": "Powder",
+  "Trân châu": "Tapioca Pearls",
+  "Mứt": "Jam",
+  "Đồ lon": "Canned Goods",
+  "Sốt": "Sauce",
+  "Mặt hàng khác": "Others",
+  "Công cụ dụng cụ": "Tools & Equipment",
+  "Combo": "Combo",
+};
+
+function categoryLabel(categorySheet: string, lang: "vi" | "en"): string {
+  return lang === "en" ? CATEGORY_TRANSLATIONS[categorySheet] ?? categorySheet : categorySheet;
+}
 
 // Thông tin công ty cố định cho phần đầu trang (letterhead) — export để dùng
 // chung cho cả bản Excel (quoteExcelBuilder.ts), giữ đúng 1 nguồn duy nhất.
@@ -56,8 +98,16 @@ export function formatPrice(n: number | null) {
   return Math.round(n).toLocaleString("vi-VN").replace(/,/g, ".");
 }
 
-export function formatDateLine(dateStr?: string | null) {
+const EN_MONTHS = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
+export function formatDateLine(dateStr?: string | null, lang: "vi" | "en" = "vi") {
   const d = dateStr ? new Date(dateStr + "T00:00:00") : new Date();
+  if (lang === "en") {
+    return `Updated as of ${EN_MONTHS[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+  }
   return `Cập nhật đến ngày ${d.getDate()} tháng ${d.getMonth() + 1} năm ${d.getFullYear()}`;
 }
 
@@ -156,6 +206,8 @@ const TABLE_HEADER_FONT_SIZE = 9;
 
 export async function buildQuotePdf(items: Product[], info: QuoteInfo): Promise<Buffer> {
   const sorted = sortForQuote(items);
+  const lang = info.lang === "en" ? "en" : "vi";
+  const labels = QUOTE_LABELS[lang];
 
   // Chèn 1 dòng tiêu đề tên nhóm hàng trước sản phẩm đầu tiên của mỗi nhóm
   // khác với nhóm ngay trước đó — STT vẫn đếm liên tục xuyên suốt bảng,
@@ -168,13 +220,13 @@ export async function buildQuotePdf(items: Product[], info: QuoteInfo): Promise<
   const CATEGORY_FILL = "#FDEADA";
 
   const tableBody: any[] = [
-    [
-      { text: "STT", bold: true, alignment: "center", fillColor: HEADER_FILL, fontSize: TABLE_HEADER_FONT_SIZE },
-      { text: "TÊN SẢN PHẨM", bold: true, alignment: "center", fillColor: HEADER_FILL, fontSize: TABLE_HEADER_FONT_SIZE },
-      { text: "QUY CÁCH", bold: true, alignment: "center", fillColor: HEADER_FILL, fontSize: TABLE_HEADER_FONT_SIZE },
-      { text: "GIÁ LẺ", bold: true, alignment: "center", fillColor: HEADER_FILL, fontSize: TABLE_HEADER_FONT_SIZE },
-      { text: "GIÁ THÙNG", bold: true, alignment: "center", fillColor: HEADER_FILL, fontSize: TABLE_HEADER_FONT_SIZE },
-    ],
+    labels.columns.map((col) => ({
+      text: col,
+      bold: true,
+      alignment: "center",
+      fillColor: HEADER_FILL,
+      fontSize: TABLE_HEADER_FONT_SIZE,
+    })),
   ];
   let lastCategory: string | null = null;
   let categoryIndex = 0;
@@ -184,7 +236,7 @@ export async function buildQuotePdf(items: Product[], info: QuoteInfo): Promise<
       categoryIndex++;
       tableBody.push([
         {
-          text: `${toRoman(categoryIndex)}. ${p.category_sheet}:`,
+          text: `${toRoman(categoryIndex)}. ${categoryLabel(p.category_sheet, lang)}:`,
           bold: true,
           italics: true,
           decoration: "underline",
@@ -221,23 +273,19 @@ export async function buildQuotePdf(items: Product[], info: QuoteInfo): Promise<
       ],
       margin: [0, 0, 0, 14],
     },
-    { text: "BẢNG GIÁ", bold: true, fontSize: 16, alignment: "center", margin: [0, 0, 0, 4] },
-    { text: formatDateLine(info.date), fontSize: 12, alignment: "center", margin: [0, 0, 0, 10] },
+    { text: labels.title, bold: true, fontSize: 16, alignment: "center", margin: [0, 0, 0, 4] },
+    { text: formatDateLine(info.date, lang), fontSize: 12, alignment: "center", margin: [0, 0, 0, 10] },
   ];
 
   if (sorted.length === 0) {
-    content.push({ text: "Không có sản phẩm nào trong danh sách đã chọn." });
+    content.push({ text: labels.empty });
   } else {
     content.push({
       table: { headerRows: 1, widths: ["6%", "55%", "17%", "11%", "11%"], body: tableBody },
       layout: tableBorder,
     });
     content.push({
-      text:
-        "Ghi chú:\n" +
-        "- Giá đã bao gồm VAT\n" +
-        "- Bảng giá có giá trị tại thời điểm báo giá (cho đến khi có thông báo mới)\n" +
-        "- Giá bán lẻ áp dụng tại Tiệm Trà&Bánh",
+      text: labels.notes,
       bold: true,
       italics: true,
       alignment: "left",

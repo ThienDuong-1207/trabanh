@@ -2,8 +2,10 @@ import ExcelJS from "exceljs";
 import fs from "fs";
 import { Product } from "./types";
 import {
+  CATEGORY_TRANSLATIONS,
   COMPANY_INFO,
   LOGO_PATH,
+  QUOTE_LABELS,
   QuoteInfo,
   formatDateLine,
   formatHopUnit,
@@ -12,6 +14,10 @@ import {
   sortForQuote,
   toRoman,
 } from "./quoteBuilder";
+
+function categoryLabel(categorySheet: string, lang: "vi" | "en"): string {
+  return lang === "en" ? CATEGORY_TRANSLATIONS[categorySheet] ?? categorySheet : categorySheet;
+}
 
 // Bản Excel của cùng 1 bảng giá — dùng chung toàn bộ logic sắp xếp/định dạng
 // với bản PDF (quoteBuilder.ts), chỉ khác phần "vẽ" ra Excel thay vì PDF, để
@@ -24,6 +30,8 @@ const THIN_BORDER: Partial<ExcelJS.Borders> = {
 
 export async function buildQuoteExcel(items: Product[], info: QuoteInfo): Promise<Buffer> {
   const sorted = sortForQuote(items);
+  const lang = info.lang === "en" ? "en" : "vi";
+  const labels = QUOTE_LABELS[lang];
 
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet("Bảng giá", { pageSetup: { orientation: "portrait", fitToPage: true, fitToWidth: 1 } });
@@ -55,20 +63,19 @@ export async function buildQuoteExcel(items: Product[], info: QuoteInfo): Promis
   const TITLE_ROW = 6;
   sheet.mergeCells(`A${TITLE_ROW}:E${TITLE_ROW}`);
   const titleCell = sheet.getCell(`A${TITLE_ROW}`);
-  titleCell.value = "BẢNG GIÁ";
+  titleCell.value = labels.title;
   titleCell.font = { bold: true, size: 16 };
   titleCell.alignment = { horizontal: "center" };
 
   const DATE_ROW = TITLE_ROW + 1;
   sheet.mergeCells(`A${DATE_ROW}:E${DATE_ROW}`);
   const dateCell = sheet.getCell(`A${DATE_ROW}`);
-  dateCell.value = formatDateLine(info.date);
+  dateCell.value = formatDateLine(info.date, lang);
   dateCell.font = { size: 11.5 };
   dateCell.alignment = { horizontal: "center" };
 
   const HEADER_ROW = DATE_ROW + 2;
-  const headers = ["STT", "TÊN SẢN PHẨM", "QUY CÁCH", "GIÁ LẺ", "GIÁ THÙNG"];
-  headers.forEach((h, i) => {
+  labels.columns.forEach((h, i) => {
     const cell = sheet.getRow(HEADER_ROW).getCell(i + 1);
     cell.value = h;
     cell.font = { bold: true };
@@ -80,7 +87,7 @@ export async function buildQuoteExcel(items: Product[], info: QuoteInfo): Promis
   if (sorted.length === 0) {
     const r = HEADER_ROW + 1;
     sheet.mergeCells(`A${r}:E${r}`);
-    sheet.getCell(`A${r}`).value = "Không có sản phẩm nào trong danh sách đã chọn.";
+    sheet.getCell(`A${r}`).value = labels.empty;
     const arrayBuffer = await workbook.xlsx.writeBuffer();
     return Buffer.from(arrayBuffer);
   }
@@ -94,7 +101,7 @@ export async function buildQuoteExcel(items: Product[], info: QuoteInfo): Promis
       categoryIndex++;
       sheet.mergeCells(`A${row}:E${row}`);
       const cell = sheet.getCell(`A${row}`);
-      cell.value = `${toRoman(categoryIndex)}. ${p.category_sheet}:`;
+      cell.value = `${toRoman(categoryIndex)}. ${categoryLabel(p.category_sheet, lang)}:`;
       cell.font = { bold: true, italic: true, underline: true };
       cell.fill = CATEGORY_FILL;
       cell.border = THIN_BORDER;
@@ -124,12 +131,7 @@ export async function buildQuoteExcel(items: Product[], info: QuoteInfo): Promis
   }
 
   const notesRow = row + 1;
-  const notes = [
-    "Ghi chú:",
-    "- Giá đã bao gồm VAT",
-    "- Bảng giá có giá trị tại thời điểm báo giá (cho đến khi có thông báo mới)",
-    "- Giá bán lẻ áp dụng tại Tiệm Trà&Bánh",
-  ];
+  const notes = labels.notes.split("\n");
   notes.forEach((line, i) => {
     const r = notesRow + i;
     sheet.mergeCells(`A${r}:E${r}`);

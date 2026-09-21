@@ -3823,6 +3823,7 @@ type QuoteFormFields = {
   date: string; // yyyy-mm-dd
   format: "pdf" | "excel";
   savoTamixCaseOverride: boolean;
+  lang: "vi" | "en";
 };
 
 type BlockGiaKind = "block-normal" | "block-discount" | "roll-5x3" | "vertical";
@@ -3909,6 +3910,7 @@ function ExportModal({
     date: new Date().toISOString().slice(0, 10),
     format: "pdf",
     savoTamixCaseOverride: false,
+    lang: "vi",
   });
   function setQuoteField<K extends keyof QuoteFormFields>(key: K, value: QuoteFormFields[K]) {
     setQuoteForm((prev) => ({ ...prev, [key]: value }));
@@ -4090,6 +4092,26 @@ function ExportModal({
                     onChange={() => setQuoteField("format", "excel")}
                   />
                   Excel
+                </span>
+              </label>
+              <label className="field" style={{ flexDirection: "row", alignItems: "center", gap: 16, marginTop: 10 }}>
+                <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <input
+                    type="radio"
+                    name="quote-lang"
+                    checked={quoteForm.lang === "vi"}
+                    onChange={() => setQuoteField("lang", "vi")}
+                  />
+                  Tiếng Việt
+                </span>
+                <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <input
+                    type="radio"
+                    name="quote-lang"
+                    checked={quoteForm.lang === "en"}
+                    onChange={() => setQuoteField("lang", "en")}
+                  />
+                  English
                 </span>
               </label>
               <label className="field" style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 10 }}>
