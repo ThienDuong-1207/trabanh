@@ -367,3 +367,57 @@ end $$;
 -- mọi lịch sử yêu cầu duyệt Mã vạch/Mã thùng đã có (nếu còn muốn giữ lại để
 -- tra cứu, đừng chạy dòng này — comment lại và bỏ qua).
 drop table if exists product_field_requests;
+
+-- Giai đoạn 5: Combo — gói nhiều sản phẩm có sẵn lại với 1 tên + 1 giá bán
+-- riêng, chỉ dùng nội bộ app để in tem giá "Block giá (giá combo)"; không
+-- phải sản phẩm thật, không đồng bộ lên MISA nên không cần category_sheet
+-- hay bất kỳ cột nào khác của products.
+create table if not exists combos (
+  id uuid primary key default gen_random_uuid(),
+  ten_combo text not null,
+  gia_ban numeric,
+  ma_vach text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists combo_items (
+  id uuid primary key default gen_random_uuid(),
+  combo_id uuid not null references combos(id) on delete cascade,
+  product_id uuid not null references products(id) on delete cascade,
+  quantity numeric not null default 1
+);
+
+create index if not exists idx_combo_items_combo on combo_items(combo_id);
+create index if not exists idx_combo_items_product on combo_items(product_id);
+
+create or replace function set_combo_updated_at()
+returns trigger as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$ language plpgsql;
+
+drop trigger if exists trg_combos_updated_at on combos;
+create trigger trg_combos_updated_at
+  before update on combos
+  for each row
+  execute function set_combo_updated_at();
+
+alter table combos enable row level security;
+alter table combo_items enable row level security;
+
+-- Không phân theo vai trò như products (không phải dữ liệu tài chính gốc) —
+-- ai đã được cấp quyền (role khác null) đều toàn quyền tạo/sửa/xóa combo.
+drop policy if exists "Người đã được cấp quyền dùng combo" on combos;
+create policy "Người đã được cấp quyền dùng combo" on combos
+  for all
+  using (exists (select 1 from profiles where id = auth.uid() and role is not null))
+  with check (exists (select 1 from profiles where id = auth.uid() and role is not null));
+
+drop policy if exists "Người đã được cấp quyền dùng combo_items" on combo_items;
+create policy "Người đã được cấp quyền dùng combo_items" on combo_items
+  for all
+  using (exists (select 1 from profiles where id = auth.uid() and role is not null))
+  with check (exists (select 1 from profiles where id = auth.uid() and role is not null));

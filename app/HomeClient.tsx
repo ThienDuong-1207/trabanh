@@ -12,13 +12,14 @@ import {
   ActivityLogEntry,
   Notification,
   CATEGORY_ORDER,
+  ComboWithItems,
 } from "@/lib/types";
 import { QUY_CACH_SUGGESTIONS, TY_LE_SUGGESTIONS, DVT_SUGGESTIONS, extractQuantityFromQuyCach } from "@/lib/suggestionLists";
 import { ACTION_LABELS } from "@/lib/activityLabels";
 import { stripXlsxDrawings } from "@/lib/stripXlsxDrawings";
 import PasswordChecklist from "@/components/PasswordChecklist";
 
-type View = "hanghoa" | "tonkho" | "baocao" | "duyetgia" | "users" | "activitylog" | "chuyenkho" | "khunganh";
+type View = "hanghoa" | "tonkho" | "baocao" | "duyetgia" | "users" | "activitylog" | "chuyenkho" | "khunganh" | "combo";
 export type Role = "sales" | "accountant" | "admin";
 
 // Tạm ẩn nav "Quản lý tồn kho" theo yêu cầu — đổi thành true để hiện lại.
@@ -1341,6 +1342,7 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
         {activeView === "activitylog" && <ActivityLogView role={role} />}
         {activeView === "chuyenkho" && <TransferKhoView />}
         {activeView === "khunganh" && <ImageFrameView />}
+        {activeView === "combo" && <ComboView products={products} />}
       </main>
     </div>
   );
@@ -1665,6 +1667,10 @@ function Sidebar({
         <button className={`nav-item${activeView === "khunganh" ? " active" : ""}`} onClick={() => onChange("khunganh")}>
           <ImageIcon />
           Tạo khung ảnh
+        </button>
+        <button className={`nav-item${activeView === "combo" ? " active" : ""}`} onClick={() => onChange("combo")}>
+          <ComboIcon />
+          Combo
         </button>
         {role === "admin" && (
           <button className={`nav-item${activeView === "users" ? " active" : ""}`} onClick={() => onChange("users")}>
@@ -3272,6 +3278,336 @@ function ImageFrameView() {
   );
 }
 
+function ComboView({ products }: { products: Product[] }) {
+  const [combos, setCombos] = useState<ComboWithItems[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [formOpen, setFormOpen] = useState(false);
+  const [editingCombo, setEditingCombo] = useState<ComboWithItems | null>(null);
+  const [exporting, setExporting] = useState(false);
+
+  async function loadCombos() {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/combos");
+      const data = await res.json();
+      setCombos(res.ok ? data : []);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadCombos();
+  }, []);
+
+  function toggleSelect(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  async function deleteCombo(combo: ComboWithItems) {
+    if (!confirm(`Xóa combo "${combo.ten_combo}"? Không thể hoàn tác.`)) return;
+    const res = await fetch(`/api/combos/${combo.id}`, { method: "DELETE" });
+    const data = await res.json();
+    if (!res.ok) {
+      alert(data.error || "Xóa combo thất bại");
+      return;
+    }
+    await loadCombos();
+  }
+
+  async function exportSelected() {
+    if (selected.size === 0) return;
+    setExporting(true);
+    try {
+      const res = await fetch("/api/export-word-combo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: Array.from(selected) }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error || (await res.text()));
+      }
+      const blob = await res.blob();
+      downloadBlob(blob, "Bang_gia_block_7.7x4cm_Combo.docx");
+      setSelected(new Set());
+    } catch (e: any) {
+      alert("Xuất file thất bại: " + e.message);
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  return (
+    <div className="app app-full table-page">
+      <div className="view-header">
+        <div>
+          <h1>Combo</h1>
+          <p>Gói nhiều sản phẩm có sẵn thành 1 combo, đặt tên + giá riêng — chỉ dùng nội bộ để in tem giá Block giá (giá combo).</p>
+        </div>
+        <button
+          className="btn btn-primary"
+          onClick={() => {
+            setEditingCombo(null);
+            setFormOpen(true);
+          }}
+        >
+          <PlusIcon />
+          Tạo combo
+        </button>
+      </div>
+
+      {selected.size > 0 && (
+        <div className="field-group" style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <span>Đã chọn {selected.size} combo</span>
+          <button className="btn btn-primary" disabled={exporting} onClick={exportSelected}>
+            {exporting ? "Đang xuất..." : "Xuất tem giá"}
+          </button>
+        </div>
+      )}
+
+      <div className="table-card">
+        <div className="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th style={{ width: 32 }}></th>
+                <th>Tên combo</th>
+                <th>Giá bán</th>
+                <th>Số sản phẩm</th>
+                <th>Ngày tạo</th>
+                <th style={{ width: 100 }}></th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading && (
+                <tr>
+                  <td colSpan={6} style={{ textAlign: "center", color: "var(--muted)" }}>
+                    Đang tải...
+                  </td>
+                </tr>
+              )}
+              {!loading && combos.length === 0 && (
+                <tr>
+                  <td colSpan={6} style={{ textAlign: "center", color: "var(--muted)" }}>
+                    Chưa có combo nào.
+                  </td>
+                </tr>
+              )}
+              {!loading &&
+                combos.map((c) => (
+                  <tr key={c.id}>
+                    <td>
+                      <input type="checkbox" checked={selected.has(c.id)} onChange={() => toggleSelect(c.id)} />
+                    </td>
+                    <td className="name-cell">
+                      {c.ten_combo}
+                      <span className="sub">{c.items.map((it) => it.product?.ten_hang_hoa).filter(Boolean).join(", ")}</span>
+                    </td>
+                    <td>{formatVnd(c.gia_ban)}</td>
+                    <td>{c.items.length}</td>
+                    <td>{formatDate(c.created_at)}</td>
+                    <td>
+                      <div className="row-actions">
+                        <button
+                          className="icon-btn"
+                          title="Sửa combo"
+                          aria-label="Sửa combo"
+                          onClick={() => {
+                            setEditingCombo(c);
+                            setFormOpen(true);
+                          }}
+                        >
+                          <EditIcon />
+                        </button>
+                        <button className="icon-btn danger" title="Xóa combo" aria-label="Xóa combo" onClick={() => deleteCombo(c)}>
+                          <TrashIcon />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {formOpen && (
+        <ComboFormModal
+          products={products}
+          combo={editingCombo}
+          onCancel={() => setFormOpen(false)}
+          onSaved={async () => {
+            setFormOpen(false);
+            await loadCombos();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+type ComboFormItem = { product_id: string; ten_hang_hoa: string; ma_noi_bo: string; quantity: number };
+
+function ComboFormModal({
+  products,
+  combo,
+  onCancel,
+  onSaved,
+}: {
+  products: Product[];
+  combo: ComboWithItems | null;
+  onCancel: () => void;
+  onSaved: () => void;
+}) {
+  const [tenCombo, setTenCombo] = useState(combo?.ten_combo ?? "");
+  const [giaBan, setGiaBan] = useState(combo?.gia_ban != null ? String(combo.gia_ban) : "");
+  const [maVach, setMaVach] = useState(combo?.ma_vach ?? "");
+  const [items, setItems] = useState<ComboFormItem[]>(
+    (combo?.items ?? [])
+      .filter((it) => it.product)
+      .map((it) => ({ product_id: it.product_id, ten_hang_hoa: it.product!.ten_hang_hoa, ma_noi_bo: it.product!.ma_noi_bo, quantity: it.quantity }))
+  );
+  const [query, setQuery] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const addedIds = useMemo(() => new Set(items.map((it) => it.product_id)), [items]);
+  const searchResults = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return [];
+    return products.filter((p) => !addedIds.has(p.id) && (p.ten_hang_hoa.toLowerCase().includes(q) || p.ma_noi_bo.toLowerCase().includes(q))).slice(0, 8);
+  }, [query, products, addedIds]);
+
+  function addProduct(p: Product) {
+    setItems((prev) => [...prev, { product_id: p.id, ten_hang_hoa: p.ten_hang_hoa, ma_noi_bo: p.ma_noi_bo, quantity: 1 }]);
+    setQuery("");
+  }
+
+  function removeItem(productId: string) {
+    setItems((prev) => prev.filter((it) => it.product_id !== productId));
+  }
+
+  function setQuantity(productId: string, quantity: number) {
+    setItems((prev) => prev.map((it) => (it.product_id === productId ? { ...it, quantity } : it)));
+  }
+
+  async function handleSubmit() {
+    if (!tenCombo.trim()) {
+      setError("Cần nhập tên combo");
+      return;
+    }
+    if (items.length === 0) {
+      setError("Combo cần ít nhất 1 sản phẩm");
+      return;
+    }
+    setError(null);
+    setSaving(true);
+    try {
+      const body = {
+        ten_combo: tenCombo.trim(),
+        gia_ban: giaBan ? Number(giaBan) : null,
+        ma_vach: maVach.trim() || null,
+        items: items.map((it) => ({ product_id: it.product_id, quantity: it.quantity })),
+      };
+      const res = await fetch(combo ? `/api/combos/${combo.id}` : "/api/combos", {
+        method: combo ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Lưu combo thất bại");
+      onSaved();
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="modal-backdrop" onClick={(e) => e.target === e.currentTarget && onCancel()}>
+      <div className="modal">
+        <h2>{combo ? "Sửa combo" : "Tạo combo"}</h2>
+
+        <div className="field-group">
+          <div className="field-grid">
+            <Field label="Tên combo">
+              <input value={tenCombo} onChange={(e) => setTenCombo(e.target.value)} />
+            </Field>
+            <Field label="Giá bán combo">
+              <input type="number" value={giaBan} onChange={(e) => setGiaBan(e.target.value)} />
+            </Field>
+            <Field label="Mã vạch (tùy chọn)">
+              <input value={maVach} onChange={(e) => setMaVach(e.target.value)} />
+            </Field>
+          </div>
+        </div>
+
+        <div className="field-group">
+          <h3>Sản phẩm trong combo</h3>
+          <input
+            placeholder="Tìm sản phẩm theo tên hoặc mã..."
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+          {searchResults.length > 0 && (
+            <div className="panel-scroll" style={{ height: "auto", maxHeight: 150, marginTop: 4, border: "1px solid var(--border)", borderRadius: "var(--radius-sm)" }}>
+              {searchResults.map((p) => (
+                <div
+                  key={p.id}
+                  style={{ padding: "6px 9px", cursor: "pointer", borderBottom: "1px solid var(--border)" }}
+                  onClick={() => addProduct(p)}
+                >
+                  {p.ten_hang_hoa} <span style={{ color: "var(--muted)" }}>({p.ma_noi_bo})</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div style={{ marginTop: 10 }}>
+            {items.length === 0 && <p style={{ color: "var(--muted)" }}>Chưa có sản phẩm nào trong combo.</p>}
+            {items.map((it) => (
+              <div key={it.product_id} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                <span style={{ flex: 1 }}>
+                  {it.ten_hang_hoa} <span style={{ color: "var(--muted)" }}>({it.ma_noi_bo})</span>
+                </span>
+                <input
+                  type="number"
+                  min={1}
+                  value={it.quantity}
+                  onChange={(e) => setQuantity(it.product_id, Number(e.target.value) || 1)}
+                  style={{ width: 60 }}
+                />
+                <button className="icon-btn danger" title="Bỏ khỏi combo" aria-label="Bỏ khỏi combo" onClick={() => removeItem(it.product_id)}>
+                  <TrashIcon />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {error && <p className="login-error">{error}</p>}
+
+        <div className="modal-actions">
+          <button className="btn" onClick={onCancel} disabled={saving}>
+            Hủy
+          </button>
+          <button className="btn btn-primary" disabled={saving} onClick={handleSubmit}>
+            {saving ? "Đang lưu..." : "Lưu combo"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Trùng lặp có chủ đích với lib/inventoryCheckBuilder.ts (không import thẳng
 // từ đó — file đó có import pdfmake/pdfFonts phía server, đưa vào bundle
 // client sẽ vỡ vì dùng process.cwd()/fs). Chỉ cần hàm thuần này để tính ngày
@@ -3553,7 +3889,7 @@ type QuoteFormFields = {
   savoTamixCaseOverride: boolean;
 };
 
-type BlockGiaKind = "block-normal" | "block-discount" | "block-combo" | "roll-5x3" | "vertical";
+type BlockGiaKind = "block-normal" | "block-discount" | "roll-5x3" | "vertical";
 
 type InventoryCheckFormFields = {
   startDate: string; // yyyy-mm-dd
@@ -3607,7 +3943,6 @@ function ExportModal({
   const blockOptions: { value: BlockGiaKind; label: string; disabled?: boolean }[] = [
     { value: "block-normal", label: "Block 7.7x4cm" },
     { value: "block-discount", label: "Block 7.7x4cm (giá giảm)" },
-    { value: "block-combo", label: "Block 7.7x4cm (giá combo) — sắp có", disabled: true },
     { value: "roll-5x3", label: "Block 5x3cm" },
     { value: "vertical", label: "Giá đứng" },
   ];
@@ -3629,7 +3964,6 @@ function ExportModal({
     if (tab === "misa") {
       onSubmitMisa(misaTopKind === "update" ? "misa-update" : misaImportSub === "new" ? "misa" : "misa-add-unit");
     } else if (tab === "block") {
-      if (blockKind === "block-combo") return;
       onSubmitBlockGia(blockKind);
     } else if (tab === "quote") {
       onSubmitQuote(quoteForm);
@@ -3764,7 +4098,7 @@ function ExportModal({
           <button className="btn" onClick={onCancel} disabled={submitting}>
             Hủy
           </button>
-          <button className="btn btn-primary" disabled={submitting || (tab === "block" && blockKind === "block-combo")} onClick={handleSubmit}>
+          <button className="btn btn-primary" disabled={submitting} onClick={handleSubmit}>
             {submitting ? "Đang xuất..." : "Xuất file"}
           </button>
         </div>
@@ -4478,6 +4812,15 @@ function ImageIcon() {
       <rect x="3" y="3" width="18" height="18" rx="2" />
       <circle cx="8.5" cy="8.5" r="1.5" />
       <path d="M21 15l-5-5L5 21" />
+    </svg>
+  );
+}
+function ComboIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 8l-9-5-9 5 9 5 9-5z" />
+      <path d="M3 8v8l9 5 9-5V8" />
+      <path d="M12 13v8" />
     </svg>
   );
 }

@@ -3,7 +3,6 @@ import {
   WidthType, BorderStyle, AlignmentType, VerticalAlign,
   HeightRule, PageOrientation, TableLayoutType, Tab,
 } from "docx";
-import { Product } from "./types";
 import { fixDuplicateDocPrIds } from "./docxFixup";
 import { estimateTextWidthPt } from "./textWidth";
 
@@ -260,8 +259,17 @@ function buildPage(label: string, items: (WordLabelItem | null)[], mode: WordLab
   ];
 }
 
-export type WordLabelMode = "normal" | "price_change";
-export type WordLabelItem = Product & { gia_ban_old?: number | null };
+export type WordLabelMode = "normal" | "price_change" | "combo";
+// Chỉ giữ đúng các trường buildCell thật sự đọc tới — không ràng buộc theo
+// Product nữa để dùng chung được cho cả combo (không phải sản phẩm thật
+// trong bảng products, không có đủ các trường bắt buộc của Product).
+export type WordLabelItem = {
+  ten_hang_hoa: string;
+  gia_ban: number | null;
+  ma_vach?: string | null;
+  dvt?: string | null;
+  gia_ban_old?: number | null;
+};
 
 export async function buildWordFile(items: WordLabelItem[], mode: WordLabelMode = "normal"): Promise<Buffer> {
   const priced = items.filter((it) => it.gia_ban);
@@ -269,7 +277,7 @@ export async function buildWordFile(items: WordLabelItem[], mode: WordLabelMode 
   const sections = [];
   let pageNum = 0;
   const today = new Date().toLocaleDateString("vi-VN");
-  const labelPrefix = mode === "price_change" ? "Bảng giá đổi giá" : "Cập nhật giá";
+  const labelPrefix = mode === "price_change" ? "Bảng giá đổi giá" : mode === "combo" ? "Bảng giá combo" : "Cập nhật giá";
 
   for (let i = 0; i < priced.length; i += PER_PAGE) {
     pageNum += 1;

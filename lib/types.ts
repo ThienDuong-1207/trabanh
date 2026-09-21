@@ -67,6 +67,28 @@ export type PriceHistoryEntry = {
   product?: { ten_hang_hoa: string; ma_noi_bo: string } | null;
 };
 
+// Combo: gói nhiều sản phẩm có sẵn lại với 1 tên + 1 giá bán riêng, chỉ dùng
+// nội bộ app để in tem giá "Block giá (giá combo)" — không phải sản phẩm
+// thật trong `products`, không đồng bộ lên MISA.
+export type Combo = {
+  id: string;
+  ten_combo: string;
+  gia_ban: number | null;
+  ma_vach: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ComboItem = {
+  id: string;
+  combo_id: string;
+  product_id: string;
+  quantity: number;
+  product?: { ten_hang_hoa: string; ma_noi_bo: string; gia_ban: number | null } | null;
+};
+
+export type ComboWithItems = Combo & { items: ComboItem[] };
+
 export type Profile = {
   id: string;
   username: string | null;
