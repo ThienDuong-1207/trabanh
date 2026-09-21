@@ -193,9 +193,12 @@ function buildCell(item: WordLabelItem | null, mode: WordLabelMode, promo?: Prom
 
   // Tem "đổi giá": thêm 1 dòng giá cũ gạch ngang màu đỏ ngay trên giá mới —
   // chiếm thêm 1 vùng cố định (OLD_PRICE_LINE + khoảng cách trước), nên giá
-  // mới co lại nhường chỗ đúng bằng vùng đó (mode "normal" không có vùng này,
-  // reservedDxa chỉ còn đúng vùng tên sản phẩm).
-  const hasOldPrice = mode === "price_change" && item.gia_ban_old != null;
+  // mới co lại nhường chỗ đúng bằng vùng đó. Xét thẳng theo item.gia_ban_old
+  // (không khoá theo mode) — combo có gia_goc luôn hiển thị gạch ngang này dù
+  // xuất ở Block giá thường hay khuyến mãi; sản phẩm thật chỉ có gia_ban_old
+  // khi export-word/route.ts tra được ở price_history (chỉ xảy ra ở mode
+  // "price_change"), nên hành vi cũ với sản phẩm thật không đổi.
+  const hasOldPrice = item.gia_ban_old != null;
   const oldPriceZoneDxa = hasOldPrice ? OLD_PRICE_GAP_BEFORE + OLD_PRICE_LINE + OLD_PRICE_GAP_AFTER : 0;
   const hasPromo = mode === "price_change" && !!promo;
   const promoZoneDxa = hasPromo ? PROMO_LINE : 0;

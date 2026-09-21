@@ -33,8 +33,9 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   const current = await getCurrentUserRole();
 
   try {
-    const { ten_combo, gia_ban, ma_vach, items } = (await req.json()) as {
+    const { ten_combo, gia_goc, gia_ban, ma_vach, items } = (await req.json()) as {
       ten_combo: string;
+      gia_goc: number | null;
       gia_ban: number | null;
       ma_vach: string | null;
       items: { product_id: string; quantity: number }[];
@@ -45,7 +46,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     const supabase = supabaseAdmin();
     const { data: combo, error } = await supabase
       .from("products")
-      .update({ ten_hang_hoa: ten_combo.trim(), gia_ban, ma_vach: ma_vach || null })
+      .update({ ten_hang_hoa: ten_combo.trim(), gia_goc, gia_ban, ma_vach: ma_vach || null })
       .eq("id", params.id)
       .eq("is_combo", true)
       .select()

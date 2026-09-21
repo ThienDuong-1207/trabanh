@@ -23,8 +23,9 @@ export async function POST(req: NextRequest) {
   const current = await getCurrentUserRole();
 
   try {
-    const { ten_combo, gia_ban, ma_vach, items } = (await req.json()) as {
+    const { ten_combo, gia_goc, gia_ban, ma_vach, items } = (await req.json()) as {
       ten_combo: string;
+      gia_goc: number | null;
       gia_ban: number | null;
       ma_vach: string | null;
       items: { product_id: string; quantity: number }[];
@@ -40,6 +41,7 @@ export async function POST(req: NextRequest) {
         ma_noi_bo,
         ten_hang_hoa: ten_combo.trim(),
         dvt: "Combo",
+        gia_goc,
         gia_ban,
         ma_vach: ma_vach || null,
         category_sheet: "Combo",

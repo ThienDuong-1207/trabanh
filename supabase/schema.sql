@@ -378,6 +378,11 @@ drop table if exists combos cascade;
 
 alter table products add column if not exists is_combo boolean not null default false;
 
+-- Giá gốc (tham khảo, để hiển thị gạch ngang) của combo — riêng combo mới có
+-- ý nghĩa (giá gốc so với giá bán combo thực tế), không dùng cho sản phẩm
+-- thường (không thuộc ProductInput, chỉ /api/combos* ghi cột này).
+alter table products add column if not exists gia_goc numeric;
+
 create table if not exists combo_items (
   id uuid primary key default gen_random_uuid(),
   combo_id uuid not null references products(id) on delete cascade,

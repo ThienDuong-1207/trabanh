@@ -3372,6 +3372,7 @@ function ComboFormModal({
   onSaved: () => void;
 }) {
   const [tenCombo, setTenCombo] = useState(combo?.ten_hang_hoa ?? "");
+  const [giaGoc, setGiaGoc] = useState(combo?.gia_goc != null ? String(combo.gia_goc) : "");
   const [giaBan, setGiaBan] = useState(combo?.gia_ban != null ? String(combo.gia_ban) : "");
   const [maVach, setMaVach] = useState(combo?.ma_vach ?? "");
   const [items, setItems] = useState<ComboFormItem[]>([]);
@@ -3432,6 +3433,7 @@ function ComboFormModal({
     try {
       const body = {
         ten_combo: tenCombo.trim(),
+        gia_goc: giaGoc ? Number(giaGoc) : null,
         gia_ban: giaBan ? Number(giaBan) : null,
         ma_vach: maVach.trim() || null,
         items: items.map((it) => ({ product_id: it.product_id, quantity: it.quantity })),
@@ -3460,6 +3462,9 @@ function ComboFormModal({
           <div className="field-grid">
             <Field label="Tên combo">
               <input value={tenCombo} onChange={(e) => setTenCombo(e.target.value)} />
+            </Field>
+            <Field label="Giá gốc (tùy chọn)">
+              <input type="number" value={giaGoc} onChange={(e) => setGiaGoc(e.target.value)} />
             </Field>
             <Field label="Giá bán combo">
               <input type="number" value={giaBan} onChange={(e) => setGiaBan(e.target.value)} />

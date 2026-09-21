@@ -23,19 +23,28 @@ export async function POST(req: NextRequest) {
     const { data, error } = await supabase.from("products").select("*").in("id", ids);
     if (error) throw error;
 
-    let items: WordLabelItem[] = data as Product[];
+    // Combo dùng gia_goc của chính nó làm "giá cũ" gạch ngang — không phải
+    // giá đã đổi thật sự (price_history), nên không tra price_history cho
+    // combo, và hiển thị ở CẢ 2 mode (không riêng "price_change").
+    let items: WordLabelItem[] = (data as Product[]).map((p) =>
+      p.is_combo && p.gia_goc != null ? { ...p, gia_ban_old: p.gia_goc } : p
+    );
     let skippedNames: string[] = [];
 
     if (mode === "price_change") {
+      const realProductIds = (data as Product[]).filter((p) => !p.is_combo).map((p) => p.id);
       // Lấy đúng 1 lần đổi giá bán lẻ GẦN NHẤT của mỗi mã (bỏ qua các dòng
       // price_history chỉ đổi giá thùng, gia_ban_old === gia_ban_new lúc đó)
       // — mã nào chưa từng thật sự đổi giá bán lẻ thì không có "giá cũ" để
       // in, bị loại khỏi tem đợt này thay vì in sai/thiếu.
-      const { data: history, error: histErr } = await supabase
-        .from("price_history")
-        .select("product_id, gia_ban_old, gia_ban_new, changed_at")
-        .in("product_id", ids)
-        .order("changed_at", { ascending: false });
+      const { data: history, error: histErr } =
+        realProductIds.length > 0
+          ? await supabase
+              .from("price_history")
+              .select("product_id, gia_ban_old, gia_ban_new, changed_at")
+              .in("product_id", realProductIds)
+              .order("changed_at", { ascending: false })
+          : { data: [], error: null };
       if (histErr) throw histErr;
 
       const oldPriceByProduct = new Map<string, number>();
@@ -50,6 +59,12 @@ export async function POST(req: NextRequest) {
 
       const eligible: WordLabelItem[] = [];
       for (const p of data as Product[]) {
+        // Combo: giữ nguyên (đã gán gia_ban_old = gia_goc ở trên nếu có),
+        // không loại khỏi đợt tem dù không có price_history.
+        if (p.is_combo) {
+          eligible.push(p.gia_goc != null ? { ...p, gia_ban_old: p.gia_goc } : p);
+          continue;
+        }
         const oldPrice = oldPriceByProduct.get(p.id);
         if (oldPrice === undefined) {
           skippedNames.push(p.ten_hang_hoa);

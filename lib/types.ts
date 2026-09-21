@@ -35,12 +35,18 @@ export type Product = {
   // thật, không đồng bộ lên MISA. Xem combo_items để biết gồm những sản phẩm
   // nào.
   is_combo: boolean;
+  // Giá gốc (tham khảo) của combo, hiển thị gạch ngang trên tem cạnh giá bán
+  // combo thực tế — chỉ có ý nghĩa với is_combo=true, ghi qua /api/combos*.
+  gia_goc: number | null;
 };
 
 // Shape sent from the product create/edit form: same editable fields as
 // Product, minus server-assigned ones, with `brand` as a plain name instead
 // of `brand_id` (the API resolves-or-creates the brand row by name).
-export type ProductInput = Omit<Product, "id" | "brand_id" | "brand" | "updated_at" | "last_exported_at" | "is_draft" | "created_at" | "is_combo"> & {
+export type ProductInput = Omit<
+  Product,
+  "id" | "brand_id" | "brand" | "updated_at" | "last_exported_at" | "is_draft" | "created_at" | "is_combo" | "gia_goc"
+> & {
   brand: string | null;
 };
 
