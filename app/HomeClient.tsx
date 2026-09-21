@@ -3823,7 +3823,7 @@ type QuoteFormFields = {
   date: string; // yyyy-mm-dd
   format: "pdf" | "excel";
   savoTamixCaseOverride: boolean;
-  lang: "vi" | "en";
+  lang: "vi" | "en" | "zh";
 };
 
 type BlockGiaKind = "block-normal" | "block-discount" | "roll-5x3" | "vertical";
@@ -4112,6 +4112,15 @@ function ExportModal({
                     onChange={() => setQuoteField("lang", "en")}
                   />
                   English
+                </span>
+                <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <input
+                    type="radio"
+                    name="quote-lang"
+                    checked={quoteForm.lang === "zh"}
+                    onChange={() => setQuoteField("lang", "zh")}
+                  />
+                  中文
                 </span>
               </label>
               <label className="field" style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 10 }}>

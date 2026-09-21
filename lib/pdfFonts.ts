@@ -27,6 +27,20 @@ pdfmake.addFonts({
     italics: path.join(FONT_DIR, "Arimo-Regular.ttf"),
     bolditalics: path.join(FONT_DIR, "Arimo-Bold.ttf"),
   },
+  // NotoSansSC: chữ Hán giản thể cho bảng báo giá tiếng Trung (lib/quoteBuilder.ts).
+  // File gốc (Google Noto Sans SC, giấy phép OFL) nặng ~10.5MB/weight vì chứa
+  // toàn bộ bảng chữ Hán — đã cắt gọn (fontTools varLib.instancer để lấy đúng
+  // 2 weight tĩnh 400/700 từ variable font, rồi pyftsubset) chỉ còn đúng ~100
+  // ký tự thật sự dùng trong các nhãn cố định (tiêu đề, tên cột, ghi chú, tên
+  // nhóm hàng + vài ký tự Việt có dấu trong "Tiệm Trà&Bánh") — còn ~45KB/file
+  // thay vì ~10.5MB. KHÔNG dùng để in tên sản phẩm (tiếng Việt, thiếu dấu) hay
+  // địa chỉ tiệm — 2 chỗ đó vẫn giữ font Roboto ngay cả khi chọn tiếng Trung.
+  NotoSansSC: {
+    normal: path.join(FONT_DIR, "NotoSansSC-Regular.ttf"),
+    bold: path.join(FONT_DIR, "NotoSansSC-Bold.ttf"),
+    italics: path.join(FONT_DIR, "NotoSansSC-Regular.ttf"),
+    bolditalics: path.join(FONT_DIR, "NotoSansSC-Bold.ttf"),
+  },
 });
 // docDefinition content never references remote resources, so deny those —
 // but local access must stay allowed since the Roboto font files above are

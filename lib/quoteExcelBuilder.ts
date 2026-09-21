@@ -7,6 +7,7 @@ import {
   LOGO_PATH,
   QUOTE_LABELS,
   QuoteInfo,
+  QuoteLang,
   formatDateLine,
   formatHopUnit,
   formatPrice,
@@ -15,8 +16,9 @@ import {
   toRoman,
 } from "./quoteBuilder";
 
-function categoryLabel(categorySheet: string, lang: "vi" | "en"): string {
-  return lang === "en" ? CATEGORY_TRANSLATIONS[categorySheet] ?? categorySheet : categorySheet;
+function categoryLabel(categorySheet: string, lang: QuoteLang): string {
+  if (lang === "vi") return categorySheet;
+  return CATEGORY_TRANSLATIONS[categorySheet]?.[lang] ?? categorySheet;
 }
 
 // Bản Excel của cùng 1 bảng giá — dùng chung toàn bộ logic sắp xếp/định dạng
@@ -30,7 +32,7 @@ const THIN_BORDER: Partial<ExcelJS.Borders> = {
 
 export async function buildQuoteExcel(items: Product[], info: QuoteInfo): Promise<Buffer> {
   const sorted = sortForQuote(items);
-  const lang = info.lang === "en" ? "en" : "vi";
+  const lang: QuoteLang = info.lang === "en" ? "en" : info.lang === "zh" ? "zh" : "vi";
   const labels = QUOTE_LABELS[lang];
 
   const workbook = new ExcelJS.Workbook();

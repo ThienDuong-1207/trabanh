@@ -31,14 +31,17 @@ export function applySavoTamixCaseOverride(items: Product[]): Product[] {
 // Chuyển sang dạng bảng giá niêm yết chung (không phải báo giá riêng theo
 // từng khách) — theo mẫu thiết kế thật của tiệm, không còn thu thập tên/địa
 // chỉ/điện thoại khách hàng nữa, chỉ còn ngày báo giá.
+export type QuoteLang = "vi" | "en" | "zh";
+
 export type QuoteInfo = {
   date?: string | null; // yyyy-mm-dd
-  lang?: "vi" | "en";
+  lang?: QuoteLang;
 };
 
 // Chỉ dịch được phần chữ cố định của khung bảng giá (tiêu đề, tên cột, ghi
-// chú, tên nhóm hàng) — TÊN SẢN PHẨM (ten_hang_hoa) không có bản tiếng Anh
-// trong dữ liệu, luôn giữ nguyên tiếng Việt dù chọn ngôn ngữ nào.
+// chú, tên nhóm hàng) — TÊN SẢN PHẨM (ten_hang_hoa) không có bản dịch trong
+// dữ liệu, luôn giữ nguyên tiếng Việt dù chọn ngôn ngữ nào. Bản zh (Giản
+// thể) vẫn giữ nguyên "Tiệm Trà&Bánh" (tên riêng, không dịch) trong ghi chú.
 export const QUOTE_LABELS = {
   vi: {
     title: "BẢNG GIÁ",
@@ -52,29 +55,36 @@ export const QUOTE_LABELS = {
     empty: "No products in the selected list.",
     notes: "Notes:\n- Price includes VAT\n- Valid at the time of quotation (until further notice)\n- Retail price applies at Tiệm Trà&Bánh",
   },
+  zh: {
+    title: "价目表",
+    columns: ["序号", "产品名称", "规格", "零售价", "箱价"],
+    empty: "所选清单中没有产品。",
+    notes: "备注:\n- 已含增值税\n- 报价单在另行通知前有效\n- 零售价仅适用于Tiệm Trà&Bánh",
+  },
 } as const;
 
-// Tên nhóm hàng dịch sẵn cho bản tiếng Anh — chỉ áp dụng cho dòng tiêu đề
-// nhóm hàng trong bảng giá (vd "I. Tea:"), không đổi category_sheet lưu
-// trong dữ liệu.
-export const CATEGORY_TRANSLATIONS: Record<string, string> = {
-  "Trà": "Tea",
-  "Sữa tươi": "Fresh Milk",
-  "Sữa đặc": "Condensed Milk",
-  "Kem đông lạnh": "Ice Cream",
-  "Syrup": "Syrup",
-  "Bột": "Powder",
-  "Trân châu": "Tapioca Pearls",
-  "Mứt": "Jam",
-  "Đồ lon": "Canned Goods",
-  "Sốt": "Sauce",
-  "Mặt hàng khác": "Others",
-  "Công cụ dụng cụ": "Tools & Equipment",
-  "Combo": "Combo",
+// Tên nhóm hàng dịch sẵn cho bản tiếng Anh/Trung — chỉ áp dụng cho dòng tiêu
+// đề nhóm hàng trong bảng giá (vd "I. Tea:" / "I. 茶:"), không đổi
+// category_sheet lưu trong dữ liệu.
+export const CATEGORY_TRANSLATIONS: Record<string, { en: string; zh: string }> = {
+  "Trà": { en: "Tea", zh: "茶" },
+  "Sữa tươi": { en: "Fresh Milk", zh: "鲜奶" },
+  "Sữa đặc": { en: "Condensed Milk", zh: "炼奶" },
+  "Kem đông lạnh": { en: "Ice Cream", zh: "冰淇淋" },
+  "Syrup": { en: "Syrup", zh: "糖浆" },
+  "Bột": { en: "Powder", zh: "粉类" },
+  "Trân châu": { en: "Tapioca Pearls", zh: "珍珠" },
+  "Mứt": { en: "Jam", zh: "果酱" },
+  "Đồ lon": { en: "Canned Goods", zh: "罐头食品" },
+  "Sốt": { en: "Sauce", zh: "酱料" },
+  "Mặt hàng khác": { en: "Others", zh: "其他商品" },
+  "Công cụ dụng cụ": { en: "Tools & Equipment", zh: "工具用具" },
+  "Combo": { en: "Combo", zh: "套餐" },
 };
 
-function categoryLabel(categorySheet: string, lang: "vi" | "en"): string {
-  return lang === "en" ? CATEGORY_TRANSLATIONS[categorySheet] ?? categorySheet : categorySheet;
+function categoryLabel(categorySheet: string, lang: QuoteLang): string {
+  if (lang === "vi") return categorySheet;
+  return CATEGORY_TRANSLATIONS[categorySheet]?.[lang] ?? categorySheet;
 }
 
 // Thông tin công ty cố định cho phần đầu trang (letterhead) — export để dùng
@@ -103,10 +113,13 @@ const EN_MONTHS = [
   "July", "August", "September", "October", "November", "December",
 ];
 
-export function formatDateLine(dateStr?: string | null, lang: "vi" | "en" = "vi") {
+export function formatDateLine(dateStr?: string | null, lang: QuoteLang = "vi") {
   const d = dateStr ? new Date(dateStr + "T00:00:00") : new Date();
   if (lang === "en") {
     return `Updated as of ${EN_MONTHS[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+  }
+  if (lang === "zh") {
+    return `更新日期: ${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
   }
   return `Cập nhật đến ngày ${d.getDate()} tháng ${d.getMonth() + 1} năm ${d.getFullYear()}`;
 }
@@ -137,17 +150,20 @@ export function formatQuyCach(p: Product): string {
 // ô khác cùng hàng (vd cột Quy cách) bị cắt mất dòng thứ 2 (đã gặp thực tế).
 // Cũng tránh ký tự mũi tên "↳": font Roboto nhúng trong file không có glyph
 // này, hiện ra thành ô vuông rỗng.
-function nameCell(p: Product) {
+// `font`: ép về Roboto khi bảng giá đang ở chế độ tiếng Trung — tên sản phẩm
+// vẫn tiếng Việt (không dịch), font Hán đã cắt gọn không có đủ dấu tiếng
+// Việt để hiển thị đúng.
+function nameCell(p: Product, font?: string) {
   const hopUnit = formatHopUnit(p);
   if (p.gia_hop && hopUnit) {
     return {
       stack: [
-        { text: p.ten_hang_hoa, fontSize: TABLE_FONT_SIZE },
-        { text: `- Giá ${hopUnit}: ${formatPrice(p.gia_hop)}đ`, italics: true, fontSize: TABLE_FONT_SIZE - 1.5, color: "#555555", margin: [0, 2, 0, 0] },
+        { text: p.ten_hang_hoa, fontSize: TABLE_FONT_SIZE, font },
+        { text: `- Giá ${hopUnit}: ${formatPrice(p.gia_hop)}đ`, italics: true, fontSize: TABLE_FONT_SIZE - 1.5, color: "#555555", margin: [0, 2, 0, 0], font },
       ],
     };
   }
-  return { text: p.ten_hang_hoa, alignment: "left", fontSize: TABLE_FONT_SIZE };
+  return { text: p.ten_hang_hoa, alignment: "left", fontSize: TABLE_FONT_SIZE, font };
 }
 
 // Áp dụng cho MỌI nhóm hàng (không riêng Syrup): trong mỗi nhóm hàng, sắp
@@ -206,8 +222,13 @@ const TABLE_HEADER_FONT_SIZE = 9;
 
 export async function buildQuotePdf(items: Product[], info: QuoteInfo): Promise<Buffer> {
   const sorted = sortForQuote(items);
-  const lang = info.lang === "en" ? "en" : "vi";
+  const lang: QuoteLang = info.lang === "en" ? "en" : info.lang === "zh" ? "zh" : "vi";
   const labels = QUOTE_LABELS[lang];
+  // Bản tiếng Trung dùng font NotoSansSC (đặt làm defaultStyle bên dưới) cho
+  // toàn bộ chữ Hán cố định — nhưng tên sản phẩm/quy cách (vẫn tiếng Việt,
+  // không dịch) và địa chỉ tiệm phải ép về Roboto, vì font Hán đã cắt gọn
+  // không có đủ dấu tiếng Việt.
+  const vnTextFont = lang === "zh" ? "Roboto" : undefined;
 
   // Chèn 1 dòng tiêu đề tên nhóm hàng trước sản phẩm đầu tiên của mỗi nhóm
   // khác với nhóm ngay trước đó — STT vẫn đếm liên tục xuyên suốt bảng,
@@ -253,8 +274,8 @@ export async function buildQuotePdf(items: Product[], info: QuoteInfo): Promise<
     }
     tableBody.push([
       { text: String(stt), alignment: "center", fontSize: TABLE_FONT_SIZE },
-      nameCell(p),
-      { text: formatQuyCach(p), alignment: "left", fontSize: TABLE_FONT_SIZE },
+      nameCell(p, vnTextFont),
+      { text: formatQuyCach(p), alignment: "left", fontSize: TABLE_FONT_SIZE, font: vnTextFont },
       { text: formatPrice(p.gia_ban), alignment: "right", fontSize: TABLE_FONT_SIZE },
       { text: formatPrice(p.gia_thung), alignment: "right", fontSize: TABLE_FONT_SIZE },
     ]);
@@ -268,7 +289,10 @@ export async function buildQuotePdf(items: Product[], info: QuoteInfo): Promise<
   const content: any[] = [
     {
       columns: [
-        { width: "*", stack: COMPANY_INFO.map((line, i) => ({ text: line, bold: i === 0, fontSize: i === 0 ? 11 : 10 })) },
+        {
+          width: "*",
+          stack: COMPANY_INFO.map((line, i) => ({ text: line, bold: i === 0, fontSize: i === 0 ? 11 : 10, font: vnTextFont })),
+        },
         ...(logo ? [{ width: 130, ...logo }] : []),
       ],
       margin: [0, 0, 0, 14],
@@ -296,7 +320,7 @@ export async function buildQuotePdf(items: Product[], info: QuoteInfo): Promise<
   const docDefinition = {
     pageSize: "A4",
     pageMargins: [40, 40, 40, 40],
-    defaultStyle: { font: "Roboto", fontSize: 11 },
+    defaultStyle: { font: lang === "zh" ? "NotoSansSC" : "Roboto", fontSize: 11 },
     content,
     footer: (currentPage: number, pageCount: number) => ({
       text: `${currentPage}/${pageCount}`,
