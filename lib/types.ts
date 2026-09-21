@@ -30,12 +30,17 @@ export type Product = {
   last_exported_at: string | null;
   is_draft: boolean;
   created_at: string | null; // null = sản phẩm cũ, thêm trước khi có cột này
+  // true = dòng combo (gói nhiều sản phẩm có sẵn lại, quản lý chung với sản
+  // phẩm thường để tái dùng chọn/xuất báo giá/bảng giá) — không phải hàng hóa
+  // thật, không đồng bộ lên MISA. Xem combo_items để biết gồm những sản phẩm
+  // nào.
+  is_combo: boolean;
 };
 
 // Shape sent from the product create/edit form: same editable fields as
 // Product, minus server-assigned ones, with `brand` as a plain name instead
 // of `brand_id` (the API resolves-or-creates the brand row by name).
-export type ProductInput = Omit<Product, "id" | "brand_id" | "brand" | "updated_at" | "last_exported_at" | "is_draft" | "created_at"> & {
+export type ProductInput = Omit<Product, "id" | "brand_id" | "brand" | "updated_at" | "last_exported_at" | "is_draft" | "created_at" | "is_combo"> & {
   brand: string | null;
 };
 
@@ -67,18 +72,9 @@ export type PriceHistoryEntry = {
   product?: { ten_hang_hoa: string; ma_noi_bo: string } | null;
 };
 
-// Combo: gói nhiều sản phẩm có sẵn lại với 1 tên + 1 giá bán riêng, chỉ dùng
-// nội bộ app để in tem giá "Block giá (giá combo)" — không phải sản phẩm
-// thật trong `products`, không đồng bộ lên MISA.
-export type Combo = {
-  id: string;
-  ten_combo: string;
-  gia_ban: number | null;
-  ma_vach: string | null;
-  created_at: string;
-  updated_at: string;
-};
-
+// Thành phần của 1 combo (products.is_combo = true) — combo_id và product_id
+// đều trỏ vào chính bảng products (combo là 1 dòng products đặc biệt, không
+// còn bảng combos riêng).
 export type ComboItem = {
   id: string;
   combo_id: string;
@@ -86,8 +82,6 @@ export type ComboItem = {
   quantity: number;
   product?: { ten_hang_hoa: string; ma_noi_bo: string; gia_ban: number | null } | null;
 };
-
-export type ComboWithItems = Combo & { items: ComboItem[] };
 
 export type Profile = {
   id: string;

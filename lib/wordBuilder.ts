@@ -259,10 +259,10 @@ function buildPage(label: string, items: (WordLabelItem | null)[], mode: WordLab
   ];
 }
 
-export type WordLabelMode = "normal" | "price_change" | "combo";
+export type WordLabelMode = "normal" | "price_change";
 // Chỉ giữ đúng các trường buildCell thật sự đọc tới — không ràng buộc theo
-// Product nữa để dùng chung được cho cả combo (không phải sản phẩm thật
-// trong bảng products, không có đủ các trường bắt buộc của Product).
+// Product nữa (combo giờ cũng là 1 dòng products với is_combo=true, đã tự
+// khớp cấu trúc này nên không cần thêm mode riêng).
 export type WordLabelItem = {
   ten_hang_hoa: string;
   gia_ban: number | null;
@@ -277,7 +277,7 @@ export async function buildWordFile(items: WordLabelItem[], mode: WordLabelMode 
   const sections = [];
   let pageNum = 0;
   const today = new Date().toLocaleDateString("vi-VN");
-  const labelPrefix = mode === "price_change" ? "Bảng giá đổi giá" : mode === "combo" ? "Bảng giá combo" : "Cập nhật giá";
+  const labelPrefix = mode === "price_change" ? "Bảng giá đổi giá" : "Cập nhật giá";
 
   for (let i = 0; i < priced.length; i += PER_PAGE) {
     pageNum += 1;

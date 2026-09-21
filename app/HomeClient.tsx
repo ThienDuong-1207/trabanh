@@ -12,14 +12,13 @@ import {
   ActivityLogEntry,
   Notification,
   CATEGORY_ORDER,
-  ComboWithItems,
 } from "@/lib/types";
 import { QUY_CACH_SUGGESTIONS, TY_LE_SUGGESTIONS, DVT_SUGGESTIONS, extractQuantityFromQuyCach } from "@/lib/suggestionLists";
 import { ACTION_LABELS } from "@/lib/activityLabels";
 import { stripXlsxDrawings } from "@/lib/stripXlsxDrawings";
 import PasswordChecklist from "@/components/PasswordChecklist";
 
-type View = "hanghoa" | "tonkho" | "baocao" | "duyetgia" | "users" | "activitylog" | "chuyenkho" | "khunganh" | "combo";
+type View = "hanghoa" | "tonkho" | "baocao" | "duyetgia" | "users" | "activitylog" | "chuyenkho" | "khunganh";
 export type Role = "sales" | "accountant" | "admin";
 
 // Tạm ẩn nav "Quản lý tồn kho" theo yêu cầu — đổi thành true để hiện lại.
@@ -164,6 +163,8 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
   const [importing, setImporting] = useState(false);
   const [importOnlyNew, setImportOnlyNew] = useState(false);
   const [formTarget, setFormTarget] = useState<Product | null>(null);
+  const [comboFormOpen, setComboFormOpen] = useState(false);
+  const [editingCombo, setEditingCombo] = useState<Product | null>(null);
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const moreMenuRef = useRef<HTMLDivElement>(null);
@@ -879,6 +880,11 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
     }
   }
 
+  const handleEditProduct = useCallback((p: Product) => {
+    if (p.is_combo) setEditingCombo(p);
+    else setFormTarget(p);
+  }, []);
+
   const handleDeleteProduct = useCallback(
     async (p: Product) => {
       if (!confirm(`Xóa sản phẩm "${p.ten_hang_hoa}"? Không thể hoàn tác.`)) return;
@@ -915,7 +921,7 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
         onToggleSelect={toggleSelect}
         onUpdateField={updateProductField}
         onProposePrice={proposePrice}
-        onEdit={setFormTarget}
+        onEdit={handleEditProduct}
         onDelete={handleDeleteProduct}
         onCompleteDraft={setCompleteDraftTarget}
         nameColumnStickyLeft={nameColumnStickyLeft}
@@ -1005,6 +1011,17 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
         </select>
 
         <div className="toolbar-spacer" />
+
+        <button
+          className="btn"
+          onClick={() => {
+            setEditingCombo(null);
+            setComboFormOpen(true);
+          }}
+        >
+          <ComboIcon />
+          Tạo combo
+        </button>
 
         <div className="menu-wrap" ref={moreMenuRef}>
           <button className="btn btn-primary" onClick={() => setMoreMenuOpen((v) => !v)} disabled={importing || exportingAll !== null}>
@@ -1301,6 +1318,18 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
         />
       )}
 
+      {comboFormOpen && (
+        <ComboFormModal
+          products={products}
+          combo={editingCombo}
+          onCancel={() => setComboFormOpen(false)}
+          onSaved={async () => {
+            setComboFormOpen(false);
+            await loadProducts();
+          }}
+        />
+      )}
+
       {exportModalOpen && (
         <ExportModal
           selectedCount={selected.size}
@@ -1342,7 +1371,6 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
         {activeView === "activitylog" && <ActivityLogView role={role} />}
         {activeView === "chuyenkho" && <TransferKhoView />}
         {activeView === "khunganh" && <ImageFrameView />}
-        {activeView === "combo" && <ComboView products={products} />}
       </main>
     </div>
   );
@@ -1415,10 +1443,13 @@ const ProductRow = memo(function ProductRow({
           clickToEdit
         />
         {p.is_draft && <span className="pill pill-warm draft-badge">Nháp</span>}
+        {p.is_combo && <span className="pill pill-primary draft-badge">Combo</span>}
       </td>
       {!compactView && (
         <td className="col-group" data-label="Nhóm hàng" data-col-id="category_sheet">
-          {isAdmin ? (
+          {p.is_combo ? (
+            "Combo"
+          ) : isAdmin ? (
             <select value={p.category_sheet} onChange={(e) => onUpdateField(p, "category_sheet", e.target.value)} disabled={isSaving}>
               {CATEGORY_ORDER.map((c) => (
                 <option key={c}>{c}</option>
@@ -1452,7 +1483,9 @@ const ProductRow = memo(function ProductRow({
       )}
       {!compactView && (
         <td className="col-dvt" data-label="ĐVT" data-col-id="dvt">
-          {isAdmin ? (
+          {p.is_combo ? (
+            p.dvt ?? "—"
+          ) : isAdmin ? (
             <select value={p.dvt ?? ""} onChange={(e) => onUpdateField(p, "dvt", e.target.value)} disabled={isSaving}>
               <option value="">—</option>
               {withCurrent(DVT_SUGGESTIONS, p.dvt ?? "").map((d) => (
@@ -1473,19 +1506,29 @@ const ProductRow = memo(function ProductRow({
       </td>
       {!compactView && (
         <td className="num" data-label="Giá Hộp" data-col-id="gia_hop">
-          <PriceInput value={p.gia_hop} onSave={(v) => onUpdateField(p, "gia_hop", v === "" ? null : Number(v.replace(/[^\d]/g, "")))} saving={isSaving} />
+          {p.is_combo ? (
+            "—"
+          ) : (
+            <PriceInput value={p.gia_hop} onSave={(v) => onUpdateField(p, "gia_hop", v === "" ? null : Number(v.replace(/[^\d]/g, "")))} saving={isSaving} />
+          )}
         </td>
       )}
       <td className="num" data-label="Giá thùng" data-col-id="gia_thung">
-        <PriceInput
-          value={pendingRequest?.proposed_gia_thung != null ? pendingRequest.proposed_gia_thung : p.gia_thung}
-          onSave={(v) => onProposePrice(p, "gia_thung", v)}
-          saving={isSaving}
-        />
+        {p.is_combo ? (
+          "—"
+        ) : (
+          <PriceInput
+            value={pendingRequest?.proposed_gia_thung != null ? pendingRequest.proposed_gia_thung : p.gia_thung}
+            onSave={(v) => onProposePrice(p, "gia_thung", v)}
+            saving={isSaving}
+          />
+        )}
       </td>
       {!compactView && (
         <td className="col-spec" data-label="Quy cách thùng" data-col-id="quy_cach">
-          {isAdmin ? (
+          {p.is_combo ? (
+            "—"
+          ) : isAdmin ? (
             <select value={p.quy_cach ?? ""} onChange={(e) => onUpdateField(p, "quy_cach", e.target.value)} disabled={isSaving}>
               <option value="">—</option>
               {withCurrent(QUY_CACH_SUGGESTIONS, p.quy_cach ?? "").map((q) => (
@@ -1499,7 +1542,9 @@ const ProductRow = memo(function ProductRow({
       )}
       {!compactView && (
         <td className="num" data-label="Tỷ lệ quy đổi" data-col-id="ty_le">
-          {isAdmin ? (
+          {p.is_combo ? (
+            "—"
+          ) : isAdmin ? (
             <select value={p.ty_le?.toString() ?? ""} onChange={(e) => onUpdateField(p, "ty_le", e.target.value)} disabled={isSaving}>
               <option value="">—</option>
               {withCurrent(TY_LE_SUGGESTIONS, p.ty_le?.toString() ?? "").map((t) => (
@@ -1513,7 +1558,9 @@ const ProductRow = memo(function ProductRow({
       )}
       {!compactView && (
         <td data-label="Đơn vị cấp 2 (Hộp)" data-col-id="dvt_cap_2">
-          {isAdmin ? (
+          {p.is_combo ? (
+            "—"
+          ) : isAdmin ? (
             <select value={p.dvt_cap_2 ?? ""} onChange={(e) => onUpdateField(p, "dvt_cap_2", e.target.value)} disabled={isSaving}>
               <option value="">—</option>
               {withCurrent(DVT_SUGGESTIONS, p.dvt_cap_2 ?? "").map((d) => (
@@ -1527,7 +1574,9 @@ const ProductRow = memo(function ProductRow({
       )}
       {!compactView && (
         <td className="num" data-label="Tỷ lệ quy đổi cấp 2" data-col-id="ty_le_cap_2">
-          {isAdmin ? (
+          {p.is_combo ? (
+            "—"
+          ) : isAdmin ? (
             <select value={p.ty_le_cap_2?.toString() ?? ""} onChange={(e) => onUpdateField(p, "ty_le_cap_2", e.target.value)} disabled={isSaving}>
               <option value="">—</option>
               {withCurrent(TY_LE_SUGGESTIONS, p.ty_le_cap_2?.toString() ?? "").map((t) => (
@@ -1541,7 +1590,9 @@ const ProductRow = memo(function ProductRow({
       )}
       {!compactView && (
         <td className="col-brand" data-label="Thương hiệu" data-col-id="brand">
-          {isAdmin ? (
+          {p.is_combo ? (
+            "—"
+          ) : isAdmin ? (
             <select value={brandNames.includes(p.brand?.name ?? "") ? p.brand?.name : ""} onChange={(e) => selectBrand(e.target.value)} disabled={isSaving}>
               <option value="">—</option>
               {brandNames.map((b) => (
@@ -1556,12 +1607,20 @@ const ProductRow = memo(function ProductRow({
       )}
       {!compactView && (
         <td data-label="Nhà cung cấp" data-col-id="nha_cung_cap">
-          <InlineTextCell value={p.nha_cung_cap} onSave={(v) => onUpdateField(p, "nha_cung_cap", v)} saving={isSaving} disabled={!isAdmin} />
+          {p.is_combo ? (
+            "—"
+          ) : (
+            <InlineTextCell value={p.nha_cung_cap} onSave={(v) => onUpdateField(p, "nha_cung_cap", v)} saving={isSaving} disabled={!isAdmin} />
+          )}
         </td>
       )}
       {!compactView && (
         <td className="code-cell col-code" data-label="Mã hàng NCC" data-col-id="ma_hang_hoa">
-          <InlineTextCell value={p.ma_hang_hoa} onSave={(v) => onUpdateField(p, "ma_hang_hoa", v)} saving={isSaving} disabled={!isAdmin} />
+          {p.is_combo ? (
+            "—"
+          ) : (
+            <InlineTextCell value={p.ma_hang_hoa} onSave={(v) => onUpdateField(p, "ma_hang_hoa", v)} saving={isSaving} disabled={!isAdmin} />
+          )}
         </td>
       )}
       {!compactView && (
@@ -1571,7 +1630,11 @@ const ProductRow = memo(function ProductRow({
       )}
       {!compactView && (
         <td className="code-cell col-code" data-label="Mã thùng" data-col-id="ma_thung">
-          <InlineTextCell value={p.ma_thung} onSave={(v) => onUpdateField(p, "ma_thung", v)} saving={isSaving} disabled={!isAdmin} />
+          {p.is_combo ? (
+            "—"
+          ) : (
+            <InlineTextCell value={p.ma_thung} onSave={(v) => onUpdateField(p, "ma_thung", v)} saving={isSaving} disabled={!isAdmin} />
+          )}
         </td>
       )}
       {!compactView && (
@@ -1588,7 +1651,12 @@ const ProductRow = memo(function ProductRow({
               </button>
             )}
             {role === "admin" && (
-              <button className="icon-btn" title="Sửa (Mã nhóm thay thế, Trạng thái, Xuất xứ)" aria-label="Sửa sản phẩm" onClick={() => onEdit(p)}>
+              <button
+                className="icon-btn"
+                title={p.is_combo ? "Sửa combo" : "Sửa (Mã nhóm thay thế, Trạng thái, Xuất xứ)"}
+                aria-label={p.is_combo ? "Sửa combo" : "Sửa sản phẩm"}
+                onClick={() => onEdit(p)}
+              >
                 <EditIcon />
               </button>
             )}
@@ -1667,10 +1735,6 @@ function Sidebar({
         <button className={`nav-item${activeView === "khunganh" ? " active" : ""}`} onClick={() => onChange("khunganh")}>
           <ImageIcon />
           Tạo khung ảnh
-        </button>
-        <button className={`nav-item${activeView === "combo" ? " active" : ""}`} onClick={() => onChange("combo")}>
-          <ComboIcon />
-          Combo
         </button>
         {role === "admin" && (
           <button className={`nav-item${activeView === "users" ? " active" : ""}`} onClick={() => onChange("users")}>
@@ -3278,183 +3342,14 @@ function ImageFrameView() {
   );
 }
 
-function ComboView({ products }: { products: Product[] }) {
-  const [combos, setCombos] = useState<ComboWithItems[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [formOpen, setFormOpen] = useState(false);
-  const [editingCombo, setEditingCombo] = useState<ComboWithItems | null>(null);
-  const [exporting, setExporting] = useState(false);
-
-  async function loadCombos() {
-    setLoading(true);
-    try {
-      const res = await fetch("/api/combos");
-      const data = await res.json();
-      setCombos(res.ok ? data : []);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    loadCombos();
-  }, []);
-
-  function toggleSelect(id: string) {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }
-
-  async function deleteCombo(combo: ComboWithItems) {
-    if (!confirm(`Xóa combo "${combo.ten_combo}"? Không thể hoàn tác.`)) return;
-    const res = await fetch(`/api/combos/${combo.id}`, { method: "DELETE" });
-    const data = await res.json();
-    if (!res.ok) {
-      alert(data.error || "Xóa combo thất bại");
-      return;
-    }
-    await loadCombos();
-  }
-
-  async function exportSelected() {
-    if (selected.size === 0) return;
-    setExporting(true);
-    try {
-      const res = await fetch("/api/export-word-combo", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids: Array.from(selected) }),
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => null);
-        throw new Error(data?.error || (await res.text()));
-      }
-      const blob = await res.blob();
-      downloadBlob(blob, "Bang_gia_block_7.7x4cm_Combo.docx");
-      setSelected(new Set());
-    } catch (e: any) {
-      alert("Xuất file thất bại: " + e.message);
-    } finally {
-      setExporting(false);
-    }
-  }
-
-  return (
-    <div className="app app-full table-page">
-      <div className="view-header">
-        <div>
-          <h1>Combo</h1>
-          <p>Gói nhiều sản phẩm có sẵn thành 1 combo, đặt tên + giá riêng — chỉ dùng nội bộ để in tem giá Block giá (giá combo).</p>
-        </div>
-        <button
-          className="btn btn-primary"
-          onClick={() => {
-            setEditingCombo(null);
-            setFormOpen(true);
-          }}
-        >
-          <PlusIcon />
-          Tạo combo
-        </button>
-      </div>
-
-      {selected.size > 0 && (
-        <div className="field-group" style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span>Đã chọn {selected.size} combo</span>
-          <button className="btn btn-primary" disabled={exporting} onClick={exportSelected}>
-            {exporting ? "Đang xuất..." : "Xuất tem giá"}
-          </button>
-        </div>
-      )}
-
-      <div className="table-card">
-        <div className="table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <th style={{ width: 32 }}></th>
-                <th>Tên combo</th>
-                <th>Giá bán</th>
-                <th>Số sản phẩm</th>
-                <th>Ngày tạo</th>
-                <th style={{ width: 100 }}></th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading && (
-                <tr>
-                  <td colSpan={6} style={{ textAlign: "center", color: "var(--muted)" }}>
-                    Đang tải...
-                  </td>
-                </tr>
-              )}
-              {!loading && combos.length === 0 && (
-                <tr>
-                  <td colSpan={6} style={{ textAlign: "center", color: "var(--muted)" }}>
-                    Chưa có combo nào.
-                  </td>
-                </tr>
-              )}
-              {!loading &&
-                combos.map((c) => (
-                  <tr key={c.id}>
-                    <td>
-                      <input type="checkbox" checked={selected.has(c.id)} onChange={() => toggleSelect(c.id)} />
-                    </td>
-                    <td className="name-cell">
-                      {c.ten_combo}
-                      <span className="sub">{c.items.map((it) => it.product?.ten_hang_hoa).filter(Boolean).join(", ")}</span>
-                    </td>
-                    <td>{formatVnd(c.gia_ban)}</td>
-                    <td>{c.items.length}</td>
-                    <td>{formatDate(c.created_at)}</td>
-                    <td>
-                      <div className="row-actions">
-                        <button
-                          className="icon-btn"
-                          title="Sửa combo"
-                          aria-label="Sửa combo"
-                          onClick={() => {
-                            setEditingCombo(c);
-                            setFormOpen(true);
-                          }}
-                        >
-                          <EditIcon />
-                        </button>
-                        <button className="icon-btn danger" title="Xóa combo" aria-label="Xóa combo" onClick={() => deleteCombo(c)}>
-                          <TrashIcon />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {formOpen && (
-        <ComboFormModal
-          products={products}
-          combo={editingCombo}
-          onCancel={() => setFormOpen(false)}
-          onSaved={async () => {
-            setFormOpen(false);
-            await loadCombos();
-          }}
-        />
-      )}
-    </div>
-  );
-}
-
 type ComboFormItem = { product_id: string; ten_hang_hoa: string; ma_noi_bo: string; quantity: number };
 
+// Combo giờ là 1 dòng thật trong bảng `products` (is_combo = true) — quản lý
+// chung với sản phẩm thường trong "Quản lý hàng hóa" (chọn, xuất báo giá/bảng
+// giá dùng lại nguyên các hàm build file đã có, không cần code riêng), chỉ
+// tách riêng phần soạn danh sách sản phẩm trong combo ở modal này.
+// `combo` là chính dòng product đó khi sửa (is_combo=true), null khi tạo mới
+// — không có sẵn combo_items nên phải tự tải khi mở form sửa.
 function ComboFormModal({
   products,
   combo,
@@ -3462,27 +3357,42 @@ function ComboFormModal({
   onSaved,
 }: {
   products: Product[];
-  combo: ComboWithItems | null;
+  combo: Product | null;
   onCancel: () => void;
   onSaved: () => void;
 }) {
-  const [tenCombo, setTenCombo] = useState(combo?.ten_combo ?? "");
+  const [tenCombo, setTenCombo] = useState(combo?.ten_hang_hoa ?? "");
   const [giaBan, setGiaBan] = useState(combo?.gia_ban != null ? String(combo.gia_ban) : "");
   const [maVach, setMaVach] = useState(combo?.ma_vach ?? "");
-  const [items, setItems] = useState<ComboFormItem[]>(
-    (combo?.items ?? [])
-      .filter((it) => it.product)
-      .map((it) => ({ product_id: it.product_id, ten_hang_hoa: it.product!.ten_hang_hoa, ma_noi_bo: it.product!.ma_noi_bo, quantity: it.quantity }))
-  );
+  const [items, setItems] = useState<ComboFormItem[]>([]);
+  const [loadingItems, setLoadingItems] = useState(!!combo);
   const [query, setQuery] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!combo) return;
+    (async () => {
+      const res = await fetch(`/api/combos/${combo.id}`);
+      const data = await res.json();
+      if (res.ok) {
+        setItems(
+          (data as { product_id: string; quantity: number; product: { ten_hang_hoa: string; ma_noi_bo: string } | null }[])
+            .filter((it) => it.product)
+            .map((it) => ({ product_id: it.product_id, ten_hang_hoa: it.product!.ten_hang_hoa, ma_noi_bo: it.product!.ma_noi_bo, quantity: it.quantity }))
+        );
+      }
+      setLoadingItems(false);
+    })();
+  }, [combo]);
 
   const addedIds = useMemo(() => new Set(items.map((it) => it.product_id)), [items]);
   const searchResults = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return [];
-    return products.filter((p) => !addedIds.has(p.id) && (p.ten_hang_hoa.toLowerCase().includes(q) || p.ma_noi_bo.toLowerCase().includes(q))).slice(0, 8);
+    return products
+      .filter((p) => !p.is_combo && !addedIds.has(p.id) && (p.ten_hang_hoa.toLowerCase().includes(q) || p.ma_noi_bo.toLowerCase().includes(q)))
+      .slice(0, 8);
   }, [query, products, addedIds]);
 
   function addProduct(p: Product) {
@@ -3572,7 +3482,8 @@ function ComboFormModal({
           )}
 
           <div style={{ marginTop: 10 }}>
-            {items.length === 0 && <p style={{ color: "var(--muted)" }}>Chưa có sản phẩm nào trong combo.</p>}
+            {loadingItems && <p style={{ color: "var(--muted)" }}>Đang tải...</p>}
+            {!loadingItems && items.length === 0 && <p style={{ color: "var(--muted)" }}>Chưa có sản phẩm nào trong combo.</p>}
             {items.map((it) => (
               <div key={it.product_id} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
                 <span style={{ flex: 1 }}>
@@ -3599,7 +3510,7 @@ function ComboFormModal({
           <button className="btn" onClick={onCancel} disabled={saving}>
             Hủy
           </button>
-          <button className="btn btn-primary" disabled={saving} onClick={handleSubmit}>
+          <button className="btn btn-primary" disabled={saving || loadingItems} onClick={handleSubmit}>
             {saving ? "Đang lưu..." : "Lưu combo"}
           </button>
         </div>
@@ -4715,6 +4626,7 @@ function formatVnd(v: number | null | undefined): string {
 // A product "thiếu thông tin" if it has no thương hiệu, no mã vạch, or an
 // inconsistent quy cách thùng (only some of quy_cach/ty_le/gia_thung are set).
 function isMissingInfo(p: Product): boolean {
+  if (p.is_combo) return false; // combo không có thương hiệu/quy cách thùng — không áp dụng khái niệm "thiếu thông tin"
   if (!p.brand_id) return true;
   if (!p.ma_vach) return true;
   const thungFields = [p.quy_cach, p.ty_le, p.gia_thung];

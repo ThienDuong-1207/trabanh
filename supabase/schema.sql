@@ -368,22 +368,19 @@ end $$;
 -- tra cứu, đừng chạy dòng này — comment lại và bỏ qua).
 drop table if exists product_field_requests;
 
--- Giai đoạn 5: Combo — gói nhiều sản phẩm có sẵn lại với 1 tên + 1 giá bán
--- riêng, chỉ dùng nội bộ app để in tem giá "Block giá (giá combo)"; không
--- phải sản phẩm thật, không đồng bộ lên MISA nên không cần category_sheet
--- hay bất kỳ cột nào khác của products.
-create table if not exists combos (
-  id uuid primary key default gen_random_uuid(),
-  ten_combo text not null,
-  gia_ban numeric,
-  ma_vach text,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
+-- Giai đoạn 5 (bản sửa — combo giờ là 1 dòng products thật, không còn bảng
+-- combos riêng): gói nhiều sản phẩm có sẵn lại với 1 tên + 1 giá bán riêng,
+-- quản lý CHUNG với sản phẩm thường trong "Quản lý hàng hóa" (chọn, xuất báo
+-- giá/bảng giá dùng thẳng các hàm build file đã có cho products, không cần
+-- code riêng) — chỉ khác ở cờ is_combo=true. Không đồng bộ lên MISA: các
+-- route xuất Nhập khẩu/Cập nhật MISA tự lọc bỏ is_combo=true trước khi build.
+drop table if exists combos cascade;
+
+alter table products add column if not exists is_combo boolean not null default false;
 
 create table if not exists combo_items (
   id uuid primary key default gen_random_uuid(),
-  combo_id uuid not null references combos(id) on delete cascade,
+  combo_id uuid not null references products(id) on delete cascade,
   product_id uuid not null references products(id) on delete cascade,
   quantity numeric not null default 1
 );
@@ -391,30 +388,10 @@ create table if not exists combo_items (
 create index if not exists idx_combo_items_combo on combo_items(combo_id);
 create index if not exists idx_combo_items_product on combo_items(product_id);
 
-create or replace function set_combo_updated_at()
-returns trigger as $$
-begin
-  new.updated_at = now();
-  return new;
-end;
-$$ language plpgsql;
-
-drop trigger if exists trg_combos_updated_at on combos;
-create trigger trg_combos_updated_at
-  before update on combos
-  for each row
-  execute function set_combo_updated_at();
-
-alter table combos enable row level security;
+-- Combo được tạo/sửa/xóa qua các route /api/combos* (supabaseAdmin, bỏ qua
+-- RLS) — bật RLS + 1 policy đọc chung cho combo_items chỉ để phòng sau này
+-- có chỗ đọc thẳng từ client, không phải đường ghi chính.
 alter table combo_items enable row level security;
-
--- Không phân theo vai trò như products (không phải dữ liệu tài chính gốc) —
--- ai đã được cấp quyền (role khác null) đều toàn quyền tạo/sửa/xóa combo.
-drop policy if exists "Người đã được cấp quyền dùng combo" on combos;
-create policy "Người đã được cấp quyền dùng combo" on combos
-  for all
-  using (exists (select 1 from profiles where id = auth.uid() and role is not null))
-  with check (exists (select 1 from profiles where id = auth.uid() and role is not null));
 
 drop policy if exists "Người đã được cấp quyền dùng combo_items" on combo_items;
 create policy "Người đã được cấp quyền dùng combo_items" on combo_items

@@ -13,7 +13,8 @@ export async function POST(req: NextRequest) {
     }
 
     const supabase = supabaseAdmin();
-    const { data, error } = await supabase.from("products").select("*, brand:brands(name)").in("id", ids);
+    // Combo (is_combo=true) không phải hàng hóa thật, không đồng bộ lên MISA.
+    const { data, error } = await supabase.from("products").select("*, brand:brands(name)").in("id", ids).eq("is_combo", false);
     if (error) throw error;
 
     const buf = await buildMisaFile(data as Product[], mode === "add_unit_only" ? "add_unit_only" : "new");

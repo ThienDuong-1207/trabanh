@@ -7,6 +7,22 @@ export const runtime = "nodejs";
 
 const ALL_ROLES = ["sales", "accountant", "admin"] as const;
 
+// Danh sách sản phẩm trong 1 combo (để nạp sẵn vào form Sửa combo) — combo
+// không tự mang theo items như 1 field, phải tra riêng bảng combo_items.
+export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+  const denied = await requireRole([...ALL_ROLES]);
+  if (denied) return denied;
+
+  const supabase = supabaseAdmin();
+  const { data, error } = await supabase
+    .from("combo_items")
+    .select("*, product:products(ten_hang_hoa, ma_noi_bo, gia_ban)")
+    .eq("combo_id", params.id);
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  return NextResponse.json(data);
+}
+
 // Sửa combo: thay toàn bộ danh sách sản phẩm bằng danh sách mới gửi lên
 // (xóa hết combo_items cũ rồi chèn lại) — đơn giản hơn hẳn so với so khớp
 // từng dòng thêm/bớt/đổi số lượng, và combo chỉ có vài sản phẩm nên không
@@ -28,9 +44,10 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
     const supabase = supabaseAdmin();
     const { data: combo, error } = await supabase
-      .from("combos")
-      .update({ ten_combo: ten_combo.trim(), gia_ban, ma_vach: ma_vach || null })
+      .from("products")
+      .update({ ten_hang_hoa: ten_combo.trim(), gia_ban, ma_vach: ma_vach || null })
       .eq("id", params.id)
+      .eq("is_combo", true)
       .select()
       .single();
     if (error) throw error;
@@ -47,39 +64,12 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       actorId: current!.userId,
       actorName: current!.displayName,
       action: "combo.update",
-      targetType: "combo",
+      targetType: "product",
       targetId: params.id,
-      targetLabel: combo.ten_combo,
+      targetLabel: combo.ten_hang_hoa,
     });
 
     return NextResponse.json(combo);
-  } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 500 });
-  }
-}
-
-export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
-  const denied = await requireRole([...ALL_ROLES]);
-  if (denied) return denied;
-  const current = await getCurrentUserRole();
-
-  try {
-    const supabase = supabaseAdmin();
-    const { data: existing } = await supabase.from("combos").select("ten_combo").eq("id", params.id).single();
-
-    const { error } = await supabase.from("combos").delete().eq("id", params.id);
-    if (error) throw error;
-
-    await logActivity({
-      actorId: current!.userId,
-      actorName: current!.displayName,
-      action: "combo.delete",
-      targetType: "combo",
-      targetId: params.id,
-      targetLabel: existing?.ten_combo ?? null,
-    });
-
-    return NextResponse.json({ ok: true });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
