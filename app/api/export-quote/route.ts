@@ -5,6 +5,11 @@ import { resolveQuoteItemNames } from "@/lib/productTranslation";
 import { Product } from "@/lib/types";
 
 export const runtime = "nodejs";
+// Mặc định 10s không đủ khi cần dịch nhiều sản phẩm chưa có cache (mỗi lô
+// dịch chạy song song nhưng vẫn cần vài chục giây cho những đợt xuất báo giá
+// Anh/Trung lần đầu với danh mục lớn) — nới lên mức tối đa còn hỗ trợ ở gói
+// Hobby, tránh request bị Vercel cắt giữa chừng.
+export const maxDuration = 60;
 
 export async function POST(req: NextRequest) {
   try {

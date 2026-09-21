@@ -6,6 +6,8 @@ import { resolveQuoteItemNames } from "@/lib/productTranslation";
 import { Product } from "@/lib/types";
 
 export const runtime = "nodejs";
+// Xem chú thích tương ứng trong app/api/export-quote/route.ts.
+export const maxDuration = 60;
 
 export async function POST(req: NextRequest) {
   try {

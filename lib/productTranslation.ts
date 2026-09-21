@@ -9,13 +9,15 @@ import { Product } from "./types";
 export type TranslateLang = "en" | "zh";
 
 const MODEL = "claude-haiku-4-5-20251001";
+const MAX_TOKENS = 8192;
+// Dịch theo lô nhỏ thay vì gửi hết 1 lần — thực tế gặp lỗi thật: gửi 300 sản
+// phẩm 1 lần bị cắt cụt giữa chừng (stop_reason "max_tokens", dù đã tăng
+// max_tokens lên 8192 vẫn không đủ cho danh mục lớn), JSON trả về dở dang
+// không đọc được. 40 sản phẩm/lô luôn nằm rất xa giới hạn output, đồng thời
+// lô nào lỗi cũng không làm hỏng các lô khác đã dịch xong.
+const BATCH_SIZE = 40;
 
-export async function translateProductNames(
-  names: { id: string; name: string }[],
-  lang: TranslateLang
-): Promise<Record<string, string>> {
-  if (names.length === 0) return {};
-
+async function translateBatch(names: { id: string; name: string }[], lang: TranslateLang): Promise<Record<string, string>> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error("Thiếu biến môi trường ANTHROPIC_API_KEY");
 
@@ -39,7 +41,7 @@ export async function translateProductNames(
     },
     body: JSON.stringify({
       model: MODEL,
-      max_tokens: 4096,
+      max_tokens: MAX_TOKENS,
       messages: [{ role: "user", content: prompt }],
     }),
   });
@@ -56,7 +58,9 @@ export async function translateProductNames(
   try {
     translations = JSON.parse(cleaned);
   } catch {
-    throw new Error("Không đọc được kết quả dịch (định dạng JSON không hợp lệ)");
+    throw new Error(
+      `Không đọc được kết quả dịch (định dạng JSON không hợp lệ${data.stop_reason === "max_tokens" ? ", có thể bị cắt cụt giữa chừng" : ""})`
+    );
   }
   if (!Array.isArray(translations) || translations.length !== names.length) {
     throw new Error("Kết quả dịch không khớp số lượng sản phẩm đã gửi");
@@ -66,6 +70,27 @@ export async function translateProductNames(
   names.forEach((n, i) => {
     result[n.id] = String(translations[i]);
   });
+  return result;
+}
+
+export async function translateProductNames(
+  names: { id: string; name: string }[],
+  lang: TranslateLang
+): Promise<Record<string, string>> {
+  if (names.length === 0) return {};
+
+  // Chạy song song thay vì tuần tự — thực tế đo được 300 sản phẩm (8 lô) mất
+  // ~48s nếu chạy tuần tự, đủ để vượt quá thời gian chờ tối đa của 1 request
+  // API route trên Vercel. Chạy song song rút thời gian chờ về gần bằng đúng
+  // 1 lô duy nhất (các lô độc lập hoàn toàn, không cần thứ tự).
+  const batches: { id: string; name: string }[][] = [];
+  for (let i = 0; i < names.length; i += BATCH_SIZE) {
+    batches.push(names.slice(i, i + BATCH_SIZE));
+  }
+  const batchResults = await Promise.all(batches.map((batch) => translateBatch(batch, lang)));
+
+  const result: Record<string, string> = {};
+  for (const batchResult of batchResults) Object.assign(result, batchResult);
   return result;
 }
 
