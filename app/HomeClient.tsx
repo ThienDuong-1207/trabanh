@@ -1013,7 +1013,7 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
         <div className="toolbar-spacer" />
 
         <button
-          className="btn"
+          className="btn btn-success"
           onClick={() => {
             setEditingCombo(null);
             setComboFormOpen(true);
