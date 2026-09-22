@@ -196,6 +196,13 @@ button, input, select { font: inherit; color: inherit; }
 .panels { display: grid; grid-template-columns: repeat(3, 1fr); gap: 11px; align-items: start; }
 .panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 11px 12px; box-shadow: var(--shadow-1); display: flex; flex-direction: column; }
 .panel h3 { font-size: var(--text-body-sm); font-weight: 650; margin: 0 0 9px; flex: 0 0 auto; }
+
+.dropzone {
+  border: 2px dashed var(--border-strong); border-radius: var(--radius-md);
+  padding: 28px 16px; text-align: center; color: var(--muted);
+  transition: border-color 150ms ease-out, background-color 150ms ease-out;
+}
+.dropzone.is-dragging { border-color: var(--primary); background: var(--primary-wash); color: var(--primary-ink); }
 .panel-wide { grid-column: 1 / -1; }
 /* Chiều cao CỐ ĐỊNH (không giãn theo nội dung) cho cả 3 panel đầu hàng —
    208px khớp đúng chiều cao thật của "Sản phẩm theo nhóm hàng" (11 dòng cố

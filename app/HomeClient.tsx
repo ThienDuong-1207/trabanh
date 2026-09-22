@@ -3253,6 +3253,8 @@ function ImageFrameView() {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ImageFrameResult | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const dragCounter = useRef(0);
 
   async function handleFiles(files: FileList) {
     setUploading(true);
@@ -3318,9 +3320,35 @@ function ImageFrameView() {
             if (files && files.length > 0) handleFiles(files);
           }}
         />
-        <button className="btn btn-primary" onClick={() => filesInputRef.current?.click()} disabled={uploading}>
-          {uploading ? "Đang xử lý..." : "Chọn nhiều file ảnh"}
-        </button>
+        <div
+          className={`dropzone${isDragging ? " is-dragging" : ""}`}
+          onDragOver={(e) => e.preventDefault()}
+          onDragEnter={(e) => {
+            e.preventDefault();
+            dragCounter.current += 1;
+            setIsDragging(true);
+          }}
+          onDragLeave={(e) => {
+            e.preventDefault();
+            dragCounter.current -= 1;
+            if (dragCounter.current <= 0) {
+              dragCounter.current = 0;
+              setIsDragging(false);
+            }
+          }}
+          onDrop={(e) => {
+            e.preventDefault();
+            dragCounter.current = 0;
+            setIsDragging(false);
+            const files = e.dataTransfer.files;
+            if (files && files.length > 0) handleFiles(files);
+          }}
+        >
+          <p style={{ margin: "0 0 10px" }}>Kéo thả ảnh vào đây, hoặc</p>
+          <button className="btn btn-primary" onClick={() => filesInputRef.current?.click()} disabled={uploading}>
+            {uploading ? "Đang xử lý..." : "Chọn nhiều file ảnh"}
+          </button>
+        </div>
         {error && <p style={{ color: "var(--danger)", marginTop: 10, fontSize: "var(--text-body-sm)" }}>{error}</p>}
       </div>
 
