@@ -11,7 +11,6 @@ import {
   Profile,
   ActivityLogEntry,
   Notification,
-  CATEGORY_ORDER,
 } from "@/lib/types";
 import { QUY_CACH_SUGGESTIONS, TY_LE_SUGGESTIONS, DVT_SUGGESTIONS, extractQuantityFromQuyCach } from "@/lib/suggestionLists";
 import { ACTION_LABELS } from "@/lib/activityLabels";
@@ -134,6 +133,7 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [brandNames, setBrandNames] = useState<string[]>([]);
+  const [categoryNames, setCategoryNames] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
@@ -190,6 +190,14 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
     if (!error) setBrandNames((data ?? []).map((b) => b.name as string));
   }, []);
 
+  // Nhóm hàng giờ đọc từ bảng `categories` (lib/categories.ts) thay vì hằng
+  // số CATEGORY_ORDER cố định trong code — import Excel tự thêm nhóm mới nên
+  // cần tải lại sau mỗi lần import để dropdown/lọc thấy ngay nhóm vừa tạo.
+  const loadCategories = useCallback(async () => {
+    const { data, error } = await supabase.from("categories").select("name").order("sort_order", { ascending: true });
+    if (!error) setCategoryNames((data ?? []).map((c) => c.name as string));
+  }, []);
+
   // RLS already scopes this per role (Giai đoạn 2): sales only sees their own
   // requests, kế toán/admin sees everyone's — so no client-side filtering by
   // "who can see what" is needed here.
@@ -222,6 +230,7 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
   useEffect(() => {
     loadProducts();
     loadBrandNames();
+    loadCategories();
     loadPriceRequests();
     loadPriceChangesThisMonth();
   }, []);
@@ -844,14 +853,17 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
         );
       }
       if (!res.ok) throw new Error(data.error || "Nhập file thất bại");
-      const skipped = data.skippedSheets?.length ? ` (bỏ qua sheet: ${data.skippedSheets.join(", ")})` : "";
+      const newCategories = data.newCategories?.length
+        ? ` Đã tự động tạo ${data.newCategories.length} nhóm hàng mới: ${data.newCategories.join(", ")}.`
+        : "";
       const skippedIncomplete = data.skippedIncomplete > 0 ? ` Bỏ qua ${data.skippedIncomplete} dòng thiếu Tên hàng hóa hoặc Mã hàng hóa.` : "";
       const summary = importOnlyNew
         ? `Đã thêm ${data.newCount} sản phẩm mới. ${data.existingCount} sản phẩm đã tồn tại (giữ nguyên, không thay đổi).`
         : `Đã cập nhật ${data.existingCount} sản phẩm đã có và thêm ${data.newCount} sản phẩm mới.`;
-      alert(`${summary} ${data.brandsUpserted} thương hiệu.${skipped}${skippedIncomplete}`);
+      alert(`${summary} ${data.brandsUpserted} thương hiệu.${newCategories}${skippedIncomplete}`);
       await loadProducts();
       await loadBrandNames();
+      await loadCategories();
     } catch (e: any) {
       alert("Nhập file thất bại: " + e.message);
     } finally {
@@ -933,6 +945,7 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
         role={role}
         compactView={compactView}
         brandNames={brandNames}
+        categoryNames={categoryNames}
         isSelected={selected.has(p.id)}
         isPending={pendingIds.has(p.id)}
         pendingRequest={pendingRequestByProduct.get(p.id)}
@@ -983,7 +996,7 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
         <select value={category} onChange={(e) => setCategory(e.target.value)}>
           <option>Tất cả</option>
           <option>{CATEGORY_ALL_EXCEPT_TOOLS}</option>
-          {CATEGORY_ORDER.map((c) => (
+          {categoryNames.map((c) => (
             <option key={c}>{c}</option>
           ))}
           <option>Combo</option>
@@ -1281,6 +1294,7 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
                   role={role}
                   compactView={compactView}
                   brandNames={brandNames}
+                  categoryNames={categoryNames}
                   categoryFilter={category}
                   onCreate={handleCreateProductInline}
                   nameColumnStickyLeft={nameColumnStickyLeft}
@@ -1332,6 +1346,7 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
         <ProductForm
           initial={formTarget}
           brandNames={brandNames}
+          categoryNames={categoryNames}
           role={role}
           onCancel={() => setFormTarget(null)}
           onSave={handleSaveProduct}
@@ -1375,7 +1390,7 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
     </div>
         )}
         {activeView === "tonkho" && <InventoryView />}
-        {activeView === "baocao" && <DashboardView products={products} pendingCount={pendingIds.size} />}
+        {activeView === "baocao" && <DashboardView products={products} pendingCount={pendingIds.size} categoryNames={categoryNames} />}
         {activeView === "duyetgia" && (
           <PriceRequestsView
             requests={priceRequests}
@@ -1402,6 +1417,7 @@ type ProductRowProps = {
   role: Role;
   compactView: boolean;
   brandNames: string[];
+  categoryNames: string[];
   isSelected: boolean;
   isPending: boolean;
   pendingRequest: PriceChangeRequest | undefined;
@@ -1424,6 +1440,7 @@ const ProductRow = memo(function ProductRow({
   role,
   compactView,
   brandNames,
+  categoryNames,
   isSelected,
   isPending,
   pendingRequest,
@@ -1471,7 +1488,7 @@ const ProductRow = memo(function ProductRow({
             "Combo"
           ) : isAdmin ? (
             <select value={p.category_sheet} onChange={(e) => onUpdateField(p, "category_sheet", e.target.value)} disabled={isSaving}>
-              {CATEGORY_ORDER.map((c) => (
+              {categoryNames.map((c) => (
                 <option key={c}>{c}</option>
               ))}
             </select>
@@ -1914,7 +1931,15 @@ function currentMonthKey(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
-function DashboardView({ products, pendingCount }: { products: Product[]; pendingCount: number }) {
+function DashboardView({
+  products,
+  pendingCount,
+  categoryNames,
+}: {
+  products: Product[];
+  pendingCount: number;
+  categoryNames: string[];
+}) {
   const missingPrice = products.filter((p) => !p.gia_ban).length;
 
   const [historyRows, setHistoryRows] = useState<PriceHistoryEntry[]>([]);
@@ -1942,8 +1967,8 @@ function DashboardView({ products, pendingCount }: { products: Product[]; pendin
   const byCategory = useMemo(() => {
     const counts = new Map<string, number>();
     for (const p of products) counts.set(p.category_sheet, (counts.get(p.category_sheet) ?? 0) + 1);
-    return CATEGORY_ORDER.map((c) => ({ name: c, count: counts.get(c) ?? 0 })).sort((a, b) => b.count - a.count);
-  }, [products]);
+    return categoryNames.map((c) => ({ name: c, count: counts.get(c) ?? 0 })).sort((a, b) => b.count - a.count);
+  }, [products, categoryNames]);
   const maxCount = Math.max(1, ...byCategory.map((c) => c.count));
 
   const [reportMonth, setReportMonth] = useState(currentMonthKey);
@@ -3810,7 +3835,7 @@ function productToFormState(p: Product | null): FormState {
     trang_thai: p?.trang_thai ?? "",
     ten_shopee: p?.ten_shopee ?? "",
     xuat_xu: p?.xuat_xu ?? "",
-    category_sheet: p?.category_sheet ?? CATEGORY_ORDER[0],
+    category_sheet: p?.category_sheet ?? "",
     ten_en: p?.ten_en ?? "",
     ten_zh: p?.ten_zh ?? "",
   };
@@ -4302,6 +4327,7 @@ function NewProductRow({
   role,
   compactView,
   brandNames,
+  categoryNames,
   categoryFilter,
   onCreate,
   nameColumnStickyLeft,
@@ -4309,11 +4335,12 @@ function NewProductRow({
   role: Role;
   compactView: boolean;
   brandNames: string[];
+  categoryNames: string[];
   categoryFilter: string;
   onCreate: (input: ProductInput) => Promise<boolean>;
   nameColumnStickyLeft: number;
 }) {
-  const defaultCategory = categoryFilter !== "Tất cả" ? categoryFilter : CATEGORY_ORDER[0];
+  const defaultCategory = categoryFilter !== "Tất cả" ? categoryFilter : categoryNames[0] ?? "";
   const blank = (): FormState => ({ ...productToFormState(null), category_sheet: defaultCategory });
 
   const [form, setForm] = useState<FormState>(blank);
@@ -4377,7 +4404,7 @@ function NewProductRow({
       {!compactView && (
         <td data-label="Nhóm hàng">
           <select value={form.category_sheet} onChange={(e) => set("category_sheet", e.target.value)} disabled={saving || justSaved}>
-            {CATEGORY_ORDER.map((c) => (
+            {categoryNames.map((c) => (
               <option key={c}>{c}</option>
             ))}
           </select>
@@ -4558,12 +4585,14 @@ function NewProductRow({
 function ProductForm({
   initial,
   brandNames,
+  categoryNames,
   role,
   onCancel,
   onSave,
 }: {
   initial: Product;
   brandNames: string[];
+  categoryNames: string[];
   role: Role;
   onCancel: () => void;
   onSave: (input: ProductInput) => Promise<void>;
@@ -4616,7 +4645,7 @@ function ProductForm({
             </Field>
             <Field label="Nhóm hàng *">
               <select value={form.category_sheet} onChange={(e) => set("category_sheet", e.target.value)}>
-                {CATEGORY_ORDER.map((c) => (
+                {categoryNames.map((c) => (
                   <option key={c}>{c}</option>
                 ))}
               </select>

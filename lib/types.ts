@@ -144,7 +144,22 @@ export type Notification = {
   created_at: string;
 };
 
-export const CATEGORY_ORDER = [
-  "Trà", "Sữa tươi", "Sữa đặc", "Kem đông lạnh", "Syrup", "Bột",
-  "Trân châu", "Mứt", "Đồ lon", "Mặt hàng khác", "Sốt", "Công cụ dụng cụ",
-];
+// Nhóm hàng — trước đây là 1 danh sách tên cố định trong code (CATEGORY_ORDER,
+// đã bỏ), giờ lưu trong bảng `categories` (xem lib/categories.ts) để sheet
+// Excel nào có tên chưa từng gặp lúc import sẽ tự tạo thành nhóm mới, không
+// cần sửa code/deploy lại. `sort_order` dùng cho dropdown/lọc/báo cáo chung
+// toàn hệ thống; `quote_sort_order` dùng riêng cho bảng báo giá (lib/quoteBuilder.ts)
+// — 2 thứ tự này vốn đã khác nhau trước khi có bảng này nên giữ tách riêng,
+// không gộp chung 1 cột. "Công cụ dụng cụ" luôn có sort_order/quote_sort_order
+// cao nhất (999) để luôn đứng cuối; "Combo" không phải nhóm nhập từ Excel nên
+// không nằm trong bảng này.
+export type Category = {
+  id: string;
+  name: string;
+  sort_order: number;
+  quote_sort_order: number;
+  name_en: string | null;
+  name_zh: string | null;
+  misa_nhh_code: string | null;
+  created_at: string;
+};

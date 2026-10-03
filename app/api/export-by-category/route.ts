@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseServer";
 import { buildCategoryExport } from "@/lib/categoryExportBuilder";
+import { getCategories } from "@/lib/categories";
 import { Product } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -11,7 +12,8 @@ export async function POST() {
     const { data, error } = await supabase.from("products").select("*, brand:brands(name)");
     if (error) throw error;
 
-    const buf = await buildCategoryExport(data as Product[]);
+    const categories = await getCategories();
+    const buf = await buildCategoryExport(data as Product[], categories.map((c) => c.name));
     return new NextResponse(new Uint8Array(buf), {
       headers: {
         "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

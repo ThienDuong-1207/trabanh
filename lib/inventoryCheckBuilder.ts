@@ -1,5 +1,5 @@
 import pdfmake from "./pdfFonts";
-import { CATEGORY_ORDER, Product } from "./types";
+import { Product } from "./types";
 
 const ROMAN_NUMERALS = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII", "XIII", "XIV", "XV"];
 function toRoman(n: number): string {
@@ -46,9 +46,9 @@ function inventoryGroupLabel(p: Product): string {
   return "Trà rời";
 }
 
-function sortForInventory(items: Product[]): Product[] {
+function sortForInventory(items: Product[], categoryOrder: string[]): Product[] {
   return [...items].sort((a, b) => {
-    const catDiff = CATEGORY_ORDER.indexOf(a.category_sheet) - CATEGORY_ORDER.indexOf(b.category_sheet);
+    const catDiff = categoryOrder.indexOf(a.category_sheet) - categoryOrder.indexOf(b.category_sheet);
     if (catDiff !== 0) return catDiff;
     const groupA = inventoryGroupLabel(a);
     const groupB = inventoryGroupLabel(b);
@@ -93,8 +93,8 @@ const tableLayout = {
   },
 };
 
-export async function buildInventoryCheckPdf(items: Product[], startDateStr: string): Promise<Buffer> {
-  const sorted = sortForInventory(items);
+export async function buildInventoryCheckPdf(items: Product[], startDateStr: string, categoryOrder: string[]): Promise<Buffer> {
+  const sorted = sortForInventory(items, categoryOrder);
   const days = getWorkingDays(startDateStr, 12);
   const firstDay = days[0];
   const lastDay = days[days.length - 1];

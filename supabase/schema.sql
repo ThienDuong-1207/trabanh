@@ -418,3 +418,48 @@ alter table products add column if not exists ten_zh text;
 -- nên sửa 1 trường gốc không tự cập nhật lại bản dịch này).
 alter table products add column if not exists quy_cach_en text;
 alter table products add column if not exists quy_cach_zh text;
+
+-- Giai đoạn 7: nhóm hàng chuyển từ danh sách cố định trong code (CATEGORY_ORDER
+-- cũ) sang bảng riêng — import Excel gặp sheet chưa từng biết sẽ tự thêm 1
+-- dòng vào đây (lib/categories.ts) thay vì bỏ qua sheet như trước, không cần
+-- sửa code/deploy lại mỗi khi có nhóm hàng mới.
+create table if not exists categories (
+  id uuid primary key default gen_random_uuid(),
+  name text unique not null,
+  sort_order integer not null,       -- thứ tự dropdown/lọc/báo cáo chung
+  quote_sort_order integer not null, -- thứ tự riêng cho bảng báo giá
+  name_en text,                      -- cache dịch tiếng Anh cho báo giá — tự dịch lần đầu dùng
+  name_zh text,                      -- cache dịch tiếng Trung
+  misa_nhh_code text,                -- mã "Nhóm hàng hóa" bên MISA — null nếu chưa tạo bên MISA, điền tay sau
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_categories_sort_order on categories(sort_order);
+create index if not exists idx_categories_quote_sort_order on categories(quote_sort_order);
+
+alter table categories enable row level security;
+
+drop policy if exists "Người đã đăng nhập đọc được nhóm hàng" on categories;
+create policy "Người đã đăng nhập đọc được nhóm hàng" on categories
+  for select using (auth.role() = 'authenticated');
+-- Ghi (tự thêm nhóm mới lúc import, sửa mã MISA...) chỉ qua supabaseAdmin()
+-- hoặc SQL Editor — không cần policy insert/update từ client.
+
+-- Khởi tạo 12 nhóm hiện có, đúng thứ tự + bản dịch + mã MISA đang dùng trong
+-- code trước khi chuyển sang bảng này. "Sốt" chưa có mã MISA (chưa tạo bên
+-- MISA) — để trống, điền tay sau. "Công cụ dụng cụ" cố định sort_order cao
+-- nhất (999) để luôn đứng cuối ở cả 2 thứ tự.
+insert into categories (name, sort_order, quote_sort_order, name_en, name_zh, misa_nhh_code) values
+  ('Trà', 10, 60, 'Tea', '茶', 'NHH000002'),
+  ('Sữa tươi', 20, 20, 'Fresh Milk', '鲜奶', 'NHH000001'),
+  ('Sữa đặc', 30, 30, 'Condensed Milk', '炼奶', 'NHH000003'),
+  ('Kem đông lạnh', 40, 10, 'Ice Cream', '冰淇淋', 'NHH000009'),
+  ('Syrup', 50, 70, 'Syrup', '糖浆', 'NHH000007'),
+  ('Bột', 60, 40, 'Powder', '粉类', 'NHH000004'),
+  ('Trân châu', 70, 50, 'Tapioca Pearls', '珍珠', 'NHH000008'),
+  ('Mứt', 80, 80, 'Jam', '果酱', 'NHH000006'),
+  ('Đồ lon', 90, 100, 'Canned Goods', '罐头食品', 'NHH000005'),
+  ('Mặt hàng khác', 100, 110, 'Others', '其他商品', 'NHH000011'),
+  ('Sốt', 110, 90, 'Sauce', '酱料', null),
+  ('Công cụ dụng cụ', 999, 999, 'Tools & Equipment', '工具用具', 'NHH000010')
+on conflict (name) do nothing;

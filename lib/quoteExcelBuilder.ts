@@ -2,12 +2,13 @@ import ExcelJS from "exceljs";
 import fs from "fs";
 import { Product } from "./types";
 import {
-  CATEGORY_TRANSLATIONS,
+  CategoryLabelMap,
   COMPANY_INFO,
   LOGO_PATH,
   QUOTE_LABELS,
   QuoteInfo,
   QuoteLang,
+  categoryLabel,
   formatDateLine,
   formatHopUnit,
   formatPrice,
@@ -15,11 +16,6 @@ import {
   sortForQuote,
   toRoman,
 } from "./quoteBuilder";
-
-function categoryLabel(categorySheet: string, lang: QuoteLang): string {
-  if (lang === "vi") return categorySheet;
-  return CATEGORY_TRANSLATIONS[categorySheet]?.[lang] ?? categorySheet;
-}
 
 // Bản Excel của cùng 1 bảng giá — dùng chung toàn bộ logic sắp xếp/định dạng
 // với bản PDF (quoteBuilder.ts), chỉ khác phần "vẽ" ra Excel thay vì PDF, để
@@ -30,8 +26,13 @@ const THIN_BORDER: Partial<ExcelJS.Borders> = {
   top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" },
 };
 
-export async function buildQuoteExcel(items: Product[], info: QuoteInfo): Promise<Buffer> {
-  const sorted = sortForQuote(items);
+export async function buildQuoteExcel(
+  items: Product[],
+  info: QuoteInfo,
+  categoryOrder: string[],
+  categoryLabels: CategoryLabelMap
+): Promise<Buffer> {
+  const sorted = sortForQuote(items, categoryOrder);
   const lang: QuoteLang = info.lang === "en" ? "en" : info.lang === "zh" ? "zh" : "vi";
   const labels = QUOTE_LABELS[lang];
 
@@ -103,7 +104,7 @@ export async function buildQuoteExcel(items: Product[], info: QuoteInfo): Promis
       categoryIndex++;
       sheet.mergeCells(`A${row}:E${row}`);
       const cell = sheet.getCell(`A${row}`);
-      cell.value = `${toRoman(categoryIndex)}. ${categoryLabel(p.category_sheet, lang)}:`;
+      cell.value = `${toRoman(categoryIndex)}. ${categoryLabel(p.category_sheet, lang, categoryLabels)}:`;
       cell.font = { bold: true, italic: true, underline: true };
       cell.fill = CATEGORY_FILL;
       cell.border = THIN_BORDER;

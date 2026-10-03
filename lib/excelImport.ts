@@ -1,6 +1,6 @@
 import ExcelJS from "exceljs";
 import { supabaseAdmin } from "./supabaseServer";
-import { CATEGORY_ORDER } from "./types";
+import { getCategories, ensureCategory } from "./categories";
 import { stripXlsxDrawings } from "./stripXlsxDrawings";
 
 export const SKIP_SHEETS = new Set([
@@ -62,7 +62,7 @@ export type UpsertSummary = {
   priceChanges: PriceChangeLogEntry[];
 };
 
-export type ImportSummary = UpsertSummary & { skippedSheets: string[]; skippedIncomplete: number };
+export type ImportSummary = UpsertSummary & { newCategories: string[]; skippedIncomplete: number };
 
 // row_number is 1-based, matching the row as it appears in the source
 // spreadsheet — only used to point at exactly which row a duplicate-check
@@ -70,13 +70,13 @@ export type ImportSummary = UpsertSummary & { skippedSheets: string[]; skippedIn
 export type ProductRow = Record<string, string | number | null> & { category_sheet: string; row_number: number };
 
 // Google Sheets sometimes appends a disambiguation suffix to a tab name
-// (e.g. "Trà (76,18,77,78)") after a copy/merge conflict — strip a trailing
-// parenthetical and retry before giving up on a sheet that would otherwise
-// silently get skipped despite genuinely being one of our categories.
-export function resolveCategoryName(sheetName: string): string | null {
-  if (CATEGORY_ORDER.includes(sheetName)) return sheetName;
-  const stripped = sheetName.replace(/\s*\([^)]*\)\s*$/, "").trim();
-  return CATEGORY_ORDER.includes(stripped) ? stripped : null;
+// (e.g. "Trà (76,18,77,78)") after a copy/merge conflict, and the unified
+// Excel file names category sheets "Tên(mã số)" (vd "Sốt(59)") — strip the
+// trailing parenthetical to get the real category name. Luôn trả về 1 tên
+// (không còn null) — nhóm hàng không có sẵn sẽ được ensureCategory() tự tạo
+// mới (lib/categories.ts) thay vì bị bỏ qua như trước.
+export function resolveCategoryName(sheetName: string): string {
+  return sheetName.replace(/\s*\([^)]*\)\s*$/, "").trim();
 }
 
 function cellValue(raw: ExcelJS.CellValue): string | number | null {
@@ -86,7 +86,9 @@ function cellValue(raw: ExcelJS.CellValue): string | number | null {
 }
 
 // Parses a workbook shaped like "Misa hàng hóa/1. Quản lý hàng hóa hợp nhất.xlsx":
-// one sheet per CATEGORY_ORDER entry, columns matching COLUMN_TO_FIELD headers.
+// one sheet per category, columns matching COLUMN_TO_FIELD headers. Sheet nào
+// có tên chưa khớp nhóm hàng có sẵn (bảng `categories`) sẽ được tự tạo thành
+// nhóm mới ngay (ensureCategory, lib/categories.ts) thay vì bị bỏ qua.
 export async function importProductsFromWorkbook(buffer: Buffer, mode: ImportMode = "new-only"): Promise<ImportSummary> {
   const workbook = new ExcelJS.Workbook();
   const arrayBuffer = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength) as ArrayBuffer;
@@ -97,23 +99,22 @@ export async function importProductsFromWorkbook(buffer: Buffer, mode: ImportMod
   await workbook.xlsx.load(Buffer.from(cleaned) as any);
 
   const rows: ProductRow[] = [];
-  const skippedSheets: string[] = [];
+  const newCategories: string[] = [];
   let skippedIncomplete = 0;
+  const categories = await getCategories();
 
   for (const worksheet of workbook.worksheets) {
     const name = worksheet.name;
     // So khớp cả tên gốc lẫn tên đã cắt hậu tố trong ngoặc (vd sheet thật tên
     // "Master (Tổng hợp)(2)" phải khớp entry "Master (Tổng hợp)" trong
     // SKIP_SHEETS) — nếu chỉ so khớp chính xác, sheet có hậu tố sẽ lọt qua
-    // bước skip rồi vẫn được resolveCategoryName() công nhận là category hợp
-    // lệ và bị nhập nhầm.
+    // bước skip rồi vẫn bị nhập nhầm thành 1 nhóm hàng.
     const strippedName = name.replace(/\s*\([^)]*\)\s*$/, "").trim();
     if (SKIP_SHEETS.has(name) || SKIP_SHEETS.has(strippedName)) continue;
-    const category = resolveCategoryName(name);
-    if (!category) {
-      skippedSheets.push(name);
-      continue;
-    }
+    const categoryName = resolveCategoryName(name);
+    const existed = categories.some((c) => c.name === categoryName);
+    const category = (await ensureCategory(categoryName, categories)).name;
+    if (!existed) newCategories.push(category);
 
     const fieldByCol = new Map<number, string>();
     worksheet.getRow(1).eachCell((cell, colNumber) => {
@@ -141,7 +142,7 @@ export async function importProductsFromWorkbook(buffer: Buffer, mode: ImportMod
   }
 
   const summary = await upsertProductRows(rows, mode);
-  return { ...summary, skippedSheets, skippedIncomplete };
+  return { ...summary, newCategories, skippedIncomplete };
 }
 
 // Fail fast with a clear message: an upsert can't apply two rows with the

@@ -1,5 +1,5 @@
 import ExcelJS from "exceljs";
-import { CATEGORY_ORDER, Product } from "./types";
+import { Product } from "./types";
 
 const LOAI_HANG_HOA_MAC_DINH = "Hàng hóa thường";
 
@@ -21,8 +21,9 @@ function toRow(p: Product): (string | number | null)[] {
 }
 
 // Mirrors "Misa hàng hóa/2. Danh sách theo loại sản phẩm.xlsx": one sheet per
-// category, full catalog every time.
-export async function buildCategoryExport(products: Product[]): Promise<Buffer> {
+// category, full catalog every time. `categoryOrder` lấy từ bảng `categories`
+// (lib/categories.ts) ở tầng route — không còn hằng số cố định trong file này.
+export async function buildCategoryExport(products: Product[], categoryOrder: string[]): Promise<Buffer> {
   const workbook = new ExcelJS.Workbook();
   const byCategory = new Map<string, Product[]>();
   for (const p of products) {
@@ -31,7 +32,7 @@ export async function buildCategoryExport(products: Product[]): Promise<Buffer> 
     byCategory.set(p.category_sheet, list);
   }
 
-  for (const category of CATEGORY_ORDER) {
+  for (const category of categoryOrder) {
     const sheet = workbook.addWorksheet(category);
     sheet.addRow(HEADER);
     sheet.getRow(1).font = { bold: true };

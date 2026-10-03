@@ -4,16 +4,6 @@ import pdfmake from "./pdfFonts";
 import { Product } from "./types";
 import { extractUnitFromQuyCach } from "./suggestionLists";
 
-// Thứ tự nhóm hàng RIÊNG cho bảng báo giá — khác CATEGORY_ORDER dùng chung
-// toàn hệ thống (dropdown thêm/sửa sản phẩm, import...). Theo yêu cầu mới
-// nhất: Kem đông lạnh/Sữa tươi/Sữa đặc lên đầu, Combo áp chót, Công cụ dụng
-// cụ luôn ở cuối cùng tuyệt đối (không phải sản phẩm bán trực tiếp, tách
-// riêng khỏi mọi nhóm hàng khác — kể cả Combo).
-const QUOTE_CATEGORY_ORDER = [
-  "Kem đông lạnh", "Sữa tươi", "Sữa đặc", "Bột", "Trân châu", "Trà", "Syrup",
-  "Mứt", "Sốt", "Đồ lon", "Mặt hàng khác", "Combo", "Công cụ dụng cụ",
-];
-
 // Riêng 2 thương hiệu SAVO/TAMIX: giá thùng lưu sẵn trong hệ thống không
 // đáng tin (không có chiết khấu mua sỉ thật, chỉ là giá lẻ nhân số lượng) —
 // khi bật tùy chọn này lúc xuất báo giá, tính lại "sống" = giá bán × tỷ lệ
@@ -63,28 +53,15 @@ export const QUOTE_LABELS = {
   },
 } as const;
 
-// Tên nhóm hàng dịch sẵn cho bản tiếng Anh/Trung — chỉ áp dụng cho dòng tiêu
-// đề nhóm hàng trong bảng giá (vd "I. Tea:" / "I. 茶:"), không đổi
-// category_sheet lưu trong dữ liệu.
-export const CATEGORY_TRANSLATIONS: Record<string, { en: string; zh: string }> = {
-  "Trà": { en: "Tea", zh: "茶" },
-  "Sữa tươi": { en: "Fresh Milk", zh: "鲜奶" },
-  "Sữa đặc": { en: "Condensed Milk", zh: "炼奶" },
-  "Kem đông lạnh": { en: "Ice Cream", zh: "冰淇淋" },
-  "Syrup": { en: "Syrup", zh: "糖浆" },
-  "Bột": { en: "Powder", zh: "粉类" },
-  "Trân châu": { en: "Tapioca Pearls", zh: "珍珠" },
-  "Mứt": { en: "Jam", zh: "果酱" },
-  "Đồ lon": { en: "Canned Goods", zh: "罐头食品" },
-  "Sốt": { en: "Sauce", zh: "酱料" },
-  "Mặt hàng khác": { en: "Others", zh: "其他商品" },
-  "Công cụ dụng cụ": { en: "Tools & Equipment", zh: "工具用具" },
-  "Combo": { en: "Combo", zh: "套餐" },
-};
+// Tên nhóm hàng dịch sẵn — đọc từ bảng `categories` (lib/categories.ts,
+// name_en/name_zh) ở tầng route, truyền vào đây dưới dạng map đơn giản.
+// "Combo" không nằm trong bảng `categories` (không phải nhóm nhập từ Excel)
+// nên route tự thêm cứng bản dịch của nó vào map trước khi gọi.
+export type CategoryLabelMap = Record<string, { en: string | null; zh: string | null }>;
 
-function categoryLabel(categorySheet: string, lang: QuoteLang): string {
+export function categoryLabel(categorySheet: string, lang: QuoteLang, categoryLabels: CategoryLabelMap): string {
   if (lang === "vi") return categorySheet;
-  return CATEGORY_TRANSLATIONS[categorySheet]?.[lang] ?? categorySheet;
+  return categoryLabels[categorySheet]?.[lang] ?? categorySheet;
 }
 
 // Thông tin công ty cố định cho phần đầu trang (letterhead) — export để dùng
@@ -185,9 +162,9 @@ function nameCell(p: Product) {
 // (sau mọi thương hiệu có tên), sắp theo tên A-Z. Trong 1 thương hiệu, sản
 // phẩm chưa có giá bán lẻ (null — hiện "Liên hệ") vẫn bị đẩy xuống cuối
 // nhóm thương hiệu đó, dù giá đang sắp giảm dần hay tăng dần.
-export function sortForQuote(items: Product[]): Product[] {
+export function sortForQuote(items: Product[], categoryOrder: string[]): Product[] {
   return [...items].sort((a, b) => {
-    const catDiff = QUOTE_CATEGORY_ORDER.indexOf(a.category_sheet) - QUOTE_CATEGORY_ORDER.indexOf(b.category_sheet);
+    const catDiff = categoryOrder.indexOf(a.category_sheet) - categoryOrder.indexOf(b.category_sheet);
     if (catDiff !== 0) return catDiff;
 
     const brandA = a.brand?.name ?? null;
@@ -231,8 +208,13 @@ const tableBorder = {
 const TABLE_FONT_SIZE = 9.5;
 const TABLE_HEADER_FONT_SIZE = 9;
 
-export async function buildQuotePdf(items: Product[], info: QuoteInfo): Promise<Buffer> {
-  const sorted = sortForQuote(items);
+export async function buildQuotePdf(
+  items: Product[],
+  info: QuoteInfo,
+  categoryOrder: string[],
+  categoryLabels: CategoryLabelMap
+): Promise<Buffer> {
+  const sorted = sortForQuote(items, categoryOrder);
   const lang: QuoteLang = info.lang === "en" ? "en" : info.lang === "zh" ? "zh" : "vi";
   const labels = QUOTE_LABELS[lang];
 
@@ -263,7 +245,7 @@ export async function buildQuotePdf(items: Product[], info: QuoteInfo): Promise<
       categoryIndex++;
       tableBody.push([
         {
-          text: `${toRoman(categoryIndex)}. ${categoryLabel(p.category_sheet, lang)}:`,
+          text: `${toRoman(categoryIndex)}. ${categoryLabel(p.category_sheet, lang, categoryLabels)}:`,
           bold: true,
           italics: true,
           decoration: "underline",

@@ -19,26 +19,6 @@ const cellsTemplate: [string, string | null][] = JSON.parse(
   fs.readFileSync(path.join(process.cwd(), "lib", "misaUpdateRowStyle.json"), "utf-8")
 );
 
-// MISA's internal "Nhóm hàng hóa" codes — derived by cross-referencing the
-// template's own sample rows against our database (10 of 11 categories
-// matched a real product 1:1). "Công cụ dụng cụ" -> NHH000010 is inferred
-// (it's the one category and the one code left over from the closed set
-// NHH000001-NHH000011 the template's Categories sheet lists), not directly
-// observed in a real row.
-const CATEGORY_TO_NHH: Record<string, string> = {
-  "Sữa tươi": "NHH000001",
-  "Trà": "NHH000002",
-  "Sữa đặc": "NHH000003",
-  "Bột": "NHH000004",
-  "Đồ lon": "NHH000005",
-  "Mứt": "NHH000006",
-  "Syrup": "NHH000007",
-  "Trân châu": "NHH000008",
-  "Kem đông lạnh": "NHH000009",
-  "Công cụ dụng cụ": "NHH000010",
-  "Mặt hàng khác": "NHH000011",
-};
-
 const TAX_RATE = "8"; // every row in the reference file uses 8%, same default as misaBuilder.ts
 
 function xmlEscape(s: string): string {
@@ -78,7 +58,7 @@ function buildRow(rIdx: number, values: Record<string, string>, numValues: Recor
 // cấp mới có (vd Bột Rau Câu). Dùng lại đúng "Mã vạch" (ma_vach) của cấp bán
 // lẻ cho dòng Hộp — không có mã vạch riêng cho cấp Hộp: Gói/Hộp/Thùng dùng
 // chung 1 mã hàng hóa để quét trên MISA, nhân viên tự chọn đơn vị lúc bán.
-function itemToRowSpecs(item: Product) {
+function itemToRowSpecs(item: Product, nhhByCategory: Record<string, string>) {
   const ma = item.ma_noi_bo;
   // Bắt buộc có gia_thung — nhiều sản phẩm (đặc biệt "Công cụ dụng cụ") điền
   // sẵn quy_cach/ty_le chỉ để tham khảo quy cách đóng gói nhưng chưa từng bán
@@ -89,7 +69,7 @@ function itemToRowSpecs(item: Product) {
   // nhưng không có mã thùng riêng.
   const hasConv = Boolean(item.quy_cach && item.ty_le && item.gia_thung);
   const hasHop = Boolean(item.dvt_cap_2 && item.ty_le_cap_2 && item.gia_hop);
-  const nhh = CATEGORY_TO_NHH[item.category_sheet] ?? "";
+  const nhh = nhhByCategory[item.category_sheet] ?? "";
 
   const retailValues: Record<string, string> = {
     A: ma,
@@ -161,10 +141,10 @@ function itemToRowSpecs(item: Product) {
   return specs;
 }
 
-export async function buildMisaUpdateFile(items: Product[]): Promise<Buffer> {
+export async function buildMisaUpdateFile(items: Product[], nhhByCategory: Record<string, string>): Promise<Buffer> {
   const allSpecs: [Record<string, string>, Record<string, number | null | undefined>][] = [];
   for (const it of items) {
-    allSpecs.push(...itemToRowSpecs(it));
+    allSpecs.push(...itemToRowSpecs(it, nhhByCategory));
   }
   const newRows = allSpecs.map(([v, nv], i) => buildRow(3 + i, v, nv)).join("");
 

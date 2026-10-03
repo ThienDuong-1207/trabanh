@@ -8,6 +8,7 @@ import {
   ImportSummary,
   ProductRow,
 } from "./excelImport";
+import { getCategories, ensureCategory } from "./categories";
 
 // Mirrors importProductsFromWorkbook (lib/excelImport.ts) but reads a Google
 // Sheet instead of an uploaded .xlsx — same tab-per-category, same
@@ -29,18 +30,18 @@ export async function syncFromGoogleSheet(): Promise<ImportSummary> {
   const meta = await sheets.spreadsheets.get({ spreadsheetId });
   const allTabNames = (meta.data.sheets ?? []).map((s) => s.properties?.title).filter((t): t is string => !!t);
 
-  const skippedSheets: string[] = [];
+  const newCategories: string[] = [];
   const matchedTabs: { name: string; category: string }[] = [];
+  const categories = await getCategories();
   for (const name of allTabNames) {
     // Cùng logic so khớp với excelImport.ts: strip hậu tố trong ngoặc trước
     // khi so với SKIP_SHEETS, tránh sheet có hậu tố lọt qua bước skip.
     const strippedName = name.replace(/\s*\([^)]*\)\s*$/, "").trim();
     if (SKIP_SHEETS.has(name) || SKIP_SHEETS.has(strippedName)) continue;
-    const category = resolveCategoryName(name);
-    if (!category) {
-      skippedSheets.push(name);
-      continue;
-    }
+    const categoryName = resolveCategoryName(name);
+    const existed = categories.some((c) => c.name === categoryName);
+    const category = (await ensureCategory(categoryName, categories)).name;
+    if (!existed) newCategories.push(category);
     matchedTabs.push({ name, category });
   }
 
@@ -101,5 +102,5 @@ export async function syncFromGoogleSheet(): Promise<ImportSummary> {
   }
 
   const summary = await upsertProductRows(rows, "update-all");
-  return { ...summary, skippedSheets, skippedIncomplete };
+  return { ...summary, newCategories, skippedIncomplete };
 }

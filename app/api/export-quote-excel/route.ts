@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseServer";
 import { buildQuoteExcel } from "@/lib/quoteExcelBuilder";
-import { applySavoTamixCaseOverride, formatQuyCach, QuoteInfo } from "@/lib/quoteBuilder";
-import { resolveQuoteItemNames } from "@/lib/productTranslation";
+import { applySavoTamixCaseOverride, formatQuyCach, QuoteInfo, CategoryLabelMap } from "@/lib/quoteBuilder";
+import { resolveQuoteItemNames, resolveCategoryLabels } from "@/lib/productTranslation";
+import { getCategories, buildQuoteCategoryOrder } from "@/lib/categories";
 import { Product } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -21,10 +22,14 @@ export async function POST(req: NextRequest) {
     if (error) throw error;
 
     let items = savoTamixCaseOverride ? applySavoTamixCaseOverride(data as Product[]) : (data as Product[]);
+    const categories = await getCategories();
+    const categoryOrder = buildQuoteCategoryOrder(categories);
+    let categoryLabels: CategoryLabelMap = {};
     if (info.lang === "en" || info.lang === "zh") {
       items = await resolveQuoteItemNames(items, info.lang, formatQuyCach);
+      categoryLabels = await resolveCategoryLabels(categories, info.lang);
     }
-    const buf = await buildQuoteExcel(items, info);
+    const buf = await buildQuoteExcel(items, info, categoryOrder, categoryLabels);
     return new NextResponse(new Uint8Array(buf), {
       headers: {
         "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

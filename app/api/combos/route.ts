@@ -10,8 +10,9 @@ const ALL_ROLES = ["sales", "accountant", "admin"] as const;
 // Combo là 1 dòng trong `products` (is_combo = true) — quản lý chung với sản
 // phẩm thường ở "Quản lý hàng hóa" nên tái dùng được nguyên các hàm xuất báo
 // giá/bảng giá đã có cho Product, không cần code riêng. category_sheet
-// "Combo" cố định, KHÔNG nằm trong CATEGORY_ORDER — không lẫn vào dropdown
-// nhóm hàng của sản phẩm thật, và các route xuất MISA tự lọc bỏ is_combo.
+// "Combo" cố định, KHÔNG nằm trong bảng `categories` (lib/categories.ts) —
+// không lẫn vào dropdown nhóm hàng của sản phẩm thật, và các route xuất MISA
+// tự lọc bỏ is_combo.
 async function nextComboCode(supabase: ReturnType<typeof supabaseAdmin>): Promise<string> {
   const { count } = await supabase.from("products").select("id", { count: "exact", head: true }).eq("is_combo", true);
   return `COMBO-${String((count ?? 0) + 1).padStart(3, "0")}`;

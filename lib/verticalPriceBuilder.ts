@@ -1,7 +1,7 @@
 import path from "path";
 import * as fontkit from "fontkit";
 import pdfmake from "./pdfFonts";
-import { CATEGORY_ORDER, Product } from "./types";
+import { Product } from "./types";
 
 // One full A4 page per product — product name, a big fixed-size price, and a
 // barcode/unit line pinned near the bottom. Switched from a .docx build
@@ -57,9 +57,9 @@ function fitPriceSize(priceStr: string): number {
   return Math.min(PRICE_SIZE, maxByWidth);
 }
 
-function sortForPrint(items: Product[]): Product[] {
+function sortForPrint(items: Product[], categoryOrder: string[]): Product[] {
   return [...items].sort((a, b) => {
-    const catDiff = CATEGORY_ORDER.indexOf(a.category_sheet) - CATEGORY_ORDER.indexOf(b.category_sheet);
+    const catDiff = categoryOrder.indexOf(a.category_sheet) - categoryOrder.indexOf(b.category_sheet);
     if (catDiff !== 0) return catDiff;
     return a.ten_hang_hoa.localeCompare(b.ten_hang_hoa, "vi");
   });
@@ -105,8 +105,8 @@ function buildProductPage(item: Product, isFirst: boolean): any[] {
   ];
 }
 
-export async function buildVerticalPricePdf(items: Product[]): Promise<Buffer> {
-  const priced = sortForPrint(items.filter((it) => it.gia_ban));
+export async function buildVerticalPricePdf(items: Product[], categoryOrder: string[]): Promise<Buffer> {
+  const priced = sortForPrint(items.filter((it) => it.gia_ban), categoryOrder);
 
   const content: any[] =
     priced.length === 0

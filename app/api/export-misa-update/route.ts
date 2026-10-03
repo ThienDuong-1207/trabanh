@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseServer";
 import { buildMisaUpdateFile } from "@/lib/misaUpdateBuilder";
+import { getCategories } from "@/lib/categories";
 import { Product } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -17,7 +18,11 @@ export async function POST(req: NextRequest) {
     const { data, error } = await supabase.from("products").select("*, brand:brands(name)").in("id", ids).eq("is_combo", false);
     if (error) throw error;
 
-    const buf = await buildMisaUpdateFile(data as Product[]);
+    const categories = await getCategories();
+    const nhhByCategory = Object.fromEntries(
+      categories.filter((c) => c.misa_nhh_code).map((c) => [c.name, c.misa_nhh_code as string])
+    );
+    const buf = await buildMisaUpdateFile(data as Product[], nhhByCategory);
     return new NextResponse(new Uint8Array(buf), {
       headers: {
         "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

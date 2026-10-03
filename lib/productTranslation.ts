@@ -1,5 +1,6 @@
 import { supabaseAdmin } from "./supabaseServer";
-import { Product } from "./types";
+import { Product, Category } from "./types";
+import { CategoryLabelMap } from "./quoteBuilder";
 
 // Dịch tên sản phẩm + quy cách đóng gói (tiếng Việt) sang tiếng Anh/Trung cho
 // bảng báo giá (lib/quoteBuilder.ts) bằng Claude API — gộp cả 2 trường vào
@@ -215,4 +216,44 @@ export async function resolveQuoteItemNames(
       [quyCachField]: p[quyCachField] ?? cached?.quyCach ?? p[quyCachField],
     };
   });
+}
+
+// Tên nhóm hàng chưa có name_en/name_zh (vd nhóm vừa tự tạo lúc import, xem
+// lib/categories.ts) được dịch ngay lần đầu xuất báo giá dùng ngôn ngữ đó,
+// lưu cache lại — tái dùng đúng cơ chế dịch+kiểm tra của resolveQuoteItemNames
+// (gửi "quyCach" rỗng vì nhóm hàng không có quy cách, chỉ lấy lại .name).
+// "Combo" không nằm trong bảng `categories` nên luôn gán cứng, không dịch.
+export async function resolveCategoryLabels(categories: Category[], lang: TranslateLang): Promise<CategoryLabelMap> {
+  const field: "name_en" | "name_zh" = lang === "en" ? "name_en" : "name_zh";
+  const missing = categories.filter((c) => !c[field]);
+
+  const translatedById = new Map<string, string>();
+  if (missing.length > 0) {
+    const translations = await translateItems(
+      missing.map((c) => ({ id: c.id, name: c.name, quyCach: "" })),
+      lang
+    );
+    const supabase = supabaseAdmin();
+    await Promise.all(
+      Object.entries(translations)
+        .filter(([, t]) => t.nameOk)
+        .map(async ([id, t]) => {
+          translatedById.set(id, t.name);
+          const { error } = await supabase.from("categories").update({ [field]: t.name }).eq("id", id);
+          if (error) console.error(`Lưu cache dịch nhóm hàng thất bại cho ${id}:`, error.message);
+        })
+    );
+  }
+
+  const map: CategoryLabelMap = {
+    Combo: { en: "Combo", zh: "套餐" },
+  };
+  for (const c of categories) {
+    const translated = c[field] ?? translatedById.get(c.id) ?? null;
+    map[c.name] = {
+      en: lang === "en" ? translated ?? c.name_en : c.name_en,
+      zh: lang === "zh" ? translated ?? c.name_zh : c.name_zh,
+    };
+  }
+  return map;
 }
