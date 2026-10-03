@@ -30,8 +30,16 @@ const BATCH_SIZE = 40;
 // với "dịch y hệt bản gốc".
 const VIETNAMESE_DIACRITICS = /[àáảãạăằắẳẵặâầấẩẫậèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵđ]/i;
 
+// Gộp khoảng trắng liên tiếp thành 1 trước khi so sánh — lỗi thật gặp phải:
+// "Mứt Anh Đào CHUNKY  (1KG)" (2 dấu cách) bị model trả về nguyên văn nhưng
+// chỉ rút gọn còn 1 dấu cách, nên so sánh .trim() thường không phát hiện ra
+// (khác nhau đúng 1 ký tự khoảng trắng, không phải "giống hệt").
+function normalizeSpaces(s: string): string {
+  return s.trim().replace(/\s+/g, " ");
+}
+
 function looksUntranslated(original: string, translated: string): boolean {
-  return original.trim() !== "" && translated.trim() === original.trim() && VIETNAMESE_DIACRITICS.test(original);
+  return original.trim() !== "" && normalizeSpaces(translated) === normalizeSpaces(original) && VIETNAMESE_DIACRITICS.test(original);
 }
 
 async function callClaude(prompt: string): Promise<{ text: string; stopReason: string }> {
@@ -83,10 +91,18 @@ function buildPrompt(items: TranslateItem[], lang: TranslateLang, strict: boolea
     `Translate the following Vietnamese retail product names and packaging specifications (from a tea/bakery ` +
     `supply shop) to ${langLabel}.\n` +
     "Rules:\n" +
-    "- Keep brand names exactly as written — do NOT translate or transliterate proper nouns/brand names.\n" +
+    "- Keep brand names exactly as written — do NOT translate or transliterate proper nouns/brand names — and keep " +
+    "the brand name in the SAME position (start/end) as it appears in the Vietnamese original, don't move it.\n" +
     "- Keep numbers and packaging sizes as-is (e.g. \"500G\", \"1KG\"); only translate unit/descriptor words " +
     "(e.g. \"Thùng\" -> case/box, \"gói\" -> pack, \"hộp\" -> box).\n" +
+    "- \"Túi lọc\" (tea/filter bag packaging) must always be translated as exactly \"Tea Bag\" in English, or \"茶包\" " +
+    "in Chinese — never \"Filter Bag\"/\"滤茶包\"/\"过滤袋\".\n" +
+    "- \"Tắc\" is the fruit kumquat (NOT tamarind, NOT grass jelly, NOT mulberry, NOT sour plum) — translate it as " +
+    "\"Kumquat\" in English or \"金桔\" in Chinese.\n" +
     "- Loanwords like \"Syrup\" should be translated too when translating to Chinese (e.g. \"糖浆\"), not left as-is.\n" +
+    "- Translate the FULL meaning of every Vietnamese word in the name — never invent or guess an unrelated " +
+    "product concept; if unsure of an exact word, translate it literally/descriptively instead of substituting a " +
+    "different product name.\n" +
     "- If a specification is an empty string, return it as an empty string too.\n" +
     (strict
       ? "- IMPORTANT: every \"name\" you were given still contains untranslated Vietnamese words — you MUST " +
