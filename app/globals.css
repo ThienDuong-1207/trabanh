@@ -7,6 +7,7 @@
    thương hiệu song song.
 */
 :root {
+  color-scheme: light;
   --bg: #f5f5f7;
   --surface: #ffffff;
   --surface-sunken: #ececee;
@@ -78,33 +79,7 @@
   --shadow-2: 0 20px 50px rgba(0, 0, 0, 0.55), 0 2px 10px rgba(0, 0, 0, 0.4);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg: #000000;
-    --surface: #1c1c1e;
-    --surface-sunken: #2c2c2e;
-    --sidebar-bg: rgba(28, 28, 30, 0.72);
-    --ink: #f5f5f7;
-    --muted: #98989d;
-    --faint: #6e6e73;
-    --border: #38383a;
-    --border-strong: #48484a;
-    --primary: #5fb8ce;
-    --primary-ink: #8fd0e1;
-    --primary-wash: #1e2e33;
-    --warm: #ff9f0a;
-    --warm-ink: #ffbe5c;
-    --warm-wash: #2e2210;
-    --success: #30d158;
-    --success-ink: #7be396;
-    --success-wash: #10281a;
-    --danger: #ff453a;
-    --danger-ink: #ff9086;
-    --danger-wash: #2e1613;
-    --shadow-1: 0 1px 1px rgba(0, 0, 0, 0.4), 0 6px 18px rgba(0, 0, 0, 0.45);
-    --shadow-2: 0 20px 50px rgba(0, 0, 0, 0.55), 0 2px 10px rgba(0, 0, 0, 0.4);
-  }
-}
+/* Luôn dùng giao diện sáng: không tự đổi theo chế độ tối của hệ điều hành. */
 
 * { box-sizing: border-box; }
 

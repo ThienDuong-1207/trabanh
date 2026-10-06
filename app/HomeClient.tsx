@@ -36,10 +36,10 @@ const VIEW_LABEL: Record<View, string> = {
 const VIEW_GROUP: Record<View, string> = {
   hanghoa: "Nhân viên",
   tonkho: "Vận hành",
-  baocao: "Vận hành",
-  duyetgia: "Vận hành",
+  baocao: "Kế toán",
+  duyetgia: "Kế toán",
   users: "Admin",
-  activitylog: "Vận hành",
+  activitylog: "Kế toán",
   chuyenkho: "Vận hành",
   khunganh: "Vận hành",
   ca: "Admin",
@@ -49,16 +49,16 @@ const VIEW_GROUP: Record<View, string> = {
 // Nhóm sidebar dùng để thu gọn/mở rộng. Mặc định mở tất cả; trạng thái được
 // nhớ trên thiết bị (localStorage) — đây chỉ là tiện ích giao diện, mất đi
 // thì menu vẫn hoạt động bình thường.
-type NavGroupKey = "nhanvien" | "vanhanh" | "admin";
-const NAV_GROUP_DEFAULT: Record<NavGroupKey, boolean> = { nhanvien: true, vanhanh: true, admin: true };
+type NavGroupKey = "nhanvien" | "ketoan" | "vanhanh" | "admin";
+const NAV_GROUP_DEFAULT: Record<NavGroupKey, boolean> = { nhanvien: true, ketoan: true, vanhanh: true, admin: true };
 const NAV_STORAGE_KEY = "sidebar-open-groups";
 const VIEW_NAV_GROUP: Record<View, NavGroupKey> = {
   hanghoa: "nhanvien",
   tonkho: "vanhanh",
-  baocao: "vanhanh",
-  duyetgia: "vanhanh",
+  baocao: "ketoan",
+  duyetgia: "ketoan",
   users: "admin",
-  activitylog: "vanhanh",
+  activitylog: "ketoan",
   chuyenkho: "vanhanh",
   khunganh: "vanhanh",
   ca: "admin",
@@ -2056,7 +2056,7 @@ function Sidebar({
       </div>
       {mobileNavOpen && <div className="sidebar-backdrop" onClick={onToggleMobileNav} />}
       <div className="nav">
-        <NavGroup label="Nhân viên" open={open.nhanvien} onToggle={() => toggle("nhanvien")}>
+        <NavGroup label="NHÂN VIÊN" open={open.nhanvien} onToggle={() => toggle("nhanvien")}>
           <NavButton active={activeView === "hanghoa"} onClick={() => onChange("hanghoa")} icon={<TagIcon />}>
             Quản lý hàng hóa
           </NavButton>
@@ -2066,7 +2066,7 @@ function Sidebar({
           </a>
         </NavGroup>
 
-        <NavGroup label="Vận hành" open={open.vanhanh} onToggle={() => toggle("vanhanh")} count={priceRequestCount}>
+        <NavGroup label="KẾ TOÁN" open={open.ketoan} onToggle={() => toggle("ketoan")} count={priceRequestCount}>
           <NavButton active={activeView === "duyetgia"} onClick={() => onChange("duyetgia")} icon={<TagIcon />}>
             Chờ duyệt giá
             {priceRequestCount > 0 && <span className="pill pill-warm badge">{priceRequestCount}</span>}
@@ -2074,14 +2074,17 @@ function Sidebar({
           <NavButton active={activeView === "baocao"} onClick={() => onChange("baocao")} icon={<ChartIcon />}>
             Báo cáo
           </NavButton>
+          <NavButton active={activeView === "activitylog"} onClick={() => onChange("activitylog")} icon={<LogIcon />}>
+            Nhật ký hoạt động
+          </NavButton>
+        </NavGroup>
+
+        <NavGroup label="VẬN HÀNH" open={open.vanhanh} onToggle={() => toggle("vanhanh")}>
           <NavButton active={activeView === "chuyenkho"} onClick={() => onChange("chuyenkho")} icon={<TruckIcon />}>
             Chuyển kho Shopee
           </NavButton>
           <NavButton active={activeView === "khunganh"} onClick={() => onChange("khunganh")} icon={<ImageIcon />}>
             Tạo khung ảnh
-          </NavButton>
-          <NavButton active={activeView === "activitylog"} onClick={() => onChange("activitylog")} icon={<LogIcon />}>
-            Nhật ký hoạt động
           </NavButton>
           {/* Tạm ẩn theo yêu cầu — bật lại bằng cách đổi SHOW_INVENTORY_NAV thành true */}
           {SHOW_INVENTORY_NAV && (
@@ -2092,7 +2095,7 @@ function Sidebar({
         </NavGroup>
 
         {role === "admin" && (
-          <NavGroup label="Admin" open={open.admin} onToggle={() => toggle("admin")}>
+          <NavGroup label="ADMIN" open={open.admin} onToggle={() => toggle("admin")}>
             <NavButton active={activeView === "ca"} onClick={() => onChange("ca")} icon={<ClockIcon />}>
               Ca làm việc
             </NavButton>

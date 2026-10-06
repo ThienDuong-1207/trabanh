@@ -63,7 +63,15 @@ function getPosition(): Promise<GeolocationPosition> {
   });
 }
 
-export default function AttendanceClient({ displayName, chucDanh }: { displayName: string; chucDanh: string | null }) {
+export default function AttendanceClient({
+  displayName,
+  chucDanh,
+  role,
+}: {
+  displayName: string;
+  chucDanh: string | null;
+  role: string;
+}) {
   const [data, setData] = useState<TodayResponse | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -118,6 +126,13 @@ export default function AttendanceClient({ displayName, chucDanh }: { displayNam
 
   return (
     <main style={{ minHeight: "100vh", padding: "24px 16px", display: "flex", flexDirection: "column", gap: 16, maxWidth: 480, margin: "0 auto" }}>
+      {/* Nhân viên (staff) không có menu, nên chỉ các vai trò khác mới cần nút quay lại. */}
+      {role !== "staff" && (
+        <a className="btn btn-quiet" href="/" style={{ alignSelf: "flex-start" }}>
+          ← Quay lại
+        </a>
+      )}
+
       <header>
         <h1 style={{ fontSize: 19, margin: 0 }}>Điểm danh</h1>
         <p style={{ color: "var(--muted)", margin: "4px 0 0" }}>
