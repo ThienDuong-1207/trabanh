@@ -51,6 +51,8 @@ export type Product = {
   // nhật lại bản dịch này.
   quy_cach_en: string | null;
   quy_cach_zh: string | null;
+  // URL ảnh sản phẩm (đặt sẵn trên Supabase Storage hoặc nơi khác), hiển thị thumbnail ở bảng quản lý hàng hóa.
+  image_url: string | null;
 };
 
 // Shape sent from the product create/edit form: same editable fields as

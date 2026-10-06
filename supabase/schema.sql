@@ -463,3 +463,7 @@ insert into categories (name, sort_order, quote_sort_order, name_en, name_zh, mi
   ('Sốt', 110, 90, 'Sauce', '酱料', null),
   ('Công cụ dụng cụ', 999, 999, 'Tools & Equipment', '工具用具', 'NHH000010')
 on conflict (name) do nothing;
+
+-- Giai đoạn 8: ảnh sản phẩm — lưu URL ảnh (đặt sẵn trên Supabase Storage hoặc
+-- nơi khác), hiển thị thumbnail ở bảng quản lý hàng hóa và sửa trong form Sửa sản phẩm.
+alter table products add column if not exists image_url text;

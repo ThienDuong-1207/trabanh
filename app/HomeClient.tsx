@@ -44,6 +44,7 @@ const ROLE_LABEL: Record<Role, string> = {
 const PRODUCT_COLUMNS: ColumnDef<Product, unknown>[] = [
   { id: "select", size: 36, enableResizing: false },
   { id: "ten_hang_hoa", size: 220, minSize: 160 },
+  { id: "image_url", size: 64, minSize: 64, enableResizing: false },
   { id: "category_sheet", size: 180, minSize: 140 },
   { id: "ma_noi_bo", size: 130, minSize: 110 },
   { id: "ten_hoa_don", size: 260, minSize: 160 },
@@ -94,6 +95,7 @@ const COLUMN_SIZING_STORAGE_KEY = "product-table-column-sizing";
 // ràng buộc thật, có thể còn rộng hơn cả dữ liệu (vd "Mã hàng NCC").
 const COLUMN_HEADER_LABELS: Record<string, string> = {
   ten_hang_hoa: "Tên hàng hóa",
+  image_url: "Hình ảnh",
   category_sheet: "Nhóm hàng",
   ma_noi_bo: "Mã nội bộ",
   ten_hoa_don: "Tên hóa đơn",
@@ -1152,6 +1154,7 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
             <colgroup>
               <col style={{ width: productTable.getColumn("select")?.getSize() }} />
               <col style={{ width: productTable.getColumn("ten_hang_hoa")?.getSize() }} />
+              <col style={{ width: productTable.getColumn("image_url")?.getSize() }} />
               {!compactView && <col style={{ width: productTable.getColumn("category_sheet")?.getSize() }} />}
               {!compactView && <col style={{ width: productTable.getColumn("ma_noi_bo")?.getSize() }} />}
               {!compactView && <col style={{ width: productTable.getColumn("ten_hoa_don")?.getSize() }} />}
@@ -1187,6 +1190,7 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
                   Tên hàng hóa
                   {renderResizeHandle("ten_hang_hoa")}
                 </th>
+                <th className="col-image">Hình ảnh</th>
                 {!compactView && (
                   <th className="col-group">
                     Nhóm hàng
@@ -1302,14 +1306,14 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
               )}
               {loading && (
                 <tr>
-                  <td colSpan={20} className="loading-state">
+                  <td colSpan={21} className="loading-state">
                     Đang tải...
                   </td>
                 </tr>
               )}
               {!loading && visible.length === 0 && (
                 <tr>
-                  <td colSpan={20} className="empty-state">
+                  <td colSpan={21} className="empty-state">
                     Không có sản phẩm nào.
                   </td>
                 </tr>
@@ -1317,7 +1321,7 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
               {pagedVisible.map((p) => renderRow(p))}
               {selectedElsewhere.length > 0 && (
                 <tr className="section-divider-row">
-                  <td colSpan={20} className="section-divider">
+                  <td colSpan={21} className="section-divider">
                     Đã chọn ở bộ lọc khác ({selectedElsewhere.length})
                   </td>
                 </tr>
@@ -1481,6 +1485,21 @@ const ProductRow = memo(function ProductRow({
         />
         {p.is_draft && <span className="pill pill-warm draft-badge">Nháp</span>}
         {p.is_combo && <span className="pill pill-primary draft-badge">Combo</span>}
+      </td>
+      <td className="col-image" data-label="Hình ảnh" data-col-id="image_url">
+        {p.image_url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={p.image_url}
+            alt={p.ten_hang_hoa}
+            loading="lazy"
+            width={48}
+            height={48}
+            style={{ objectFit: "cover", borderRadius: "var(--radius-sm)", display: "block" }}
+          />
+        ) : (
+          "—"
+        )}
       </td>
       {!compactView && (
         <td className="col-group" data-label="Nhóm hàng" data-col-id="category_sheet">
@@ -3811,6 +3830,7 @@ type FormState = {
   category_sheet: string;
   ten_en: string;
   ten_zh: string;
+  image_url: string;
 };
 
 function productToFormState(p: Product | null): FormState {
@@ -3838,6 +3858,7 @@ function productToFormState(p: Product | null): FormState {
     category_sheet: p?.category_sheet ?? "",
     ten_en: p?.ten_en ?? "",
     ten_zh: p?.ten_zh ?? "",
+    image_url: p?.image_url ?? "",
   };
 }
 
@@ -3868,6 +3889,7 @@ function formStateToInput(f: FormState): ProductInput {
     category_sheet: f.category_sheet,
     ten_en: str(f.ten_en),
     ten_zh: str(f.ten_zh),
+    image_url: str(f.image_url),
   };
 }
 
@@ -4401,6 +4423,7 @@ function NewProductRow({
           disabled={saving || justSaved}
         />
       </td>
+      <td className="col-image" />
       {!compactView && (
         <td data-label="Nhóm hàng">
           <select value={form.category_sheet} onChange={(e) => set("category_sheet", e.target.value)} disabled={saving || justSaved}>
@@ -4799,6 +4822,27 @@ function ProductForm({
             <Field label="Tên tiếng Trung">
               <input value={form.ten_zh} onChange={(e) => set("ten_zh", e.target.value)} />
             </Field>
+          </div>
+        </div>
+
+        <div className="field-group">
+          <h3>Hình ảnh</h3>
+          <div className="field-grid">
+            <Field label="Link ảnh (URL trên Supabase Storage)">
+              <input value={form.image_url} onChange={(e) => set("image_url", e.target.value)} placeholder="https://..." />
+            </Field>
+            <div className="field" style={{ alignItems: "flex-start" }}>
+              {form.image_url.trim() ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={form.image_url.trim()}
+                  alt=""
+                  width={96}
+                  height={96}
+                  style={{ objectFit: "cover", borderRadius: "var(--radius-sm)" }}
+                />
+              ) : null}
+            </div>
           </div>
         </div>
 
