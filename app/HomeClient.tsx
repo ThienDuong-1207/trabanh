@@ -282,6 +282,27 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
   // category/brand/search filters, instead of showing a raw whole-catalog
   // count that doesn't match what the tab actually shows once other filters
   // are active.
+  // Thương hiệu hiển thị trong ô lọc chỉ gồm các thương hiệu có sản phẩm thuộc
+  // nhóm đang chọn (kèm số lượng), thay vì toàn bộ danh sách thương hiệu.
+  const brandOptions = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const p of products) {
+      if (category === CATEGORY_ALL_EXCEPT_TOOLS) {
+        if (p.category_sheet === TOOLS_CATEGORY_SHEET) continue;
+      } else if (category !== "Tất cả" && p.category_sheet !== category) continue;
+      const name = p.brand?.name;
+      if (!name) continue;
+      counts.set(name, (counts.get(name) ?? 0) + 1);
+    }
+    return [...counts.entries()].sort((a, b) => a[0].localeCompare(b[0], "vi"));
+  }, [products, category]);
+
+  // Đổi nhóm làm thương hiệu đang chọn biến mất khỏi danh sách → đặt lại "Tất cả"
+  // để không ra bảng rỗng mà người dùng không hiểu vì sao.
+  useEffect(() => {
+    if (brandFilter !== "Tất cả" && !brandOptions.some(([name]) => name === brandFilter)) setBrandFilter("Tất cả");
+  }, [brandOptions, brandFilter]);
+
   const filteredByCriteria = useMemo(() => {
     let list = products;
     if (category === CATEGORY_ALL_EXCEPT_TOOLS) list = list.filter((p) => p.category_sheet !== TOOLS_CATEGORY_SHEET);
@@ -1041,8 +1062,10 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
         </select>
         <select value={brandFilter} onChange={(e) => setBrandFilter(e.target.value)}>
           <option>Tất cả</option>
-          {brandNames.map((b) => (
-            <option key={b}>{b}</option>
+          {brandOptions.map(([name, count]) => (
+            <option key={name} value={name}>
+              {name} ({count})
+            </option>
           ))}
         </select>
         <label className={`toggle-pill${missingOnly ? " active" : ""}`}>
