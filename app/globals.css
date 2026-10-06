@@ -886,3 +886,29 @@ label.field input:disabled { opacity: 0.6; }
 @media (prefers-reduced-motion: reduce) {
   * { transition-duration: 0.01ms !important; }
 }
+
+/* Cột Ảnh (Quản lý hàng hóa): ô 36×36 bấm để đổi ảnh, nút × luôn hiển thị để dùng được trên điện thoại. */
+.product-table td.col-photo, .product-table th.col-photo { width: 52px; padding-left: 6px; padding-right: 6px; }
+.product-table .col-photo { position: sticky; z-index: 1; background: var(--surface); }
+.product-table thead th.col-photo { z-index: 3; background: var(--header-bg); }
+.product-table tbody tr:hover .col-photo { background: var(--surface-sunken); }
+.product-table tbody tr.is-pending .col-photo { background: var(--warm-wash); }
+.product-table tbody tr.new-product-row .col-photo { background: var(--primary-wash); }
+.photo-cell { position: relative; width: 36px; height: 36px; }
+.photo-box {
+  width: 36px; height: 36px; padding: 0; border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--surface-sunken); color: var(--faint); display: flex; align-items: center; justify-content: center;
+  overflow: hidden; cursor: pointer; font-size: var(--text-meta);
+}
+.photo-box:disabled { cursor: progress; }
+.photo-box img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.photo-remove {
+  position: absolute; top: -6px; right: -6px; width: 16px; height: 16px; padding: 0; border: none; border-radius: 50%;
+  background: var(--danger); color: #fff; font-size: 11px; line-height: 16px; text-align: center; cursor: pointer;
+}
+@media (max-width: 600px) {
+  .product-table td.col-photo { position: static; flex: 0 0 auto; order: -1; width: auto; padding: 6px 8px; }
+  .product-table td.col-photo::before { content: none; }
+  .product-table td.col-photo .photo-box { width: 44px; height: 44px; }
+  .product-table td.col-photo .photo-cell { width: 44px; height: 44px; }
+}

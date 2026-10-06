@@ -43,8 +43,8 @@ const ROLE_LABEL: Record<Role, string> = {
 // hẹp hơn hẳn nội dung thật (có dòng dài gần 200 ký tự).
 const PRODUCT_COLUMNS: ColumnDef<Product, unknown>[] = [
   { id: "select", size: 36, enableResizing: false },
+  { id: "photo_url", size: 52, minSize: 52, enableResizing: false },
   { id: "ten_hang_hoa", size: 220, minSize: 160 },
-  { id: "image_url", size: 64, minSize: 64, enableResizing: false },
   { id: "category_sheet", size: 180, minSize: 140 },
   { id: "ma_noi_bo", size: 130, minSize: 110 },
   { id: "ten_hoa_don", size: 260, minSize: 160 },
@@ -95,7 +95,7 @@ const COLUMN_SIZING_STORAGE_KEY = "product-table-column-sizing";
 // ràng buộc thật, có thể còn rộng hơn cả dữ liệu (vd "Mã hàng NCC").
 const COLUMN_HEADER_LABELS: Record<string, string> = {
   ten_hang_hoa: "Tên hàng hóa",
-  image_url: "Hình ảnh",
+  photo_url: "Ảnh",
   category_sheet: "Nhóm hàng",
   ma_noi_bo: "Mã nội bộ",
   ten_hoa_don: "Tên hóa đơn",
@@ -142,6 +142,8 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
   const [category, setCategory] = useState<string>("Tất cả");
   const [brandFilter, setBrandFilter] = useState<string>("Tất cả");
   const [missingOnly, setMissingOnly] = useState(false);
+  const [missingPhotoOnly, setMissingPhotoOnly] = useState(false);
+  const [uploadingPhotoId, setUploadingPhotoId] = useState<string | null>(null);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   // "compactView" giờ chỉ là 1 giá trị suy ra từ columnVisibility (đại diện
   // bằng 1 cột trong nhóm bị ẩn cùng lúc) — không còn là state riêng, để
@@ -286,6 +288,7 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
     else if (category !== "Tất cả") list = list.filter((p) => p.category_sheet === category);
     if (brandFilter !== "Tất cả") list = list.filter((p) => p.brand?.name === brandFilter);
     if (missingOnly) list = list.filter(isMissingInfo);
+    if (missingPhotoOnly) list = list.filter((p) => !p.photo_url);
     if (search.trim()) {
       const q = search.trim().toLowerCase();
       list = list.filter(
@@ -297,7 +300,7 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
       );
     }
     return list;
-  }, [products, category, brandFilter, missingOnly, search]);
+  }, [products, category, brandFilter, missingOnly, missingPhotoOnly, search]);
 
   const visible = useMemo(() => {
     if (tab === "pending") return filteredByCriteria.filter((p) => pendingIds.has(p.id));
@@ -311,7 +314,7 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
   const [page, setPage] = useState(1);
   useEffect(() => {
     setPage(1);
-  }, [tab, category, brandFilter, missingOnly, search]);
+  }, [tab, category, brandFilter, missingOnly, missingPhotoOnly, search]);
   const pageCount = Math.max(1, Math.ceil(visible.length / PAGE_SIZE));
   const currentPage = Math.min(page, pageCount);
   const pagedVisible = useMemo(
@@ -341,10 +344,11 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
     // Ghim "Chọn" + "Tên hàng hóa" bên trái khi cuộn ngang — offset (left)
     // của "Tên hàng hóa" được tính từ độ rộng thật của "Chọn" thay vì hardcode
     // 36px trong CSS, nên vẫn đúng nếu độ rộng cột ghim trước đó thay đổi.
-    initialState: { columnPinning: { left: ["select", "ten_hang_hoa"] } },
+    initialState: { columnPinning: { left: ["select", "photo_url", "ten_hang_hoa"] } },
   });
   const [productHeaderRow] = productTable.getHeaderGroups();
   const nameColumnStickyLeft = productTable.getColumn("ten_hang_hoa")?.getStart("left") ?? 36;
+  const photoColumnStickyLeft = productTable.getColumn("photo_url")?.getStart("left") ?? 36;
 
   // Tự vừa cột (bấm đúp tay kéo, giống Excel) — đo độ rộng chữ THẬT bằng
   // canvas (đúng font đang render, không cần dựng thử DOM) của mọi ô đang
@@ -913,6 +917,34 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
     }
   }
 
+  const handleUploadPhoto = useCallback(async (p: Product, file: File) => {
+    setUploadingPhotoId(p.id);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const res = await fetch(`/api/products/${p.id}/photo`, { method: "POST", body: form });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Tải ảnh thất bại");
+      setProducts((prev) => prev.map((x) => (x.id === p.id ? { ...x, photo_url: data.photo_url } : x)));
+    } catch (e: any) {
+      alert("Tải ảnh thất bại: " + e.message);
+    } finally {
+      setUploadingPhotoId(null);
+    }
+  }, []);
+
+  const handleDeletePhoto = useCallback(async (p: Product) => {
+    if (!confirm(`Xóa ảnh của "${p.ten_hang_hoa}"? File trên kho ảnh cũng sẽ bị xóa.`)) return;
+    try {
+      const res = await fetch(`/api/products/${p.id}/photo`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Xóa ảnh thất bại");
+      setProducts((prev) => prev.map((x) => (x.id === p.id ? { ...x, photo_url: null } : x)));
+    } catch (e: any) {
+      alert("Xóa ảnh thất bại: " + e.message);
+    }
+  }, []);
+
   const handleEditProduct = useCallback((p: Product) => {
     if (p.is_combo) setEditingCombo(p);
     else setFormTarget(p);
@@ -948,6 +980,10 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
         compactView={compactView}
         brandNames={brandNames}
         categoryNames={categoryNames}
+        photoColumnStickyLeft={photoColumnStickyLeft}
+        isUploadingPhoto={uploadingPhotoId === p.id}
+        onUploadPhoto={handleUploadPhoto}
+        onDeletePhoto={handleDeletePhoto}
         isSelected={selected.has(p.id)}
         isPending={pendingIds.has(p.id)}
         pendingRequest={pendingRequestByProduct.get(p.id)}
@@ -984,7 +1020,7 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
         <div className="app-header-title">
           <h1>Quản lý hàng hóa</h1>
           <p className="app-header-meta app-header-meta-accent">
-            {products.length} sản phẩm · {monthlyStats.newThisMonth} mới · {priceChangesThisMonth} đổi giá (tháng {monthlyStats.monthLabel})
+            {products.length} sản phẩm · {products.filter((p) => !p.photo_url).length} thiếu ảnh · {monthlyStats.newThisMonth} mới · {priceChangesThisMonth} đổi giá (tháng {monthlyStats.monthLabel})
           </p>
           <NotificationBell userId={userId} onNavigate={setActiveView} />
         </div>
@@ -1013,6 +1049,10 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
           <input type="checkbox" checked={missingOnly} onChange={(e) => setMissingOnly(e.target.checked)} />
           <WarningIcon />
           Thiếu thông tin
+        </label>
+        <label className={`toggle-pill${missingPhotoOnly ? " active" : ""}`}>
+          <input type="checkbox" checked={missingPhotoOnly} onChange={(e) => setMissingPhotoOnly(e.target.checked)} />
+          Thiếu ảnh
         </label>
         <label className={`switch-field${compactView ? " has-checked" : ""}`}>
           <span className="switch">
@@ -1153,8 +1193,9 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
           <table className="product-table" style={{ width: productTable.getTotalSize() }}>
             <colgroup>
               <col style={{ width: productTable.getColumn("select")?.getSize() }} />
+              <col style={{ width: productTable.getColumn("photo_url")?.getSize() }} />
               <col style={{ width: productTable.getColumn("ten_hang_hoa")?.getSize() }} />
-              <col style={{ width: productTable.getColumn("image_url")?.getSize() }} />
+              <col style={{ width: productTable.getColumn("photo_url")?.getSize() }} />
               {!compactView && <col style={{ width: productTable.getColumn("category_sheet")?.getSize() }} />}
               {!compactView && <col style={{ width: productTable.getColumn("ma_noi_bo")?.getSize() }} />}
               {!compactView && <col style={{ width: productTable.getColumn("ten_hoa_don")?.getSize() }} />}
@@ -1186,11 +1227,11 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
                     title="Chọn tất cả đang hiện"
                   />
                 </th>
+                <th className="col-photo" style={{ left: photoColumnStickyLeft }}>Ảnh</th>
                 <th className="col-name" style={{ left: nameColumnStickyLeft }}>
                   Tên hàng hóa
                   {renderResizeHandle("ten_hang_hoa")}
                 </th>
-                <th className="col-image">Hình ảnh</th>
                 {!compactView && (
                   <th className="col-group">
                     Nhóm hàng
@@ -1302,6 +1343,7 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
                   categoryFilter={category}
                   onCreate={handleCreateProductInline}
                   nameColumnStickyLeft={nameColumnStickyLeft}
+                  photoColumnStickyLeft={photoColumnStickyLeft}
                 />
               )}
               {loading && (
@@ -1422,6 +1464,10 @@ type ProductRowProps = {
   compactView: boolean;
   brandNames: string[];
   categoryNames: string[];
+  photoColumnStickyLeft: number;
+  isUploadingPhoto: boolean;
+  onUploadPhoto: (p: Product, file: File) => void;
+  onDeletePhoto: (p: Product) => void;
   isSelected: boolean;
   isPending: boolean;
   pendingRequest: PriceChangeRequest | undefined;
@@ -1445,6 +1491,10 @@ const ProductRow = memo(function ProductRow({
   compactView,
   brandNames,
   categoryNames,
+  photoColumnStickyLeft,
+  isUploadingPhoto,
+  onUploadPhoto,
+  onDeletePhoto,
   isSelected,
   isPending,
   pendingRequest,
@@ -1457,6 +1507,7 @@ const ProductRow = memo(function ProductRow({
   onCompleteDraft,
   nameColumnStickyLeft,
 }: ProductRowProps) {
+  const photoInputRef = useRef<HTMLInputElement>(null);
   const className = [isPending ? "is-pending" : "", extraClassName ?? ""].filter(Boolean).join(" ");
   const isAdmin = role === "admin";
 
@@ -1474,6 +1525,42 @@ const ProductRow = memo(function ProductRow({
       <td className="col-check">
         <input type="checkbox" checked={isSelected} onChange={() => onToggleSelect(p.id)} />
       </td>
+      <td className="col-photo" data-label="Ảnh" data-col-id="photo_url" style={{ left: photoColumnStickyLeft }}>
+        <div className="photo-cell">
+          <button
+            type="button"
+            className="photo-box"
+            onClick={() => photoInputRef.current?.click()}
+            disabled={isUploadingPhoto}
+            title={p.photo_url ? "Đổi ảnh" : "Tải ảnh lên"}
+            aria-label={p.photo_url ? `Đổi ảnh ${p.ten_hang_hoa}` : `Tải ảnh ${p.ten_hang_hoa}`}
+          >
+            {isUploadingPhoto ? "..." : p.photo_url ? <img src={p.photo_url} alt={p.ten_hang_hoa} loading="lazy" /> : "—"}
+          </button>
+          {p.photo_url && !isUploadingPhoto && (
+            <button
+              type="button"
+              className="photo-remove"
+              onClick={() => onDeletePhoto(p)}
+              aria-label={`Xóa ảnh ${p.ten_hang_hoa}`}
+              title="Xóa ảnh"
+            >
+              ×
+            </button>
+          )}
+          <input
+            ref={photoInputRef}
+            type="file"
+            accept="image/*"
+            style={{ display: "none" }}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) onUploadPhoto(p, file);
+              e.target.value = "";
+            }}
+          />
+        </div>
+      </td>
       <td className="col-name" data-col-id="ten_hang_hoa" style={{ left: nameColumnStickyLeft }}>
         <InlineTextCell
           value={p.ten_hang_hoa}
@@ -1485,21 +1572,6 @@ const ProductRow = memo(function ProductRow({
         />
         {p.is_draft && <span className="pill pill-warm draft-badge">Nháp</span>}
         {p.is_combo && <span className="pill pill-primary draft-badge">Combo</span>}
-      </td>
-      <td className="col-image" data-label="Hình ảnh" data-col-id="image_url">
-        {p.image_url ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={p.image_url}
-            alt={p.ten_hang_hoa}
-            loading="lazy"
-            width={48}
-            height={48}
-            style={{ objectFit: "cover", borderRadius: "var(--radius-sm)", display: "block" }}
-          />
-        ) : (
-          "—"
-        )}
       </td>
       {!compactView && (
         <td className="col-group" data-label="Nhóm hàng" data-col-id="category_sheet">
@@ -3830,7 +3902,6 @@ type FormState = {
   category_sheet: string;
   ten_en: string;
   ten_zh: string;
-  image_url: string;
 };
 
 function productToFormState(p: Product | null): FormState {
@@ -3858,7 +3929,6 @@ function productToFormState(p: Product | null): FormState {
     category_sheet: p?.category_sheet ?? "",
     ten_en: p?.ten_en ?? "",
     ten_zh: p?.ten_zh ?? "",
-    image_url: p?.image_url ?? "",
   };
 }
 
@@ -3889,7 +3959,6 @@ function formStateToInput(f: FormState): ProductInput {
     category_sheet: f.category_sheet,
     ten_en: str(f.ten_en),
     ten_zh: str(f.ten_zh),
-    image_url: str(f.image_url),
   };
 }
 
@@ -4353,6 +4422,7 @@ function NewProductRow({
   categoryFilter,
   onCreate,
   nameColumnStickyLeft,
+  photoColumnStickyLeft,
 }: {
   role: Role;
   compactView: boolean;
@@ -4361,6 +4431,7 @@ function NewProductRow({
   categoryFilter: string;
   onCreate: (input: ProductInput) => Promise<boolean>;
   nameColumnStickyLeft: number;
+  photoColumnStickyLeft: number;
 }) {
   const defaultCategory = categoryFilter !== "Tất cả" ? categoryFilter : categoryNames[0] ?? "";
   const blank = (): FormState => ({ ...productToFormState(null), category_sheet: defaultCategory });
@@ -4415,6 +4486,7 @@ function NewProductRow({
       <td className="col-check">
         <PlusIcon />
       </td>
+      <td className="col-photo" style={{ left: photoColumnStickyLeft }}>—</td>
       <td className="col-name" style={{ left: nameColumnStickyLeft }}>
         <input
           placeholder="+ Tên hàng hóa mới..."
@@ -4423,7 +4495,6 @@ function NewProductRow({
           disabled={saving || justSaved}
         />
       </td>
-      <td className="col-image" />
       {!compactView && (
         <td data-label="Nhóm hàng">
           <select value={form.category_sheet} onChange={(e) => set("category_sheet", e.target.value)} disabled={saving || justSaved}>
@@ -4822,27 +4893,6 @@ function ProductForm({
             <Field label="Tên tiếng Trung">
               <input value={form.ten_zh} onChange={(e) => set("ten_zh", e.target.value)} />
             </Field>
-          </div>
-        </div>
-
-        <div className="field-group">
-          <h3>Hình ảnh</h3>
-          <div className="field-grid">
-            <Field label="Link ảnh (URL trên Supabase Storage)">
-              <input value={form.image_url} onChange={(e) => set("image_url", e.target.value)} placeholder="https://..." />
-            </Field>
-            <div className="field" style={{ alignItems: "flex-start" }}>
-              {form.image_url.trim() ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={form.image_url.trim()}
-                  alt=""
-                  width={96}
-                  height={96}
-                  style={{ objectFit: "cover", borderRadius: "var(--radius-sm)" }}
-                />
-              ) : null}
-            </div>
           </div>
         </div>
 

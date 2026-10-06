@@ -464,6 +464,19 @@ insert into categories (name, sort_order, quote_sort_order, name_en, name_zh, mi
   ('Công cụ dụng cụ', 999, 999, 'Tools & Equipment', '工具用具', 'NHH000010')
 on conflict (name) do nothing;
 
--- Giai đoạn 8: ảnh sản phẩm — lưu URL ảnh (đặt sẵn trên Supabase Storage hoặc
--- nơi khác), hiển thị thumbnail ở bảng quản lý hàng hóa và sửa trong form Sửa sản phẩm.
-alter table products add column if not exists image_url text;
+-- Giai đoạn 8: ảnh sản phẩm — lưu URL ảnh trên Supabase Storage (bucket
+-- product-photos, public đọc). Upload/xóa đi qua /api/products/[id]/photo bằng
+-- service role (đã kiểm tra role ở tầng route), nên không cần policy ghi cho client.
+do $$ begin
+  if exists (select 1 from information_schema.columns where table_name = 'products' and column_name = 'image_url') then
+    alter table products rename column image_url to photo_url;
+  end if;
+end $$;
+alter table products add column if not exists photo_url text;
+
+insert into storage.buckets (id, name, public) values ('product-photos', 'product-photos', true)
+on conflict (id) do nothing;
+
+drop policy if exists "Công khai đọc ảnh sản phẩm" on storage.objects;
+create policy "Công khai đọc ảnh sản phẩm" on storage.objects
+  for select using (bucket_id = 'product-photos');

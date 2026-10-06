@@ -51,8 +51,8 @@ export type Product = {
   // nhật lại bản dịch này.
   quy_cach_en: string | null;
   quy_cach_zh: string | null;
-  // URL ảnh sản phẩm (đặt sẵn trên Supabase Storage hoặc nơi khác), hiển thị thumbnail ở bảng quản lý hàng hóa.
-  image_url: string | null;
+  // URL ảnh sản phẩm trên Supabase Storage (bucket product-photos), đổi qua /api/products/[id]/photo.
+  photo_url: string | null;
 };
 
 // Shape sent from the product create/edit form: same editable fields as
@@ -71,6 +71,7 @@ export type ProductInput = Omit<
   | "gia_goc"
   | "quy_cach_en"
   | "quy_cach_zh"
+  | "photo_url"
 > & {
   brand: string | null;
 };

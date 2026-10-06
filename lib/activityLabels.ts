@@ -1,4 +1,6 @@
 export const ACTION_LABELS: Record<string, string> = {
+  "product.photo_update": "đổi ảnh sản phẩm",
+  "product.photo_delete": "xóa ảnh sản phẩm",
   "product.create": "Thêm sản phẩm",
   "product.update": "Sửa sản phẩm",
   "product.update_field": "Sửa thông tin sản phẩm",
