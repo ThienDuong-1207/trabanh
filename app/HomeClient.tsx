@@ -16,9 +16,55 @@ import { QUY_CACH_SUGGESTIONS, TY_LE_SUGGESTIONS, DVT_SUGGESTIONS, extractQuanti
 import { ACTION_LABELS } from "@/lib/activityLabels";
 import { stripXlsxDrawings } from "@/lib/stripXlsxDrawings";
 import PasswordChecklist from "@/components/PasswordChecklist";
+import { ShiftsView, StoresView } from "./views/AdminScheduleViews";
 
-type View = "hanghoa" | "tonkho" | "baocao" | "duyetgia" | "users" | "activitylog" | "chuyenkho" | "khunganh";
-export type Role = "sales" | "accountant" | "admin";
+type View = "hanghoa" | "tonkho" | "baocao" | "duyetgia" | "users" | "activitylog" | "chuyenkho" | "khunganh" | "ca" | "cuahang";
+
+// Nhóm và tên hiển thị của từng màn hình — dùng cho sidebar và thanh trên cùng.
+const VIEW_LABEL: Record<View, string> = {
+  hanghoa: "Quản lý hàng hóa",
+  tonkho: "Quản lý tồn kho",
+  baocao: "Báo cáo",
+  duyetgia: "Chờ duyệt giá",
+  users: "Quản lý người dùng",
+  activitylog: "Nhật ký hoạt động",
+  chuyenkho: "Chuyển kho Shopee",
+  khunganh: "Tạo khung ảnh",
+  ca: "Ca làm việc",
+  cuahang: "Cửa hàng",
+};
+const VIEW_GROUP: Record<View, string> = {
+  hanghoa: "Nhân viên",
+  tonkho: "Vận hành",
+  baocao: "Vận hành",
+  duyetgia: "Vận hành",
+  users: "Admin",
+  activitylog: "Vận hành",
+  chuyenkho: "Vận hành",
+  khunganh: "Vận hành",
+  ca: "Admin",
+  cuahang: "Admin",
+};
+
+// Nhóm sidebar dùng để thu gọn/mở rộng. Mặc định mở tất cả; trạng thái được
+// nhớ trên thiết bị (localStorage) — đây chỉ là tiện ích giao diện, mất đi
+// thì menu vẫn hoạt động bình thường.
+type NavGroupKey = "nhanvien" | "vanhanh" | "admin";
+const NAV_GROUP_DEFAULT: Record<NavGroupKey, boolean> = { nhanvien: true, vanhanh: true, admin: true };
+const NAV_STORAGE_KEY = "sidebar-open-groups";
+const VIEW_NAV_GROUP: Record<View, NavGroupKey> = {
+  hanghoa: "nhanvien",
+  tonkho: "vanhanh",
+  baocao: "vanhanh",
+  duyetgia: "vanhanh",
+  users: "admin",
+  activitylog: "vanhanh",
+  chuyenkho: "vanhanh",
+  khunganh: "vanhanh",
+  ca: "admin",
+  cuahang: "admin",
+};
+export type Role = "sales" | "accountant" | "admin" | "staff";
 
 // Tạm ẩn nav "Quản lý tồn kho" theo yêu cầu — đổi thành true để hiện lại.
 const SHOW_INVENTORY_NAV = false;
@@ -32,6 +78,7 @@ const ROLE_LABEL: Record<Role, string> = {
   sales: "Sales",
   accountant: "Kế toán",
   admin: "Admin",
+  staff: "Nhân viên",
 };
 
 // Chỉ dùng TanStack Table để quản lý ĐỘ RỘNG (kéo giãn) từng cột của bảng
@@ -1035,6 +1082,7 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
         onToggleMobileNav={() => setMobileNavOpen((v) => !v)}
       />
       <main className="main">
+        <Topbar activeView={activeView} userId={userId} displayName={displayName} role={role} onNavigate={setActiveView} />
         {activeView === "hanghoa" && (
     <div className="app app-full table-page">
       <header className="app-header">
@@ -1043,7 +1091,6 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
           <p className="app-header-meta app-header-meta-accent">
             {products.length} sản phẩm · {products.filter((p) => !p.photo_url).length} thiếu ảnh · {monthlyStats.newThisMonth} mới · {priceChangesThisMonth} đổi giá (tháng {monthlyStats.monthLabel})
           </p>
-          <NotificationBell userId={userId} onNavigate={setActiveView} />
         </div>
       </header>
 
@@ -1475,6 +1522,8 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
         {activeView === "activitylog" && <ActivityLogView role={role} />}
         {activeView === "chuyenkho" && <TransferKhoView />}
         {activeView === "khunganh" && <ImageFrameView />}
+        {activeView === "ca" && role === "admin" && <ShiftsView />}
+        {activeView === "cuahang" && role === "admin" && <StoresView />}
       </main>
     </div>
   );
@@ -1823,6 +1872,149 @@ const ProductRow = memo(function ProductRow({
   );
 });
 
+function NavButton({
+  active,
+  onClick,
+  icon,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <button className={`nav-item${active ? " active" : ""}`} onClick={onClick}>
+      {icon}
+      {children}
+    </button>
+  );
+}
+
+// Thanh trên cùng của vùng nội dung: đường dẫn màn hình đang mở, chuông thông
+// báo và tài khoản đang đăng nhập.
+function Topbar({
+  activeView,
+  userId,
+  displayName,
+  role,
+  onNavigate,
+}: {
+  activeView: View;
+  userId: string;
+  displayName: string;
+  role: Role;
+  onNavigate: (v: View) => void;
+}) {
+  const initials =
+    displayName
+      .trim()
+      .split(/\s+/)
+      .slice(0, 2)
+      .map((w) => w[0])
+      .join("")
+      .toUpperCase() || "?";
+  return (
+    <header className="topbar">
+      <div className="topbar-crumb">
+        <span>{VIEW_GROUP[activeView]}</span>
+        <span className="topbar-sep">/</span>
+        <span className="topbar-title">{VIEW_LABEL[activeView]}</span>
+      </div>
+      <div className="topbar-actions">
+        <NotificationBell userId={userId} onNavigate={onNavigate} />
+        <div className="topbar-avatar" aria-hidden>{initials}</div>
+        <div className="topbar-user">
+          <div>{displayName}</div>
+          <div>{ROLE_LABEL[role]}</div>
+        </div>
+      </div>
+    </header>
+  );
+}
+
+function ClockIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v5l3 2" />
+    </svg>
+  );
+}
+
+function StoreIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 9l1.5-5h15L21 9" />
+      <path d="M4 9v11h16V9" />
+      <path d="M9 20v-6h6v6" />
+    </svg>
+  );
+}
+
+function useNavGroups(activeView: View) {
+  const [open, setOpen] = useState<Record<NavGroupKey, boolean>>(NAV_GROUP_DEFAULT);
+
+  // Đọc trạng thái đã nhớ sau khi mount (không đọc lúc render để tránh lệch
+  // giữa server và client).
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(NAV_STORAGE_KEY);
+      if (raw) setOpen({ ...NAV_GROUP_DEFAULT, ...JSON.parse(raw) });
+    } catch {
+      /* localStorage bị chặn hoặc dữ liệu hỏng: giữ mặc định */
+    }
+  }, []);
+
+  // Đang mở màn hình nằm trong nhóm đang đóng thì mở nhóm đó ra để thấy mục đang chọn.
+  useEffect(() => {
+    const g = VIEW_NAV_GROUP[activeView];
+    setOpen((prev) => (prev[g] ? prev : { ...prev, [g]: true }));
+  }, [activeView]);
+
+  function toggle(g: NavGroupKey) {
+    const next = { ...open, [g]: !open[g] };
+    setOpen(next);
+    try {
+      window.localStorage.setItem(NAV_STORAGE_KEY, JSON.stringify(next));
+    } catch {
+      /* không lưu được thì chỉ mất trạng thái khi tải lại */
+    }
+  }
+
+  return { open, toggle };
+}
+
+function NavGroup({
+  label,
+  open,
+  onToggle,
+  count = 0,
+  children,
+}: {
+  label: string;
+  open: boolean;
+  onToggle: () => void;
+  count?: number;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="nav-group">
+      <button className="nav-group-toggle" aria-expanded={open} onClick={onToggle}>
+        <span>{label}</span>
+        {/* Khi đóng nhóm, số việc cần xử lý bên trong vẫn hiện trên tên nhóm. */}
+        {!open && count > 0 && <span className="pill pill-warm badge">{count}</span>}
+        <svg className="nav-group-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d="m6 9 6 6 6-6" />
+        </svg>
+      </button>
+      <div className={`nav-group-body${open ? " open" : ""}`}>
+        <div className="nav-group-inner">{children}</div>
+      </div>
+    </section>
+  );
+}
+
 function Sidebar({
   activeView,
   onChange,
@@ -1840,6 +2032,8 @@ function Sidebar({
   mobileNavOpen: boolean;
   onToggleMobileNav: () => void;
 }) {
+  const { open, toggle } = useNavGroups(activeView);
+
   async function signOut() {
     await supabase.auth.signOut();
     window.location.assign("/login");
@@ -1862,43 +2056,53 @@ function Sidebar({
       </div>
       {mobileNavOpen && <div className="sidebar-backdrop" onClick={onToggleMobileNav} />}
       <div className="nav">
-        <button className={`nav-item${activeView === "hanghoa" ? " active" : ""}`} onClick={() => onChange("hanghoa")}>
-          <TagIcon />
-          Quản lý hàng hóa
-        </button>
-        <button className={`nav-item${activeView === "duyetgia" ? " active" : ""}`} onClick={() => onChange("duyetgia")}>
-          <TagIcon />
-          Chờ duyệt giá
-          {priceRequestCount > 0 && <span className="pill pill-warm badge">{priceRequestCount}</span>}
-        </button>
-        <button className={`nav-item${activeView === "activitylog" ? " active" : ""}`} onClick={() => onChange("activitylog")}>
-          <LogIcon />
-          Nhật ký hoạt động
-        </button>
-        <button className={`nav-item${activeView === "baocao" ? " active" : ""}`} onClick={() => onChange("baocao")}>
-          <ChartIcon />
-          Báo cáo
-        </button>
-        <button className={`nav-item${activeView === "chuyenkho" ? " active" : ""}`} onClick={() => onChange("chuyenkho")}>
-          <TruckIcon />
-          Chuyển kho Shopee
-        </button>
-        <button className={`nav-item${activeView === "khunganh" ? " active" : ""}`} onClick={() => onChange("khunganh")}>
-          <ImageIcon />
-          Tạo khung ảnh
-        </button>
+        <NavGroup label="Nhân viên" open={open.nhanvien} onToggle={() => toggle("nhanvien")}>
+          <NavButton active={activeView === "hanghoa"} onClick={() => onChange("hanghoa")} icon={<TagIcon />}>
+            Quản lý hàng hóa
+          </NavButton>
+          <a className="nav-item" href="/attendance">
+            <ClockIcon />
+            Điểm danh
+          </a>
+        </NavGroup>
+
+        <NavGroup label="Vận hành" open={open.vanhanh} onToggle={() => toggle("vanhanh")} count={priceRequestCount}>
+          <NavButton active={activeView === "duyetgia"} onClick={() => onChange("duyetgia")} icon={<TagIcon />}>
+            Chờ duyệt giá
+            {priceRequestCount > 0 && <span className="pill pill-warm badge">{priceRequestCount}</span>}
+          </NavButton>
+          <NavButton active={activeView === "baocao"} onClick={() => onChange("baocao")} icon={<ChartIcon />}>
+            Báo cáo
+          </NavButton>
+          <NavButton active={activeView === "chuyenkho"} onClick={() => onChange("chuyenkho")} icon={<TruckIcon />}>
+            Chuyển kho Shopee
+          </NavButton>
+          <NavButton active={activeView === "khunganh"} onClick={() => onChange("khunganh")} icon={<ImageIcon />}>
+            Tạo khung ảnh
+          </NavButton>
+          <NavButton active={activeView === "activitylog"} onClick={() => onChange("activitylog")} icon={<LogIcon />}>
+            Nhật ký hoạt động
+          </NavButton>
+          {/* Tạm ẩn theo yêu cầu — bật lại bằng cách đổi SHOW_INVENTORY_NAV thành true */}
+          {SHOW_INVENTORY_NAV && (
+            <NavButton active={activeView === "tonkho"} onClick={() => onChange("tonkho")} icon={<ArchiveIcon />}>
+              Quản lý tồn kho
+            </NavButton>
+          )}
+        </NavGroup>
+
         {role === "admin" && (
-          <button className={`nav-item${activeView === "users" ? " active" : ""}`} onClick={() => onChange("users")}>
-            <UsersIcon />
-            Quản lý người dùng
-          </button>
-        )}
-        {/* Tạm ẩn theo yêu cầu — bật lại bằng cách đổi SHOW_INVENTORY_NAV thành true */}
-        {SHOW_INVENTORY_NAV && (
-          <button className={`nav-item${activeView === "tonkho" ? " active" : ""}`} onClick={() => onChange("tonkho")}>
-            <ArchiveIcon />
-            Quản lý tồn kho
-          </button>
+          <NavGroup label="Admin" open={open.admin} onToggle={() => toggle("admin")}>
+            <NavButton active={activeView === "ca"} onClick={() => onChange("ca")} icon={<ClockIcon />}>
+              Ca làm việc
+            </NavButton>
+            <NavButton active={activeView === "cuahang"} onClick={() => onChange("cuahang")} icon={<StoreIcon />}>
+              Cửa hàng
+            </NavButton>
+            <NavButton active={activeView === "users"} onClick={() => onChange("users")} icon={<UsersIcon />}>
+              Quản lý người dùng
+            </NavButton>
+          </NavGroup>
         )}
       </div>
       <div className="sidebar-foot sidebar-account">
@@ -2602,6 +2806,7 @@ function UserManagementView({ currentUserId }: { currentUserId: string }) {
   const [username, setUsername] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [newRole, setNewRole] = useState<Role>("sales");
+  const [newChucDanh, setNewChucDanh] = useState("");
   const [tempPassword, setTempPassword] = useState("");
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
@@ -2632,7 +2837,13 @@ function UserManagementView({ currentUserId }: { currentUserId: string }) {
       const res = await fetch("/api/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, display_name: displayName, role: newRole, temp_password: tempPassword }),
+        body: JSON.stringify({
+          username,
+          display_name: displayName,
+          role: newRole,
+          chuc_danh: newRole === "staff" ? newChucDanh : null,
+          temp_password: tempPassword,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Tạo tài khoản thất bại");
@@ -2640,6 +2851,7 @@ function UserManagementView({ currentUserId }: { currentUserId: string }) {
       setDisplayName("");
       setTempPassword("");
       setNewRole("sales");
+      setNewChucDanh("");
       await loadProfiles();
     } catch (e: any) {
       setCreateError(e.message);
@@ -2726,13 +2938,18 @@ function UserManagementView({ currentUserId }: { currentUserId: string }) {
           </Field>
           <Field label="Vai trò">
             <select value={newRole} onChange={(e) => setNewRole(e.target.value as Role)}>
-              {(["sales", "accountant", "admin"] as Role[]).map((r) => (
+              {(["sales", "accountant", "admin", "staff"] as Role[]).map((r) => (
                 <option key={r} value={r}>
                   {ROLE_LABEL[r]}
                 </option>
               ))}
             </select>
           </Field>
+          {newRole === "staff" && (
+            <Field label="Chức danh (Sales, Shipper, Kho...)">
+              <input value={newChucDanh} onChange={(e) => setNewChucDanh(e.target.value)} />
+            </Field>
+          )}
           <Field label="Mật khẩu tạm">
             <div style={{ display: "flex", gap: 6 }}>
               <input
@@ -2799,7 +3016,7 @@ function UserManagementView({ currentUserId }: { currentUserId: string }) {
                           onChange={(e) => changeRole(p, e.target.value as Role)}
                         >
                           {!p.role && <option value="">Chưa cấp quyền</option>}
-                          {(["sales", "accountant", "admin"] as Role[]).map((r) => (
+                          {(["sales", "accountant", "admin", "staff"] as Role[]).map((r) => (
                             <option key={r} value={r}>
                               {ROLE_LABEL[r]}
                             </option>

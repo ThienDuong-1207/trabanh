@@ -5,7 +5,9 @@ const PUBLIC_PAGE_PATHS = ["/login", "/auth/callback"];
 // Called by the hourly GitHub Actions workflow with its own SYNC_SECRET
 // bearer check (app/api/sync-sheet/route.ts) — not a signed-in user, so it
 // must stay reachable without a session.
-const PUBLIC_API_PATHS = ["/api/sync-sheet"];
+// Vercel Cron gọi /api/cron/attendance-absent với CRON_SECRET (xem route) — không
+// có session người dùng nên cũng phải đi qua được middleware.
+const PUBLIC_API_PATHS = ["/api/sync-sheet", "/api/cron/attendance-absent"];
 
 // Chặn không cho Supabase Auth chậm/treo làm treo luôn cả site: Vercel Edge
 // Middleware có giới hạn thời gian chạy, hết hạn nó tự hủy và trả về

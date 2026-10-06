@@ -17,4 +17,8 @@ export const ACTION_LABELS: Record<string, string> = {
   "price_history.cleanup": "Dọn lịch sử giá cũ",
   "product.import": "Nhập file Excel",
   "transfer_kho.export": "Xuất phiếu chuyển kho Shopee",
+  "store.create": "Tạo cửa hàng",
+  "shift.create": "Tạo ca làm việc",
+  "shift.assign": "Phân ca cho nhân viên",
+  "shift.unassign": "Bỏ phân ca nhân viên",
 };

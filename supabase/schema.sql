@@ -480,3 +480,140 @@ on conflict (id) do nothing;
 drop policy if exists "Công khai đọc ảnh sản phẩm" on storage.objects;
 create policy "Công khai đọc ảnh sản phẩm" on storage.objects
   for select using (bucket_id = 'product-photos');
+
+-- Giai đoạn 9: chấm công.
+-- (a) Vai trò: thêm 'staff' (nhân viên thường — shipper, kho...). Chức vụ cụ
+--     thể (Sales, Shipper, Kho...) lưu ở chuc_danh, không đổi quyền truy cập.
+-- (b) Cửa hàng, ca làm việc (theo giờ hoặc theo ngày), phân ca cho nhân viên.
+-- (c) Bảng chấm công: 1 dòng / nhân viên / ngày, lưu phút thực + trạng thái.
+-- (d) Nhật ký sửa giờ công (bắt buộc có lý do).
+-- Ghi dữ liệu đi qua service role ở tầng route (đã kiểm tra quyền), nên các
+-- bảng này chỉ có policy đọc.
+alter type user_role add value if not exists 'staff';
+alter table profiles add column if not exists chuc_danh text;
+
+create table if not exists stores (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  latitude double precision not null,
+  longitude double precision not null,
+  radius_m integer not null default 200,
+  -- IP công khai của mạng Wi-Fi cửa hàng (không bắt buộc). Trống = không kiểm tra IP.
+  office_ips text[] not null default '{}',
+  created_at timestamptz not null default now()
+);
+
+create table if not exists shifts (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  -- 'gio': công tính theo số giờ thực. 'ngay': công tính theo ngày (1 / 0.5 / 0).
+  loai_ca text not null check (loai_ca in ('gio', 'ngay')),
+  store_id uuid not null references stores(id) on delete restrict,
+  start_time time not null,
+  end_time time not null check (end_time > start_time),
+  break_start time,
+  break_end time,
+  grace_minutes integer not null default 5,
+  half_day_after_minutes integer not null default 30,
+  absent_after_minutes integer not null default 120,
+  active boolean not null default true,
+  created_at timestamptz not null default now(),
+  check (
+    (break_start is null and break_end is null)
+    or (break_start is not null and break_end is not null and break_end > break_start)
+  )
+);
+
+-- Phân ca: nhân viên, ca, khoảng ngày áp dụng (den_ngay null = lâu dài),
+-- thu_ap_dung là mảng thứ ISO (1 = T2 … 7 = CN).
+create table if not exists shift_assignments (
+  id uuid primary key default gen_random_uuid(),
+  nhan_vien_id uuid not null references profiles(id) on delete cascade,
+  shift_id uuid not null references shifts(id) on delete cascade,
+  tu_ngay date not null,
+  den_ngay date,
+  thu_ap_dung integer[] not null check (
+    array_length(thu_ap_dung, 1) >= 1 and thu_ap_dung <@ array[1,2,3,4,5,6,7]
+  ),
+  created_at timestamptz not null default now(),
+  check (den_ngay is null or den_ngay >= tu_ngay)
+);
+create index if not exists shift_assignments_nhan_vien_idx on shift_assignments(nhan_vien_id);
+
+create table if not exists attendance (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references profiles(id) on delete cascade,
+  shift_id uuid not null references shifts(id) on delete restrict,
+  store_id uuid not null references stores(id) on delete restrict,
+  work_date date not null,
+  check_in_at timestamptz,
+  check_out_at timestamptz,
+  check_in_latitude double precision,
+  check_in_longitude double precision,
+  check_in_accuracy_m double precision,
+  check_in_distance_m double precision,
+  check_in_ip text,
+  check_out_latitude double precision,
+  check_out_longitude double precision,
+  check_out_accuracy_m double precision,
+  check_out_distance_m double precision,
+  check_out_ip text,
+  status text check (status in ('on_time', 'late', 'half_day', 'absent')),
+  late_minutes numeric(10, 2),
+  early_minutes numeric(10, 2),
+  work_minutes numeric(10, 2),
+  work_units numeric(4, 1),
+  ot_minutes numeric(10, 2),
+  ot_status text check (ot_status in ('pending', 'approved', 'rejected')),
+  -- Cờ cảnh báo: ip_mismatch, missing_checkout, no_checkin...
+  flags text[] not null default '{}',
+  -- Quy định của ca tại thời điểm tính (không đổi khi sửa ca sau này).
+  shift_snapshot jsonb not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  -- Mỗi nhân viên chỉ có một ca trong một ngày.
+  unique (user_id, work_date)
+);
+create index if not exists attendance_work_date_idx on attendance(work_date);
+
+create table if not exists attendance_edits (
+  id uuid primary key default gen_random_uuid(),
+  attendance_id uuid not null references attendance(id) on delete cascade,
+  editor_id uuid not null references profiles(id),
+  before_data jsonb not null,
+  after_data jsonb not null,
+  reason text not null check (length(trim(reason)) > 0),
+  created_at timestamptz not null default now()
+);
+
+alter table stores enable row level security;
+alter table shifts enable row level security;
+alter table shift_assignments enable row level security;
+alter table attendance enable row level security;
+alter table attendance_edits enable row level security;
+
+drop policy if exists "Đọc cửa hàng khi đã được cấp quyền" on stores;
+create policy "Đọc cửa hàng khi đã được cấp quyền" on stores
+  for select using (exists (select 1 from profiles where id = auth.uid() and role is not null));
+
+drop policy if exists "Đọc ca khi đã được cấp quyền" on shifts;
+create policy "Đọc ca khi đã được cấp quyền" on shifts
+  for select using (exists (select 1 from profiles where id = auth.uid() and role is not null));
+
+drop policy if exists "Đọc phân ca của mình hoặc Kế toán/Admin" on shift_assignments;
+create policy "Đọc phân ca của mình hoặc Kế toán/Admin" on shift_assignments
+  for select using (
+    nhan_vien_id = auth.uid()
+    or exists (select 1 from profiles where id = auth.uid() and role in ('accountant', 'admin'))
+  );
+
+drop policy if exists "Đọc chấm công của mình hoặc Kế toán/Admin" on attendance;
+create policy "Đọc chấm công của mình hoặc Kế toán/Admin" on attendance
+  for select using (
+    user_id = auth.uid()
+    or exists (select 1 from profiles where id = auth.uid() and role in ('accountant', 'admin'))
+  );
+
+drop policy if exists "Đọc lịch sử sửa giờ công cho Kế toán/Admin" on attendance_edits;
+create policy "Đọc lịch sử sửa giờ công cho Kế toán/Admin" on attendance_edits
+  for select using (exists (select 1 from profiles where id = auth.uid() and role in ('accountant', 'admin')));

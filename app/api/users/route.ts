@@ -8,7 +8,7 @@ import { logActivity } from "@/lib/activityLog";
 
 export const runtime = "nodejs";
 
-const VALID_ROLES: Role[] = ["sales", "accountant", "admin"];
+const VALID_ROLES: Role[] = ["sales", "accountant", "admin", "staff"];
 
 // Admin tạo tài khoản đăng nhập bằng mật khẩu cho nhân sự không dùng Google —
 // mật khẩu này chỉ là mật khẩu tạm, must_change_password=true bắt buộc người
@@ -21,10 +21,11 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { username, display_name, role, temp_password } = (await req.json()) as {
+    const { username, display_name, role, chuc_danh, temp_password } = (await req.json()) as {
       username: string;
       display_name: string;
       role: Role;
+      chuc_danh?: string | null;
       temp_password: string;
     };
 
@@ -63,7 +64,13 @@ export async function POST(req: NextRequest) {
 
     const { data: profile, error: updateError } = await supabase
       .from("profiles")
-      .update({ username: username.trim().toLowerCase(), role, must_change_password: true })
+      .update({
+        username: username.trim().toLowerCase(),
+        role,
+        // Chức vụ chỉ có nghĩa với nhân viên (staff); các vai trò khác để trống.
+        chuc_danh: role === "staff" ? (chuc_danh?.trim() || null) : null,
+        must_change_password: true,
+      })
       .eq("id", created.user.id)
       .select()
       .single();
