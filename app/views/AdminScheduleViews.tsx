@@ -57,14 +57,23 @@ async function requestJson(url: string, init?: RequestInit): Promise<any> {
   return json;
 }
 
+// Tách "vĩ độ, kinh độ" từ chuỗi copy của Google Maps. Trả về null nếu không đúng dạng hoặc ngoài khoảng cho phép.
+function parseCoords(input: string): { latitude: number; longitude: number } | null {
+  const m = input.trim().match(/^(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)$/);
+  if (!m) return null;
+  const latitude = Number(m[1]);
+  const longitude = Number(m[2]);
+  if (Math.abs(latitude) > 90 || Math.abs(longitude) > 180) return null;
+  return { latitude, longitude };
+}
+
 export function StoresView() {
   const [stores, setStores] = useState<Store[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const [name, setName] = useState("");
-  const [latitude, setLatitude] = useState("");
-  const [longitude, setLongitude] = useState("");
+  const [coords, setCoords] = useState("");
   const [radius, setRadius] = useState("200");
   const [officeIps, setOfficeIps] = useState("");
   const [saving, setSaving] = useState(false);
@@ -88,6 +97,11 @@ export function StoresView() {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    const parsed = parseCoords(coords);
+    if (!parsed) {
+      setError("Tọa độ không hợp lệ. Dán nguyên dòng copy từ Google Maps, dạng \"10.776900, 106.700900\".");
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
@@ -96,15 +110,14 @@ export function StoresView() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name,
-          latitude: Number(latitude),
-          longitude: Number(longitude),
+          latitude: parsed.latitude,
+          longitude: parsed.longitude,
           radius_m: Number(radius),
           office_ips: officeIps.split(/[,\s]+/).filter(Boolean),
         }),
       });
       setName("");
-      setLatitude("");
-      setLongitude("");
+      setCoords("");
       setRadius("200");
       setOfficeIps("");
       await load();
@@ -138,21 +151,17 @@ export function StoresView() {
               Bán kính (mét)
               <input type="number" min={20} max={1000} value={radius} onChange={(e) => setRadius(e.target.value)} required />
             </label>
-            <label className="field">
-              Vĩ độ (latitude)
-              <input type="number" step="any" value={latitude} onChange={(e) => setLatitude(e.target.value)} required />
-            </label>
-            <label className="field">
-              Kinh độ (longitude)
-              <input type="number" step="any" value={longitude} onChange={(e) => setLongitude(e.target.value)} required />
-            </label>
           </div>
+          <label className="field">
+            Tọa độ (dán từ Google Maps)
+            <input value={coords} onChange={(e) => setCoords(e.target.value)} placeholder="10.776900, 106.700900" required />
+          </label>
           <label className="field">
             IP Wi-Fi công ty (không bắt buộc, cách nhau bằng dấu phẩy)
             <input value={officeIps} onChange={(e) => setOfficeIps(e.target.value)} placeholder="Để trống nếu không kiểm tra IP" />
           </label>
           <p style={{ margin: 0, color: "var(--muted)", fontSize: "var(--text-micro)" }}>
-            Lấy tọa độ bằng cách mở Google Maps, nhấn chuột phải vào vị trí cửa hàng và chọn tọa độ.
+            Mở Google Maps, nhấn chuột phải vào vị trí cửa hàng, bấm vào dòng tọa độ để copy rồi dán vào ô trên.
           </p>
           <div>
             <button type="submit" className="btn btn-primary" disabled={saving}>
