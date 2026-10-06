@@ -330,10 +330,13 @@ button, input, select { font: inherit; color: inherit; }
    hình vẫn xem được bình thường. Với các trang có .table-page (bên dưới),
    .table-page lấp đầy đúng 100% chiều cao này nên .app sẽ không cần tự
    cuộn nữa — phần cuộn chuyển hẳn vào bên trong .table-scroll của trang đó. */
-.app { max-width: 804px; margin: 0 auto; padding: 16px 13px 54px; height: 100%; overflow-y: auto; }
+/* Độ rộng co giãn theo màn hình thật (sau khi trừ sidebar): chiếm 70% vùng nội
+   dung, không nhỏ hơn 640px để form không bị bó trên màn hình nhỏ, không lớn
+   hơn 1200px để dòng chữ không quá dài trên màn hình rất rộng. */
+.app { width: clamp(640px, 70%, 1200px); margin: 0 auto; padding: 16px 13px 54px; height: 100%; overflow-y: auto; }
 /* Quản lý hàng hóa dùng hết chiều ngang màn hình thay vì bó vào 1200px —
    bảng sản phẩm nhiều cột kiểu Excel cần không gian rộng. */
-.app-full { max-width: none; }
+.app-full { width: 100%; max-width: none; }
 
 /* Trang có bảng rộng (Quản lý hàng hóa, Chờ duyệt giá, Nhật ký hoạt động,
    Quản lý người dùng) — tiêu đề/KPI/thanh công cụ ở trên giữ nguyên chiều
@@ -967,4 +970,10 @@ label.field input:disabled { opacity: 0.6; }
   .product-table td.col-photo::before { content: none; }
   .product-table td.col-photo .photo-box { width: 44px; height: 44px; }
   .product-table td.col-photo .photo-cell { width: 44px; height: 44px; }
+}
+
+/* ---- Màn hình nhỏ (≤860px): thanh trên cùng luôn hiển thị khi cuộn; nội dung chiếm đủ chiều ngang ---- */
+@media (max-width: 860px) {
+  .sidebar { position: sticky; top: 0; z-index: 30; }
+  .app { width: 100%; }
 }
