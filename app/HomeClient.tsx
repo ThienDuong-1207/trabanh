@@ -18,7 +18,7 @@ import { stripXlsxDrawings } from "@/lib/stripXlsxDrawings";
 import PasswordChecklist from "@/components/PasswordChecklist";
 import { ShiftsView, StoresView } from "./views/AdminScheduleViews";
 
-type View = "hanghoa" | "tonkho" | "baocao" | "duyetgia" | "users" | "activitylog" | "chuyenkho" | "khunganh" | "ca" | "cuahang";
+type View = "hanghoa" | "tonkho" | "baocao" | "duyetgia" | "users" | "activitylog" | "chuyenkho" | "khunganh" | "ca" | "cuahang" | "donhang" | "nhandon" | "dadgiao";
 
 // Nhóm và tên hiển thị của từng màn hình — dùng cho sidebar và thanh trên cùng.
 const VIEW_LABEL: Record<View, string> = {
@@ -32,6 +32,9 @@ const VIEW_LABEL: Record<View, string> = {
   khunganh: "Tạo khung ảnh",
   ca: "Ca làm việc",
   cuahang: "Cửa hàng",
+  donhang: "Đơn hàng",
+  nhandon: "Nhận đơn",
+  dadgiao: "Đơn đã giao",
 };
 const VIEW_GROUP: Record<View, string> = {
   hanghoa: "Nhân viên",
@@ -44,13 +47,16 @@ const VIEW_GROUP: Record<View, string> = {
   khunganh: "Vận hành",
   ca: "Admin",
   cuahang: "Admin",
+  donhang: "Nhân viên",
+  nhandon: "Shipper",
+  dadgiao: "Shipper",
 };
 
 // Nhóm sidebar dùng để thu gọn/mở rộng. Mặc định mở tất cả; trạng thái được
 // nhớ trên thiết bị (localStorage) — đây chỉ là tiện ích giao diện, mất đi
 // thì menu vẫn hoạt động bình thường.
-type NavGroupKey = "nhanvien" | "ketoan" | "vanhanh" | "admin";
-const NAV_GROUP_DEFAULT: Record<NavGroupKey, boolean> = { nhanvien: true, ketoan: true, vanhanh: true, admin: true };
+type NavGroupKey = "nhanvien" | "shipper" | "ketoan" | "vanhanh" | "admin";
+const NAV_GROUP_DEFAULT: Record<NavGroupKey, boolean> = { nhanvien: true, shipper: true, ketoan: true, vanhanh: true, admin: true };
 const NAV_STORAGE_KEY = "sidebar-open-groups";
 const VIEW_NAV_GROUP: Record<View, NavGroupKey> = {
   hanghoa: "nhanvien",
@@ -63,6 +69,9 @@ const VIEW_NAV_GROUP: Record<View, NavGroupKey> = {
   khunganh: "vanhanh",
   ca: "admin",
   cuahang: "admin",
+  donhang: "nhanvien",
+  nhandon: "shipper",
+  dadgiao: "shipper",
 };
 export type Role = "sales" | "accountant" | "admin" | "staff";
 
@@ -178,7 +187,7 @@ function loadStoredColumnSizing(): ColumnSizingState {
 }
 
 export default function HomeClient({ displayName, role, userId }: { displayName: string; role: Role; userId: string }) {
-  const [activeView, setActiveView] = useState<View>("hanghoa");
+  const [activeView, setActiveView] = useState<View>(role === "staff" ? "nhandon" : "hanghoa");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [brandNames, setBrandNames] = useState<string[]>([]);
@@ -1524,6 +1533,15 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
         {activeView === "khunganh" && <ImageFrameView />}
         {activeView === "ca" && role === "admin" && <ShiftsView />}
         {activeView === "cuahang" && role === "admin" && <StoresView />}
+        {activeView === "donhang" && (
+          <ComingSoonView title="Đơn hàng" description="Chức năng đơn hàng đang được chuẩn bị." />
+        )}
+        {activeView === "nhandon" && (
+          <ComingSoonView title="Nhận đơn" description="Danh sách đơn đã phân theo tuyến đường và các đơn lẻ. Đang được phát triển." />
+        )}
+        {activeView === "dadgiao" && (
+          <ComingSoonView title="Đơn đã giao" description="Danh sách các đơn đã giao. Đang được phát triển." />
+        )}
       </main>
     </div>
   );
@@ -1952,6 +1970,22 @@ function StoreIcon() {
   );
 }
 
+// Trang chờ cho chức năng đã có trong menu nhưng chưa hoạt động.
+function ComingSoonView({ title, description }: { title: string; description: string }) {
+  return (
+    <div className="app app-full">
+      <header className="app-header">
+        <div className="app-header-title">
+          <h1>{title}</h1>
+        </div>
+      </header>
+      <section className="panel">
+        <p style={{ margin: 0, color: "var(--muted)" }}>{description}</p>
+      </section>
+    </div>
+  );
+}
+
 function useNavGroups(activeView: View) {
   const [open, setOpen] = useState<Record<NavGroupKey, boolean>>(NAV_GROUP_DEFAULT);
 
@@ -2057,8 +2091,13 @@ function Sidebar({
       {mobileNavOpen && <div className="sidebar-backdrop" onClick={onToggleMobileNav} />}
       <div className="nav">
         <NavGroup label="NHÂN VIÊN" open={open.nhanvien} onToggle={() => toggle("nhanvien")}>
-          <NavButton active={activeView === "hanghoa"} onClick={() => onChange("hanghoa")} icon={<TagIcon />}>
-            Quản lý hàng hóa
+          {role !== "staff" && (
+            <NavButton active={activeView === "hanghoa"} onClick={() => onChange("hanghoa")} icon={<TagIcon />}>
+              Quản lý hàng hóa
+            </NavButton>
+          )}
+          <NavButton active={activeView === "donhang"} onClick={() => onChange("donhang")} icon={<DocIcon />}>
+            Đơn hàng
           </NavButton>
           <a className="nav-item" href="/attendance">
             <ClockIcon />
@@ -2066,33 +2105,46 @@ function Sidebar({
           </a>
         </NavGroup>
 
-        <NavGroup label="KẾ TOÁN" open={open.ketoan} onToggle={() => toggle("ketoan")} count={priceRequestCount}>
-          <NavButton active={activeView === "duyetgia"} onClick={() => onChange("duyetgia")} icon={<TagIcon />}>
-            Chờ duyệt giá
-            {priceRequestCount > 0 && <span className="pill pill-warm badge">{priceRequestCount}</span>}
+        <NavGroup label="SHIPPER" open={open.shipper} onToggle={() => toggle("shipper")}>
+          <NavButton active={activeView === "nhandon"} onClick={() => onChange("nhandon")} icon={<TruckIcon />}>
+            Nhận đơn
           </NavButton>
-          <NavButton active={activeView === "baocao"} onClick={() => onChange("baocao")} icon={<ChartIcon />}>
-            Báo cáo
-          </NavButton>
-          <NavButton active={activeView === "activitylog"} onClick={() => onChange("activitylog")} icon={<LogIcon />}>
-            Nhật ký hoạt động
+          <NavButton active={activeView === "dadgiao"} onClick={() => onChange("dadgiao")} icon={<DocIcon />}>
+            Đơn đã giao
           </NavButton>
         </NavGroup>
 
-        <NavGroup label="VẬN HÀNH" open={open.vanhanh} onToggle={() => toggle("vanhanh")}>
-          <NavButton active={activeView === "chuyenkho"} onClick={() => onChange("chuyenkho")} icon={<TruckIcon />}>
-            Chuyển kho Shopee
-          </NavButton>
-          <NavButton active={activeView === "khunganh"} onClick={() => onChange("khunganh")} icon={<ImageIcon />}>
-            Tạo khung ảnh
-          </NavButton>
-          {/* Tạm ẩn theo yêu cầu — bật lại bằng cách đổi SHOW_INVENTORY_NAV thành true */}
-          {SHOW_INVENTORY_NAV && (
-            <NavButton active={activeView === "tonkho"} onClick={() => onChange("tonkho")} icon={<ArchiveIcon />}>
-              Quản lý tồn kho
+        {role !== "staff" && (
+          <>
+          <NavGroup label="KẾ TOÁN" open={open.ketoan} onToggle={() => toggle("ketoan")} count={priceRequestCount}>
+            <NavButton active={activeView === "duyetgia"} onClick={() => onChange("duyetgia")} icon={<TagIcon />}>
+              Chờ duyệt giá
+              {priceRequestCount > 0 && <span className="pill pill-warm badge">{priceRequestCount}</span>}
             </NavButton>
-          )}
-        </NavGroup>
+            <NavButton active={activeView === "baocao"} onClick={() => onChange("baocao")} icon={<ChartIcon />}>
+              Báo cáo
+            </NavButton>
+            <NavButton active={activeView === "activitylog"} onClick={() => onChange("activitylog")} icon={<LogIcon />}>
+              Nhật ký hoạt động
+            </NavButton>
+          </NavGroup>
+
+          <NavGroup label="VẬN HÀNH" open={open.vanhanh} onToggle={() => toggle("vanhanh")}>
+            <NavButton active={activeView === "chuyenkho"} onClick={() => onChange("chuyenkho")} icon={<TruckIcon />}>
+              Chuyển kho Shopee
+            </NavButton>
+            <NavButton active={activeView === "khunganh"} onClick={() => onChange("khunganh")} icon={<ImageIcon />}>
+              Tạo khung ảnh
+            </NavButton>
+            {/* Tạm ẩn theo yêu cầu — bật lại bằng cách đổi SHOW_INVENTORY_NAV thành true */}
+            {SHOW_INVENTORY_NAV && (
+              <NavButton active={activeView === "tonkho"} onClick={() => onChange("tonkho")} icon={<ArchiveIcon />}>
+                Quản lý tồn kho
+              </NavButton>
+            )}
+          </NavGroup>
+          </>
+        )}
 
         {role === "admin" && (
           <NavGroup label="ADMIN" open={open.admin} onToggle={() => toggle("admin")}>

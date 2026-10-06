@@ -17,9 +17,6 @@ export default async function Page() {
 
   if (profile?.must_change_password) redirect("/set-password");
 
-  // Nhân viên thường (staff) chỉ dùng trang điểm danh; trang sản phẩm dành cho
-  // Sales/Kế toán/Admin.
-  if (profile?.role === "staff") redirect("/attendance");
 
   if (!profile?.role) {
     return (

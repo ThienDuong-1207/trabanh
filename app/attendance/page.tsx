@@ -32,7 +32,6 @@ export default async function AttendancePage() {
     <AttendanceClient
       displayName={profile.display_name || user.email || ""}
       chucDanh={profile.chuc_danh ?? null}
-      role={profile.role}
     />
   );
 }
