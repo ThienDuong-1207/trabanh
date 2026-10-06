@@ -214,7 +214,10 @@ button, input, select { font: inherit; color: inherit; }
    Trên màn hình rộng, .main là lưới 2 hàng: thanh trên cùng cố định, phần
    nội dung chiếm phần còn lại và tự cuộn như trước. */
 @media (min-width: 861px) {
-  .main { display: grid; grid-template-rows: auto minmax(0, 1fr); height: 100%; }
+  /* Cột phải là minmax(0,1fr): cột không được nở theo nội dung (bảng rộng),
+     nếu không khung chính sẽ rộng hơn màn hình và cả trang bị cuộn ngang. */
+  .shell { overflow: hidden; }
+  .main { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); height: 100%; min-width: 0; overflow: hidden; }
 }
 .topbar {
   display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
