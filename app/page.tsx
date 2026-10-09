@@ -17,6 +17,10 @@ export default async function Page() {
 
   if (profile?.must_change_password) redirect("/set-password");
 
+  // Nhân viên (staff) dùng trang rút gọn /staff (xem app/staff/page.tsx),
+  // không dùng khung đầy đủ này.
+  if (profile?.role === "staff") redirect("/staff");
+
 
   if (!profile?.role) {
     return (

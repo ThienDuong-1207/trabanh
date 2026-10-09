@@ -20,8 +20,9 @@ import { ShiftsView, StoresView } from "./views/AdminScheduleViews";
 import OrdersView from "./views/OrdersView";
 import CustomersView from "./views/CustomersView";
 import ChatView from "./views/ChatView";
+import AttendanceManagementView from "./views/AttendanceManagementView";
 
-type View = "hanghoa" | "tonkho" | "baocao" | "duyetgia" | "users" | "activitylog" | "chuyenkho" | "khunganh" | "ca" | "cuahang" | "donhang" | "khachhang" | "chat";
+type View = "hanghoa" | "tonkho" | "baocao" | "duyetgia" | "users" | "activitylog" | "chuyenkho" | "khunganh" | "ca" | "cuahang" | "donhang" | "khachhang" | "chat" | "diemdanh_quanly";
 
 // Nhóm và tên hiển thị của từng màn hình — dùng cho sidebar và thanh trên cùng.
 const VIEW_LABEL: Record<View, string> = {
@@ -38,6 +39,7 @@ const VIEW_LABEL: Record<View, string> = {
   donhang: "Đơn hàng",
   khachhang: "Khách hàng",
   chat: "Chat khách hàng",
+  diemdanh_quanly: "Quản lý điểm danh",
 };
 const VIEW_GROUP: Record<View, string> = {
   hanghoa: "Nhân viên",
@@ -53,13 +55,14 @@ const VIEW_GROUP: Record<View, string> = {
   donhang: "Nhân viên",
   khachhang: "Nhân viên",
   chat: "Nhân viên",
+  diemdanh_quanly: "Admin",
 };
 
 // Nhóm sidebar dùng để thu gọn/mở rộng. Mặc định mở tất cả; trạng thái được
 // nhớ trên thiết bị (localStorage) — đây chỉ là tiện ích giao diện, mất đi
 // thì menu vẫn hoạt động bình thường.
-type NavGroupKey = "nhanvien" | "ketoan" | "vanhanh" | "admin";
-const NAV_GROUP_DEFAULT: Record<NavGroupKey, boolean> = { nhanvien: true, ketoan: true, vanhanh: true, admin: true };
+type NavGroupKey = "nhanvien" | "ketoan" | "vanhanh" | "admin" | "quanly";
+const NAV_GROUP_DEFAULT: Record<NavGroupKey, boolean> = { nhanvien: true, ketoan: true, vanhanh: true, admin: true, quanly: true };
 const NAV_STORAGE_KEY = "sidebar-open-groups";
 const VIEW_NAV_GROUP: Record<View, NavGroupKey> = {
   hanghoa: "nhanvien",
@@ -75,6 +78,7 @@ const VIEW_NAV_GROUP: Record<View, NavGroupKey> = {
   donhang: "nhanvien",
   khachhang: "nhanvien",
   chat: "nhanvien",
+  diemdanh_quanly: "quanly",
 };
 export type Role = "sales" | "accountant" | "admin" | "staff";
 
@@ -1539,6 +1543,7 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
         {activeView === "donhang" && <OrdersView userId={userId} />}
         {activeView === "khachhang" && <CustomersView />}
         {activeView === "chat" && <ChatView role={role} userId={userId} />}
+        {activeView === "diemdanh_quanly" && role === "admin" && <AttendanceManagementView />}
       </main>
     </div>
   );
@@ -2108,10 +2113,12 @@ function Sidebar({
           <NavButton active={activeView === "chat"} onClick={() => onChange("chat")} icon={<ChatIcon />}>
             Chat khách hàng
           </NavButton>
-          <a className="nav-item" href="/attendance">
-            <ClockIcon />
-            Điểm danh
-          </a>
+          {role === "sales" && (
+            <a className="nav-item" href="/attendance">
+              <ClockIcon />
+              Điểm danh
+            </a>
+          )}
         </NavGroup>
 
         {role !== "staff" && (
@@ -2156,6 +2163,17 @@ function Sidebar({
             </NavButton>
             <NavButton active={activeView === "users"} onClick={() => onChange("users")} icon={<UsersIcon />}>
               Quản lý người dùng
+            </NavButton>
+          </NavGroup>
+        )}
+
+        {role === "admin" && (
+          <NavGroup label="QUẢN LÝ" open={open.quanly} onToggle={() => toggle("quanly")}>
+            <NavButton active={activeView === "khachhang"} onClick={() => onChange("khachhang")} icon={<UsersIcon />}>
+              Danh sách khách hàng
+            </NavButton>
+            <NavButton active={activeView === "diemdanh_quanly"} onClick={() => onChange("diemdanh_quanly")} icon={<ClockIcon />}>
+              Quản lý điểm danh
             </NavButton>
           </NavGroup>
         )}

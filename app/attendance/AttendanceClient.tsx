@@ -66,9 +66,13 @@ function getPosition(): Promise<GeolocationPosition> {
 export default function AttendanceClient({
   displayName,
   chucDanh,
+  embedded = false,
 }: {
   displayName: string;
   chucDanh: string | null;
+  // true khi nhúng làm 1 tab trong trang khác (ví dụ /staff) — ẩn nút "Quay
+  // lại" và khung trang riêng, vì trang cha đã có sidebar/tiêu đề của nó.
+  embedded?: boolean;
 }) {
   const [data, setData] = useState<TodayResponse | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -123,14 +127,16 @@ export default function AttendanceClient({
   const checkedOut = !!att?.check_out_at;
 
   return (
-    <main style={{ minHeight: "100vh", padding: "24px 16px", display: "flex", flexDirection: "column", gap: 16, maxWidth: 480, margin: "0 auto" }}>
-      <a className="btn btn-quiet" href="/" style={{ alignSelf: "flex-start" }}>
-        ← Quay lại
-      </a>
+    <main style={embedded ? { display: "flex", flexDirection: "column", gap: 16, maxWidth: 480 } : { minHeight: "100vh", padding: "24px 16px", display: "flex", flexDirection: "column", gap: 16, maxWidth: 480, margin: "0 auto" }}>
+      {!embedded && (
+        <a className="btn btn-quiet" href="/" style={{ alignSelf: "flex-start" }}>
+          ← Quay lại
+        </a>
+      )}
 
       <header>
-        <h1 style={{ fontSize: 19, margin: 0 }}>Điểm danh</h1>
-        <p style={{ color: "var(--muted)", margin: "4px 0 0" }}>
+        {!embedded && <h1 style={{ fontSize: 19, margin: 0 }}>Điểm danh</h1>}
+        <p style={{ color: "var(--muted)", margin: embedded ? 0 : "4px 0 0" }}>
           {displayName}
           {chucDanh ? ` · ${chucDanh}` : ""}
         </p>
