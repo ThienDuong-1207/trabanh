@@ -617,3 +617,145 @@ create policy "Đọc chấm công của mình hoặc Kế toán/Admin" on atten
 drop policy if exists "Đọc lịch sử sửa giờ công cho Kế toán/Admin" on attendance_edits;
 create policy "Đọc lịch sử sửa giờ công cho Kế toán/Admin" on attendance_edits
   for select using (exists (select 1 from profiles where id = auth.uid() and role in ('accountant', 'admin')));
+
+-- Giai đoạn 10: giao hàng theo tuyến — ĐÃ DỪNG, không còn dùng trong app này.
+-- Lý do: tra-banh-shop (dùng CHUNG project Supabase này) đã có sẵn hệ thống
+-- đơn hàng + shipper + gom tuyến riêng (bảng orders, role shipper, xem
+-- lib/admin/geocodeAddress.ts và lib/admin/routeClustering.ts bên đó).
+-- 2 bảng dưới đây (delivery_routes, delivery_orders) đã chạy trên Supabase
+-- nhưng trống (0 dòng), không có code nào trong trabanh còn tham chiếu tới.
+-- Xoá thật khi chắc chắn không cần:
+--   drop table if exists delivery_orders;
+--   drop table if exists delivery_routes;
+create table if not exists delivery_routes (
+  id uuid primary key default gen_random_uuid(),
+  ngay date not null,
+  store_id uuid references stores(id) on delete set null,
+  ten text not null,
+  so_diem integer not null default 0,
+  tong_km numeric(10, 2),
+  tong_phut numeric(10, 1),
+  created_at timestamptz not null default now()
+);
+create index if not exists delivery_routes_ngay_idx on delivery_routes(ngay);
+
+create table if not exists delivery_orders (
+  id uuid primary key default gen_random_uuid(),
+  ngay date not null,
+  ten_khach text not null,
+  sdt text,
+  dia_chi text not null,
+  latitude double precision,
+  longitude double precision,
+  store_id uuid references stores(id) on delete set null,
+  route_id uuid references delivery_routes(id) on delete set null,
+  stop_order integer,
+  status text not null default 'pending' check (status in ('pending', 'delivered')),
+  delivered_at timestamptz,
+  created_at timestamptz not null default now()
+);
+create index if not exists delivery_orders_ngay_idx on delivery_orders(ngay);
+
+alter table delivery_routes enable row level security;
+alter table delivery_orders enable row level security;
+
+drop policy if exists "Đọc tuyến khi đã được cấp quyền" on delivery_routes;
+create policy "Đọc tuyến khi đã được cấp quyền" on delivery_routes
+  for select using (exists (select 1 from profiles where id = auth.uid() and role is not null));
+
+drop policy if exists "Đọc đơn giao khi đã được cấp quyền" on delivery_orders;
+create policy "Đọc đơn giao khi đã được cấp quyền" on delivery_orders
+  for select using (exists (select 1 from profiles where id = auth.uid() and role is not null));
+
+-- Giai đoạn 11: quản lý chat khách hàng (gộp về 1 Zalo OA duy nhất).
+-- Hoạt động được NGAY dưới dạng nhập tay (giống sổ ghi chép hội thoại) trong
+-- lúc chờ Zalo duyệt Official Account; khi có webhook/API thật, tin "khách
+-- gửi" sẽ do webhook tự tạo thay vì nhập tay, và tin "trả lời" sẽ gọi thêm
+-- Zalo Send API — không đổi schema, không đổi giao diện, không đổi phân quyền.
+create table if not exists zalo_conversations (
+  id uuid primary key default gen_random_uuid(),
+  -- id người dùng Zalo thật — để trống (null) cho tới khi nối Zalo OA; từ đó
+  -- webhook dùng cột này để nối đúng tin nhắn mới vào đúng hội thoại cũ.
+  zalo_user_id text unique,
+  customer_name text not null,
+  customer_phone text,
+  branch_id uuid references stores(id) on delete set null,
+  status text not null default 'moi' check (status in ('moi', 'dang_xu_ly', 'da_dong')),
+  last_message_at timestamptz not null default now(),
+  created_by uuid references profiles(id),
+  created_at timestamptz not null default now()
+);
+create index if not exists zalo_conversations_last_message_idx on zalo_conversations(last_message_at desc);
+
+create table if not exists zalo_messages (
+  id uuid primary key default gen_random_uuid(),
+  conversation_id uuid not null references zalo_conversations(id) on delete cascade,
+  direction text not null check (direction in ('vao', 'ra')), -- vao = khách gửi, ra = nhân viên trả lời
+  content text,
+  image_url text,
+  -- Nhân viên gửi (chiều "ra"); null cho chiều "vao" (từ khách, hoặc webhook sau này).
+  sent_by uuid references profiles(id),
+  -- id tin nhắn bên Zalo — để trống cho tới khi nối thật; dùng để chặn lưu
+  -- trùng khi webhook gọi lại cùng 1 tin (idempotency).
+  zalo_message_id text unique,
+  created_at timestamptz not null default now()
+);
+create index if not exists zalo_messages_conversation_idx on zalo_messages(conversation_id, created_at);
+
+create table if not exists chat_tags (
+  id uuid primary key default gen_random_uuid(),
+  name text not null unique,
+  color text not null default 'warm' check (color in ('warm', 'primary', 'success', 'danger')),
+  created_at timestamptz not null default now()
+);
+
+create table if not exists conversation_tag_links (
+  conversation_id uuid not null references zalo_conversations(id) on delete cascade,
+  tag_id uuid not null references chat_tags(id) on delete cascade,
+  primary key (conversation_id, tag_id)
+);
+
+-- "Admin gán quyền cho staff/sales nào thấy hội thoại nào" — nhiều người có
+-- thể cùng được gán 1 hội thoại (ví dụ người chính + người dự phòng).
+create table if not exists conversation_assignments (
+  conversation_id uuid not null references zalo_conversations(id) on delete cascade,
+  user_id uuid not null references profiles(id) on delete cascade,
+  assigned_by uuid references profiles(id),
+  assigned_at timestamptz not null default now(),
+  primary key (conversation_id, user_id)
+);
+
+alter table zalo_conversations enable row level security;
+alter table zalo_messages enable row level security;
+alter table chat_tags enable row level security;
+alter table conversation_tag_links enable row level security;
+alter table conversation_assignments enable row level security;
+
+-- Admin/Kế toán thấy toàn bộ; Sales/Staff chỉ thấy hội thoại đã được gán cho
+-- chính mình (conversation_assignments) — đúng yêu cầu "admin thấy hết, staff
+-- chỉ thấy đoạn được gán quyền".
+drop policy if exists "Xem hội thoại theo quyền được gán" on zalo_conversations;
+create policy "Xem hội thoại theo quyền được gán" on zalo_conversations
+  for select using (
+    exists (select 1 from profiles where id = auth.uid() and role in ('accountant', 'admin'))
+    or exists (select 1 from conversation_assignments ca where ca.conversation_id = zalo_conversations.id and ca.user_id = auth.uid())
+  );
+
+drop policy if exists "Xem tin nhắn theo quyền được gán" on zalo_messages;
+create policy "Xem tin nhắn theo quyền được gán" on zalo_messages
+  for select using (
+    exists (select 1 from profiles where id = auth.uid() and role in ('accountant', 'admin'))
+    or exists (select 1 from conversation_assignments ca where ca.conversation_id = zalo_messages.conversation_id and ca.user_id = auth.uid())
+  );
+
+drop policy if exists "Đọc tag khi đã được cấp quyền" on chat_tags;
+create policy "Đọc tag khi đã được cấp quyền" on chat_tags
+  for select using (exists (select 1 from profiles where id = auth.uid() and role is not null));
+
+drop policy if exists "Xem gán tag theo quyền xem hội thoại" on conversation_tag_links;
+create policy "Xem gán tag theo quyền xem hội thoại" on conversation_tag_links
+  for select using (exists (select 1 from zalo_conversations c where c.id = conversation_tag_links.conversation_id));
+
+drop policy if exists "Xem phân công theo quyền xem hội thoại" on conversation_assignments;
+create policy "Xem phân công theo quyền xem hội thoại" on conversation_assignments
+  for select using (exists (select 1 from zalo_conversations c where c.id = conversation_assignments.conversation_id));

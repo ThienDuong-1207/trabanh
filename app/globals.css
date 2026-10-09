@@ -775,6 +775,39 @@ label.field input:disabled { opacity: 0.6; }
 .modal-export .modal-actions { margin-top: 8px; padding-top: 14px; }
 .modal-export .modal-actions .btn { font-size: 13px; padding: 9px 20px; }
 
+/* Modal "Chi tiết đơn hàng" — nhiều nội dung hơn modal mặc định (bảng sản
+   phẩm, dòng thời gian trạng thái), nên rộng hơn và tự cuộn dọc khi cao quá
+   màn hình thay vì đẩy modal-backdrop tràn trang. */
+.modal-wide { width: min(640px, 100%); max-height: 88vh; overflow-y: auto; }
+
+/* Thanh tiến trình trạng thái đơn hàng (OrdersView) — các bước đã qua có
+   dấu ✓, bước hiện tại tô đậm, nối nhau bằng 1 đường kẻ ngang. */
+.status-stepper { display: flex; margin: 10px 0 14px; }
+.status-step { position: relative; flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: var(--text-micro); color: var(--muted); text-align: center; }
+.status-step.current { color: var(--primary-ink); font-weight: 650; }
+.status-step-dot {
+  width: 20px; height: 20px; border-radius: 50%; background: var(--surface-sunken); color: var(--muted);
+  display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 650; z-index: 1;
+}
+.status-step.done .status-step-dot { background: var(--success); color: #fff; }
+.status-step.current .status-step-dot { background: var(--primary); color: #fff; }
+.status-step-line { position: absolute; top: 10px; left: -50%; width: 100%; height: 2px; background: var(--border); z-index: 0; }
+.status-step-line.done { background: var(--success); }
+.status-step-label { max-width: 72px; }
+
+/* Dòng thời gian trạng thái (OrdersView) — chấm + đường nối dọc, giống
+   timeline của log hoạt động nhưng gọn hơn để nhúng trong modal. */
+.timeline { display: flex; flex-direction: column; }
+.timeline-row { position: relative; display: flex; gap: 10px; padding-bottom: 12px; }
+.timeline-row:last-child { padding-bottom: 0; }
+.timeline-line { position: absolute; top: 14px; left: 4px; bottom: 0; width: 1.5px; background: var(--border); }
+.timeline-dot { width: 9px; height: 9px; margin-top: 4px; border-radius: 50%; background: var(--border-strong); flex-shrink: 0; z-index: 1; }
+.timeline-row.current .timeline-dot { background: var(--primary); }
+.timeline-status { font-size: var(--text-body-sm); font-weight: 600; }
+.timeline-meta { color: var(--muted); font-size: var(--text-micro); }
+
+.col-status { white-space: nowrap; }
+
 
 .pagination-bar { display: flex; align-items: center; justify-content: center; gap: 11px; margin-top: 4px; font-size: var(--text-meta); color: var(--muted); }
 

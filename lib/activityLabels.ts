@@ -21,4 +21,7 @@ export const ACTION_LABELS: Record<string, string> = {
   "shift.create": "Tạo ca làm việc",
   "shift.assign": "Phân ca cho nhân viên",
   "shift.unassign": "Bỏ phân ca nhân viên",
+  "chat.create_conversation": "Tạo hội thoại khách hàng",
+  "chat.update_conversation": "Sửa hội thoại khách hàng",
+  "chat.assign": "Gán quyền xem hội thoại",
 };

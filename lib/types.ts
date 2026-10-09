@@ -166,3 +166,77 @@ export type Category = {
   misa_nhh_code: string | null;
   created_at: string;
 };
+
+// Đơn hàng từ website bán hàng (tra-banh-shop) — bảng `orders`/`order_items`
+// nằm trong CÙNG project Supabase này, không phải bảng riêng của trabanh.
+// Khớp đúng shape ở tra-banh-shop/lib/admin/types.ts, chỉ đọc/sửa trạng thái ở
+// đây (RLS đã cho role sales/accountant/admin/staff xem + sửa, xem
+// tra-banh-shop/supabase/migrations/001, 007b, 008). Không tạo schema mới.
+export type OrderStatus = "cho_thanh_toan" | "da_thanh_toan" | "dang_xu_ly" | "dang_giao" | "hoan_thanh" | "huy";
+export type PaymentMethod = "chuyen_khoan" | "cod";
+
+export type Order = {
+  id: string;
+  order_code: string;
+  customer_name: string;
+  customer_phone: string;
+  customer_address: string | null;
+  note: string | null;
+  status: OrderStatus;
+  payment_method: PaymentMethod;
+  total_amount: number;
+  created_at: string;
+  confirmed_at: string | null;
+  confirmed_by: string | null;
+  shipper_id: string | null;
+  lat: number | null;
+  lng: number | null;
+  geocoded_ward: string | null;
+};
+
+// Quản lý chat khách hàng (gộp về 1 Zalo OA) — xem supabase/schema.sql
+// "Giai đoạn 11". Hoạt động được ngay ở dạng nhập tay; zalo_user_id /
+// zalo_message_id để null cho tới khi nối Zalo OA Open API thật.
+export type ChatStatus = "moi" | "dang_xu_ly" | "da_dong";
+export type ChatTagColor = "warm" | "primary" | "success" | "danger";
+
+export type ChatTag = { id: string; name: string; color: ChatTagColor };
+
+export type ChatConversation = {
+  id: string;
+  zalo_user_id: string | null;
+  customer_name: string;
+  customer_phone: string | null;
+  branch_id: string | null;
+  branch?: { id: string; name: string } | null;
+  status: ChatStatus;
+  last_message_at: string;
+  created_by: string | null;
+  created_at: string;
+  tags?: ChatTag[];
+  assignees?: { user_id: string; display_name: string | null }[];
+  last_message_preview?: string | null;
+};
+
+export type ChatMessage = {
+  id: string;
+  conversation_id: string;
+  direction: "vao" | "ra";
+  content: string | null;
+  image_url: string | null;
+  sent_by: string | null;
+  sent_by_profile?: { display_name: string | null } | null;
+  zalo_message_id: string | null;
+  created_at: string;
+};
+
+export type OrderItem = {
+  id: string;
+  order_id: string;
+  product_id: string;
+  ten_hang_hoa: string;
+  don_vi: string;
+  don_gia: number;
+  so_luong: number;
+  thanh_tien: number;
+};

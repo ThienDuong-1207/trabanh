@@ -17,8 +17,11 @@ import { ACTION_LABELS } from "@/lib/activityLabels";
 import { stripXlsxDrawings } from "@/lib/stripXlsxDrawings";
 import PasswordChecklist from "@/components/PasswordChecklist";
 import { ShiftsView, StoresView } from "./views/AdminScheduleViews";
+import OrdersView from "./views/OrdersView";
+import CustomersView from "./views/CustomersView";
+import ChatView from "./views/ChatView";
 
-type View = "hanghoa" | "tonkho" | "baocao" | "duyetgia" | "users" | "activitylog" | "chuyenkho" | "khunganh" | "ca" | "cuahang" | "donhang" | "nhandon" | "dadgiao";
+type View = "hanghoa" | "tonkho" | "baocao" | "duyetgia" | "users" | "activitylog" | "chuyenkho" | "khunganh" | "ca" | "cuahang" | "donhang" | "khachhang" | "chat";
 
 // Nhóm và tên hiển thị của từng màn hình — dùng cho sidebar và thanh trên cùng.
 const VIEW_LABEL: Record<View, string> = {
@@ -33,8 +36,8 @@ const VIEW_LABEL: Record<View, string> = {
   ca: "Ca làm việc",
   cuahang: "Cửa hàng",
   donhang: "Đơn hàng",
-  nhandon: "Nhận đơn",
-  dadgiao: "Đơn đã giao",
+  khachhang: "Khách hàng",
+  chat: "Chat khách hàng",
 };
 const VIEW_GROUP: Record<View, string> = {
   hanghoa: "Nhân viên",
@@ -48,15 +51,15 @@ const VIEW_GROUP: Record<View, string> = {
   ca: "Admin",
   cuahang: "Admin",
   donhang: "Nhân viên",
-  nhandon: "Shipper",
-  dadgiao: "Shipper",
+  khachhang: "Nhân viên",
+  chat: "Nhân viên",
 };
 
 // Nhóm sidebar dùng để thu gọn/mở rộng. Mặc định mở tất cả; trạng thái được
 // nhớ trên thiết bị (localStorage) — đây chỉ là tiện ích giao diện, mất đi
 // thì menu vẫn hoạt động bình thường.
-type NavGroupKey = "nhanvien" | "shipper" | "ketoan" | "vanhanh" | "admin";
-const NAV_GROUP_DEFAULT: Record<NavGroupKey, boolean> = { nhanvien: true, shipper: true, ketoan: true, vanhanh: true, admin: true };
+type NavGroupKey = "nhanvien" | "ketoan" | "vanhanh" | "admin";
+const NAV_GROUP_DEFAULT: Record<NavGroupKey, boolean> = { nhanvien: true, ketoan: true, vanhanh: true, admin: true };
 const NAV_STORAGE_KEY = "sidebar-open-groups";
 const VIEW_NAV_GROUP: Record<View, NavGroupKey> = {
   hanghoa: "nhanvien",
@@ -70,8 +73,8 @@ const VIEW_NAV_GROUP: Record<View, NavGroupKey> = {
   ca: "admin",
   cuahang: "admin",
   donhang: "nhanvien",
-  nhandon: "shipper",
-  dadgiao: "shipper",
+  khachhang: "nhanvien",
+  chat: "nhanvien",
 };
 export type Role = "sales" | "accountant" | "admin" | "staff";
 
@@ -187,7 +190,7 @@ function loadStoredColumnSizing(): ColumnSizingState {
 }
 
 export default function HomeClient({ displayName, role, userId }: { displayName: string; role: Role; userId: string }) {
-  const [activeView, setActiveView] = useState<View>(role === "staff" ? "nhandon" : "hanghoa");
+  const [activeView, setActiveView] = useState<View>(role === "staff" ? "donhang" : "hanghoa");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [brandNames, setBrandNames] = useState<string[]>([]);
@@ -1533,15 +1536,9 @@ export default function HomeClient({ displayName, role, userId }: { displayName:
         {activeView === "khunganh" && <ImageFrameView />}
         {activeView === "ca" && role === "admin" && <ShiftsView />}
         {activeView === "cuahang" && role === "admin" && <StoresView />}
-        {activeView === "donhang" && (
-          <ComingSoonView title="Đơn hàng" description="Chức năng đơn hàng đang được chuẩn bị." />
-        )}
-        {activeView === "nhandon" && (
-          <ComingSoonView title="Nhận đơn" description="Danh sách đơn đã phân theo tuyến đường và các đơn lẻ. Đang được phát triển." />
-        )}
-        {activeView === "dadgiao" && (
-          <ComingSoonView title="Đơn đã giao" description="Danh sách các đơn đã giao. Đang được phát triển." />
-        )}
+        {activeView === "donhang" && <OrdersView userId={userId} />}
+        {activeView === "khachhang" && <CustomersView />}
+        {activeView === "chat" && <ChatView role={role} userId={userId} />}
       </main>
     </div>
   );
@@ -1694,7 +1691,7 @@ const ProductRow = memo(function ProductRow({
             value={p.ten_hoa_don}
             onSave={(v) => onUpdateField(p, "ten_hoa_don", v)}
             saving={isSaving}
-            disabled={role === "sales"}
+            disabled={role === "sales" || role === "staff"}
             clickToEdit
           />
         </td>
@@ -1970,6 +1967,14 @@ function StoreIcon() {
   );
 }
 
+function ChatIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 20l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+    </svg>
+  );
+}
+
 // Trang chờ cho chức năng đã có trong menu nhưng chưa hoạt động.
 function ComingSoonView({ title, description }: { title: string; description: string }) {
   return (
@@ -2091,13 +2096,17 @@ function Sidebar({
       {mobileNavOpen && <div className="sidebar-backdrop" onClick={onToggleMobileNav} />}
       <div className="nav">
         <NavGroup label="NHÂN VIÊN" open={open.nhanvien} onToggle={() => toggle("nhanvien")}>
-          {role !== "staff" && (
-            <NavButton active={activeView === "hanghoa"} onClick={() => onChange("hanghoa")} icon={<TagIcon />}>
-              Quản lý hàng hóa
-            </NavButton>
-          )}
+          <NavButton active={activeView === "hanghoa"} onClick={() => onChange("hanghoa")} icon={<TagIcon />}>
+            Quản lý hàng hóa
+          </NavButton>
           <NavButton active={activeView === "donhang"} onClick={() => onChange("donhang")} icon={<DocIcon />}>
             Đơn hàng
+          </NavButton>
+          <NavButton active={activeView === "khachhang"} onClick={() => onChange("khachhang")} icon={<UsersIcon />}>
+            Khách hàng
+          </NavButton>
+          <NavButton active={activeView === "chat"} onClick={() => onChange("chat")} icon={<ChatIcon />}>
+            Chat khách hàng
           </NavButton>
           <a className="nav-item" href="/attendance">
             <ClockIcon />
@@ -2105,18 +2114,9 @@ function Sidebar({
           </a>
         </NavGroup>
 
-        <NavGroup label="SHIPPER" open={open.shipper} onToggle={() => toggle("shipper")}>
-          <NavButton active={activeView === "nhandon"} onClick={() => onChange("nhandon")} icon={<TruckIcon />}>
-            Nhận đơn
-          </NavButton>
-          <NavButton active={activeView === "dadgiao"} onClick={() => onChange("dadgiao")} icon={<DocIcon />}>
-            Đơn đã giao
-          </NavButton>
-        </NavGroup>
-
         {role !== "staff" && (
           <>
-          <NavGroup label="KẾ TOÁN" open={open.ketoan} onToggle={() => toggle("ketoan")} count={priceRequestCount}>
+            <NavGroup label="KẾ TOÁN" open={open.ketoan} onToggle={() => toggle("ketoan")} count={priceRequestCount}>
             <NavButton active={activeView === "duyetgia"} onClick={() => onChange("duyetgia")} icon={<TagIcon />}>
               Chờ duyệt giá
               {priceRequestCount > 0 && <span className="pill pill-warm badge">{priceRequestCount}</span>}
