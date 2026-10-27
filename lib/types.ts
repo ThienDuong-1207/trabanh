@@ -161,6 +161,10 @@ export type Category = {
   name: string;
   sort_order: number;
   quote_sort_order: number;
+  // Thứ tự RIÊNG cho file kiểm kho (lib/inventoryCheckBuilder.ts) — tách
+  // khỏi sort_order (Giai đoạn 12) để đổi thứ tự kiểm kho không ảnh hưởng
+  // dropdown lọc hay báo cáo khác đang dùng sort_order chung.
+  inventory_sort_order: number;
   name_en: string | null;
   name_zh: string | null;
   misa_nhh_code: string | null;

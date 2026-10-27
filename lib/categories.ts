@@ -27,14 +27,19 @@ export async function ensureCategory(name: string, existing: Category[]): Promis
   if (found) return found;
 
   const supabase = supabaseAdmin();
-  const nextOrder = (field: "sort_order" | "quote_sort_order") => {
+  const nextOrder = (field: "sort_order" | "quote_sort_order" | "inventory_sort_order") => {
     const belowLast = existing.filter((c) => c[field] < 999).map((c) => c[field]);
     return (belowLast.length > 0 ? Math.max(...belowLast) : 0) + 10;
   };
 
   const { data, error } = await supabase
     .from("categories")
-    .insert({ name, sort_order: nextOrder("sort_order"), quote_sort_order: nextOrder("quote_sort_order") })
+    .insert({
+      name,
+      sort_order: nextOrder("sort_order"),
+      quote_sort_order: nextOrder("quote_sort_order"),
+      inventory_sort_order: nextOrder("inventory_sort_order"),
+    })
     .select()
     .single();
   if (error) throw new Error(`Không tạo được nhóm hàng mới "${name}": ${error.message}`);
@@ -56,4 +61,14 @@ export function buildQuoteCategoryOrder(categories: Category[]): string[] {
     .map((c) => c.name);
   const withoutCcdc = ordered.filter((n) => n !== CCDC);
   return ordered.includes(CCDC) ? [...withoutCcdc, "Combo", CCDC] : [...withoutCcdc, "Combo"];
+}
+
+// Thứ tự nhóm hàng RIÊNG cho file kiểm kho (lib/inventoryCheckBuilder.ts,
+// app/api/export-inventory-check/route.ts) — tách khỏi sort_order chung,
+// xem cột inventory_sort_order (Giai đoạn 12 trong schema.sql).
+export function buildInventoryCategoryOrder(categories: Category[]): string[] {
+  return categories
+    .slice()
+    .sort((a, b) => a.inventory_sort_order - b.inventory_sort_order)
+    .map((c) => c.name);
 }

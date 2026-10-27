@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseServer";
 import { buildInventoryCheckPdf } from "@/lib/inventoryCheckBuilder";
-import { getCategories } from "@/lib/categories";
+import { getCategories, buildInventoryCategoryOrder } from "@/lib/categories";
 import { Product } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
     if (error) throw error;
 
     const categories = await getCategories();
-    const buf = await buildInventoryCheckPdf(data as Product[], startDate, categories.map((c) => c.name));
+    const buf = await buildInventoryCheckPdf(data as Product[], startDate, buildInventoryCategoryOrder(categories));
     return new NextResponse(new Uint8Array(buf), {
       headers: { "Content-Type": "application/pdf" },
     });

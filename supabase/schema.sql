@@ -759,3 +759,29 @@ create policy "Xem gán tag theo quyền xem hội thoại" on conversation_tag_
 drop policy if exists "Xem phân công theo quyền xem hội thoại" on conversation_assignments;
 create policy "Xem phân công theo quyền xem hội thoại" on conversation_assignments
   for select using (exists (select 1 from zalo_conversations c where c.id = conversation_assignments.conversation_id));
+
+-- Giai đoạn 12: thứ tự nhóm hàng RIÊNG cho file kiểm kho — tách khỏi
+-- sort_order (dùng chung dropdown/lọc/báo cáo khác, không đổi gì ở đó).
+-- Mặc định = sort_order hiện tại (không đổi gì cho tới khi set riêng dưới
+-- đây), giống cách quote_sort_order từng được tách ra.
+alter table categories add column if not exists inventory_sort_order integer;
+update categories set inventory_sort_order = sort_order where inventory_sort_order is null;
+
+-- Thứ tự kiểm kho đã xác nhận với anh Thiên (2026-10-27): Trà, Bột, Syrup,
+-- Mứt, Sốt, Đồ lon, Trân châu, Mặt hàng khác, Sữa đặc, Sữa tươi, Kem đông
+-- lạnh — các nhóm khác (Bơ, Men, Phụ gia, Cà phê, Công cụ dụng cụ...) giữ
+-- nguyên vị trí tương đối theo sort_order cũ (đã copy ở câu update trên).
+update categories set inventory_sort_order = case name
+  when 'Trà' then 10
+  when 'Bột' then 20
+  when 'Syrup' then 30
+  when 'Mứt' then 40
+  when 'Sốt' then 50
+  when 'Đồ lon' then 60
+  when 'Trân châu' then 70
+  when 'Mặt hàng khác' then 80
+  when 'Sữa đặc' then 90
+  when 'Sữa tươi' then 100
+  when 'Kem đông lạnh' then 110
+  else inventory_sort_order
+end;
