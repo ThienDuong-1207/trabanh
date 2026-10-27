@@ -3,7 +3,6 @@ import path from "path";
 import pdfmake from "./pdfFonts";
 import { Product } from "./types";
 import { extractUnitFromQuyCach } from "./suggestionLists";
-import { generateBarcodePng } from "./barcodeImage";
 
 // Riêng 2 thương hiệu SAVO/TAMIX: giá thùng lưu sẵn trong hệ thống không
 // đáng tin (không có chiết khấu mua sỉ thật, chỉ là giá lẻ nhân số lượng) —
@@ -36,19 +35,19 @@ export type QuoteInfo = {
 export const QUOTE_LABELS = {
   vi: {
     title: "BẢNG GIÁ",
-    columns: ["STT", "TÊN SẢN PHẨM", "QUY CÁCH", "GIÁ LẺ", "GIÁ THÙNG", "MÃ VẠCH"],
+    columns: ["STT", "TÊN SẢN PHẨM", "QUY CÁCH", "GIÁ LẺ", "GIÁ THÙNG"],
     empty: "Không có sản phẩm nào trong danh sách đã chọn.",
     notes: "Ghi chú:\n- Giá đã bao gồm VAT\n- Bảng giá có giá trị tại thời điểm báo giá (cho đến khi có thông báo mới)\n- Giá bán lẻ áp dụng tại Tiệm Trà&Bánh",
   },
   en: {
     title: "PRICE LIST",
-    columns: ["No.", "PRODUCT NAME", "SPECIFICATION", "RETAIL PRICE", "CASE PRICE", "BARCODE"],
+    columns: ["No.", "PRODUCT NAME", "SPECIFICATION", "RETAIL PRICE", "CASE PRICE"],
     empty: "No products in the selected list.",
     notes: "Notes:\n- Price includes VAT\n- Valid at the time of quotation (until further notice)\n- Retail price applies at Tiệm Trà&Bánh",
   },
   zh: {
     title: "价目表",
-    columns: ["序号", "产品名称", "规格", "零售价", "箱价", "条码"],
+    columns: ["序号", "产品名称", "规格", "零售价", "箱价"],
     empty: "所选清单中没有产品。",
     notes: "备注:\n- 已含增值税\n- 报价单在另行通知前有效\n- 零售价仅适用于Tiệm Trà&Bánh",
   },
@@ -219,24 +218,6 @@ export async function buildQuotePdf(
   const lang: QuoteLang = info.lang === "en" ? "en" : info.lang === "zh" ? "zh" : "vi";
   const labels = QUOTE_LABELS[lang];
 
-  // Tạo trước ảnh mã vạch cho mỗi mã vạch KHÁC NHAU xuất hiện trong danh
-  // sách (chạy song song, không phải tuần tự từng dòng) — nhiều sản phẩm có
-  // thể trùng mã vạch (ví dụ các biến thể cùng 1 mã), tạo 1 lần dùng lại.
-  // Sản phẩm thiếu mã vạch thì bỏ trống ô này, không suy diễn/bịa mã.
-  const uniqueBarcodes = Array.from(new Set(sorted.map((p) => p.ma_vach?.trim()).filter((v): v is string => !!v)));
-  const barcodeDataUris = new Map<string, string>();
-  await Promise.all(
-    uniqueBarcodes.map(async (code) => {
-      const png = await generateBarcodePng(code);
-      if (png) barcodeDataUris.set(code, `data:image/png;base64,${png.toString("base64")}`);
-    }),
-  );
-  function barcodeCell(p: Product): any {
-    const code = p.ma_vach?.trim();
-    const dataUri = code ? barcodeDataUris.get(code) : undefined;
-    return dataUri ? { image: dataUri, fit: [72, 16] as [number, number], alignment: "center" } : { text: "" };
-  }
-
   // Chèn 1 dòng tiêu đề tên nhóm hàng trước sản phẩm đầu tiên của mỗi nhóm
   // khác với nhóm ngay trước đó — STT vẫn đếm liên tục xuyên suốt bảng,
   // không reset về 1 ở mỗi nhóm (items đã được sortForQuote sắp theo đúng
@@ -268,11 +249,10 @@ export async function buildQuotePdf(
           bold: true,
           italics: true,
           decoration: "underline",
-          colSpan: 6,
+          colSpan: 5,
           fillColor: CATEGORY_FILL,
           fontSize: TABLE_FONT_SIZE,
         },
-        {},
         {},
         {},
         {},
@@ -286,7 +266,6 @@ export async function buildQuotePdf(
       { text: quyCachDisplay(p, lang), alignment: "left", fontSize: TABLE_FONT_SIZE },
       { text: formatPrice(p.gia_ban), alignment: "right", fontSize: TABLE_FONT_SIZE },
       { text: formatPrice(p.gia_thung), alignment: "right", fontSize: TABLE_FONT_SIZE },
-      barcodeCell(p),
     ]);
     stt++;
   }
@@ -314,7 +293,7 @@ export async function buildQuotePdf(
     content.push({ text: labels.empty });
   } else {
     content.push({
-      table: { headerRows: 1, widths: ["5%", "40%", "14%", "11%", "11%", "19%"], body: tableBody },
+      table: { headerRows: 1, widths: ["6%", "55%", "17%", "11%", "11%"], body: tableBody },
       layout: tableBorder,
     });
     content.push({

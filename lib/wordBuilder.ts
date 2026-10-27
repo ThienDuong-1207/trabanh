@@ -1,10 +1,11 @@
 import {
-  Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
+  Document, Packer, Paragraph, TextRun, ImageRun, Table, TableRow, TableCell,
   WidthType, BorderStyle, AlignmentType, VerticalAlign,
   HeightRule, PageOrientation, TableLayoutType, Tab,
 } from "docx";
 import { fixDuplicateDocPrIds } from "./docxFixup";
 import { estimateTextWidthPt } from "./textWidth";
+import { generateBarcodePng, pngDimensions } from "./barcodeImage";
 
 // All fixed layout numbers in this file (cell margins, border weight, line
 // spacing, title/barcode/unit sizes) are taken directly from
@@ -43,11 +44,21 @@ const TITLE_LINE = Math.round((TITLE_SIZE_HALF / 2) * 1.15 * 20); // 276 twips/d
 // Giảm từ 49 xuống còn mức tối thiểu vẫn tách rõ giá với dòng mã vạch, để
 // nhường thêm không gian cho tên sản phẩm to hơn.
 const PRICE_SPACING_AFTER = 25; // twips, mức tối thiểu giữa giá và dòng mã vạch
-const BOTTOM_LINE = 198; // exact twips, reference spacing/line
+// Trước đây dòng này chỉ in SỐ mã vạch (198 twips ~ 0.35cm đủ cho 1 dòng
+// chữ nhỏ). Giờ in ẢNH mã vạch thật để máy quét đọc được — 0.35cm quá thấp,
+// vạch bị bẹt không quét nổi. Tăng lên ~0.6cm (340 twips), đủ cao cho máy
+// quét cầm tay thông thường ở cự ly gần. Phần còn lại của khối tự co theo
+// (xem BASE_ZONES_DXA/priceZonePt bên dưới), giá sẽ nhỏ hơn trước một chút.
+const BOTTOM_LINE = 340; // twips (~0.6cm)
 const BOTTOM_INDENT = 85; // twips, reference ind left/right
 const BOTTOM_TAB_POS = 4139; // dxa, reference right-aligned tab stop
-const BARCODE_SIZE_HALF = 15; // 7.5pt
 const UNIT_SIZE_HALF = 18; // 9pt
+const TWIPS_PER_PX_96DPI = 15;
+// Bề ngang tối đa của ảnh mã vạch — chỉ cần nhỏ hơn khoảng cách từ lề trái
+// tới tab ĐVT bên phải (BOTTOM_TAB_POS), còn dư nhiều so với bề cao hạn chế
+// nên trên thực tế bề cao mới là ràng buộc chính, không phải bề ngang này.
+const BARCODE_MAX_WIDTH_DXA = BOTTOM_TAB_POS - BOTTOM_INDENT - 150;
+const BARCODE_HEIGHT_DXA = BOTTOM_LINE - 40; // chừa chút đệm trên/dưới trong dòng
 
 // Price gets every bit of vertical room left in the block after the fixed
 // zones (top margin, title line, the gap after the price, the bottom line,
@@ -172,7 +183,30 @@ function formatDdMm(dateStr: string): string {
 
 export type PromoRange = { from: string; to: string };
 
-function buildCell(item: WordLabelItem | null, mode: WordLabelMode, promo?: PromoRange) {
+// Ảnh mã vạch (ImageRun) hoặc rỗng nếu sản phẩm thiếu ma_vach / không tạo
+// được ảnh — không suy diễn/bịa mã, bỏ trống đúng như quy ước các nơi khác.
+// `barcodeMap` được tạo SẴN 1 lần cho mỗi mã vạch khác nhau trong cả lượt
+// xuất (xem buildWordFile) — buildCell/buildPage nhờ vậy không phải async.
+function barcodeChildren(code: string | null | undefined, barcodeMap: Map<string, Buffer>): TextRun[] | ImageRun[] {
+  const png = code ? barcodeMap.get(code.trim()) : undefined;
+  if (!png) return [];
+  const { width, height } = pngDimensions(png);
+  let displayHeight = BARCODE_HEIGHT_DXA;
+  let displayWidth = Math.round((displayHeight * width) / height);
+  if (displayWidth > BARCODE_MAX_WIDTH_DXA) {
+    displayWidth = BARCODE_MAX_WIDTH_DXA;
+    displayHeight = Math.round((displayWidth * height) / width);
+  }
+  return [
+    new ImageRun({
+      type: "png",
+      data: png,
+      transformation: { width: displayWidth / TWIPS_PER_PX_96DPI, height: displayHeight / TWIPS_PER_PX_96DPI },
+    }),
+  ];
+}
+
+function buildCell(item: WordLabelItem | null, mode: WordLabelMode, promo: PromoRange | undefined, barcodeMap: Map<string, Buffer>) {
   if (!item || !item.gia_ban) {
     return new TableCell({
       width: { size: BLOCK_W, type: WidthType.DXA },
@@ -245,7 +279,7 @@ function buildCell(item: WordLabelItem | null, mode: WordLabelMode, promo?: Prom
     spacing: { line: BOTTOM_LINE, lineRule: "exact" },
     indent: { left: BOTTOM_INDENT, right: BOTTOM_INDENT },
     children: [
-      new TextRun({ text: item.ma_vach || "", font: FONT, size: BARCODE_SIZE_HALF }),
+      ...barcodeChildren(item.ma_vach, barcodeMap),
       new TextRun({ children: [new Tab()], font: FONT }),
       new TextRun({ text: (item.dvt || "").toUpperCase(), bold: true, font: FONT, size: UNIT_SIZE_HALF }),
     ],
@@ -260,13 +294,13 @@ function buildCell(item: WordLabelItem | null, mode: WordLabelMode, promo?: Prom
   });
 }
 
-function buildPage(label: string, items: (WordLabelItem | null)[], mode: WordLabelMode, promo?: PromoRange) {
+function buildPage(label: string, items: (WordLabelItem | null)[], mode: WordLabelMode, promo: PromoRange | undefined, barcodeMap: Map<string, Buffer>) {
   const rows: TableRow[] = [];
   let idx = 0;
   for (let r = 0; r < ROWS; r++) {
     const cells: TableCell[] = [];
     for (let c = 0; c < COLS; c++) {
-      cells.push(buildCell(items[idx] ?? null, mode, promo));
+      cells.push(buildCell(items[idx] ?? null, mode, promo, barcodeMap));
       idx += 1;
     }
     rows.push(new TableRow({ height: { value: BLOCK_H, rule: HeightRule.ATLEAST }, children: cells }));
@@ -303,6 +337,19 @@ export type WordLabelItem = {
 
 export async function buildWordFile(items: WordLabelItem[], mode: WordLabelMode = "normal", promo?: PromoRange): Promise<Buffer> {
   const priced = items.filter((it) => it.gia_ban);
+
+  // Tạo trước ảnh mã vạch cho mỗi mã KHÁC NHAU xuất hiện trong lượt xuất này
+  // (chạy song song) — nhiều tem có thể trùng mã vạch, tạo 1 lần dùng lại
+  // thay vì tạo lại mỗi tem.
+  const uniqueBarcodes = Array.from(new Set(priced.map((it) => it.ma_vach?.trim()).filter((v): v is string => !!v)));
+  const barcodeMap = new Map<string, Buffer>();
+  await Promise.all(
+    uniqueBarcodes.map(async (code) => {
+      const png = await generateBarcodePng(code);
+      if (png) barcodeMap.set(code, png);
+    }),
+  );
+
   const PER_PAGE = COLS * ROWS;
   const sections = [];
   let pageNum = 0;
@@ -323,7 +370,7 @@ export async function buildWordFile(items: WordLabelItem[], mode: WordLabelMode 
           margin: { top: MARGIN, bottom: MARGIN, left: MARGIN, right: MARGIN },
         },
       },
-      children: buildPage(label, chunk, mode, promo),
+      children: buildPage(label, chunk, mode, promo, barcodeMap),
     });
   }
 
